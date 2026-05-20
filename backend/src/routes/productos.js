@@ -197,6 +197,11 @@ router.get('/docenas-resumen', requireAuth, async (req, res) => {
 
 // ── C) GET /docenas-por-empleado ──────────────────────────────────────────────
 
+// Un empleado es "test" si tiene < 10 ítems en total y 0 vendidos (100% cancelados).
+function esEmpleadoTest(vend, canc) {
+  return vend === 0 && (vend + canc) < 10;
+}
+
 router.get('/docenas-por-empleado', requireAuth, async (req, res) => {
   try {
     const p = await resolveParams(req, res);
@@ -204,57 +209,136 @@ router.get('/docenas-por-empleado', requireAuth, async (req, res) => {
     const { local_id, desde, hasta, d } = p;
     const params = [local_id, desde, hasta];
 
-    const [empRes, totRes] = await Promise.all([
-      pool.query(`
-        SELECT
-          vi.empleado                                                                       AS nombre,
-          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0)        AS docenas_vendidas,
-          COUNT(*)                              FILTER (WHERE NOT vi.cancelada)             AS items_vendidos,
-          COUNT(*)                              FILTER (WHERE     vi.cancelada)             AS items_cancelados,
-          COUNT(DISTINCT vi.ticket_id)                                                      AS tickets_atendidos
-        FROM ventas_items vi
-        WHERE ${viWhere()} AND vi.empleado IS NOT NULL AND vi.empleado != ''
-        GROUP BY vi.empleado
-        ORDER BY docenas_vendidas DESC
-      `, params),
+    const empRes = await pool.query(`
+      SELECT
+        vi.empleado                                                                       AS nombre,
+        COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0)        AS docenas_vendidas,
+        COUNT(*)                              FILTER (WHERE NOT vi.cancelada)             AS items_vendidos,
+        COUNT(*)                              FILTER (WHERE     vi.cancelada)             AS items_cancelados,
+        COUNT(DISTINCT vi.ticket_id)                                                      AS tickets_atendidos
+      FROM ventas_items vi
+      WHERE ${viWhere()} AND vi.empleado IS NOT NULL AND vi.empleado != ''
+      GROUP BY vi.empleado
+      ORDER BY docenas_vendidas DESC
+    `, params);
 
-      pool.query(`
-        SELECT COALESCE(SUM(docenas_equivalentes) FILTER (WHERE NOT cancelada), 0) AS total
-        FROM ventas_items
-        WHERE ${viWhere().replace(/vi\./g, '')}
-      `, params),
-    ]);
+    // Separar test employees antes de calcular totales
+    const activos   = [];
+    const inactivos = [];
 
-    const totalDoc = n(totRes.rows[0].total);
-
-    const empleados = empRes.rows.map((r, i) => {
+    for (const r of empRes.rows) {
       const doc  = n(r.docenas_vendidas);
       const vend = n(r.items_vendidos);
       const canc = n(r.items_cancelados);
       const tkt  = n(r.tickets_atendidos);
-      return {
+      const row  = {
         nombre:                      r.nombre,
         docenas_vendidas:            Math.round(doc * 10000) / 10000,
-        porcentaje:                  pct(doc, totalDoc),
         items_vendidos:              vend,
         items_cancelados:            canc,
         tasa_cancelacion:            pct(canc, vend + canc),
         tickets_atendidos:           tkt,
         docenas_por_ticket_promedio: tkt > 0 ? Math.round(doc / tkt * 100) / 100 : 0,
-        ranking:                     i + 1,
       };
-    });
+      if (esEmpleadoTest(vend, canc)) inactivos.push(row);
+      else                            activos.push(row);
+    }
+
+    // Totales y ranking solo sobre activos
+    const totalDocActivos = activos.reduce((s, e) => s + e.docenas_vendidas, 0);
+
+    const empleados = activos.map((e, i) => ({
+      ...e,
+      porcentaje: pct(e.docenas_vendidas, totalDocActivos),
+      ranking:    i + 1,
+    }));
 
     res.json({
       ok: true,
       data: {
         periodo:       { desde, hasta, dias: d },
-        total_docenas: Math.round(totalDoc * 10000) / 10000,
+        total_docenas: Math.round(totalDocActivos * 10000) / 10000,
         empleados,
+        inactivos,
       },
     });
   } catch (err) {
     console.error('[productos/docenas-por-empleado]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── C2) GET /docenas-por-empleado-mensual ────────────────────────────────────
+
+router.get('/docenas-por-empleado-mensual', requireAuth, async (req, res) => {
+  try {
+    const p = await resolveParams(req, res);
+    if (!p) return;
+    const { local_id, desde, hasta } = p;
+    const params = [local_id, desde, hasta];
+
+    const [menRes, mesRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          vi.empleado AS nombre,
+          TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas,
+          COUNT(*) FILTER (WHERE NOT vi.cancelada) AS items_vendidos,
+          COUNT(*) FILTER (WHERE     vi.cancelada) AS items_cancelados
+        FROM ventas_items vi
+        WHERE ${viWhere()} AND vi.empleado IS NOT NULL AND vi.empleado != ''
+        GROUP BY vi.empleado, mes
+        ORDER BY vi.empleado, mes
+      `, params),
+
+      pool.query(`
+        SELECT DISTINCT
+          TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes
+        FROM ventas_items vi
+        WHERE ${viWhere()} AND vi.fecha_creacion IS NOT NULL
+        ORDER BY mes
+      `, params),
+    ]);
+
+    const meses = mesRes.rows.map(r => r.mes);
+
+    // Agrupar por empleado y calcular items_vendidos/cancelados totales para filtrar test
+    const byEmp = {};
+    for (const r of menRes.rows) {
+      if (!byEmp[r.nombre]) byEmp[r.nombre] = { nombre: r.nombre, total_doc: 0, vend: 0, canc: 0, por_mes: {} };
+      byEmp[r.nombre].total_doc += n(r.docenas);
+      byEmp[r.nombre].vend      += n(r.items_vendidos);
+      byEmp[r.nombre].canc      += n(r.items_cancelados);
+      byEmp[r.nombre].por_mes[r.mes] = Math.round(n(r.docenas) * 10000) / 10000;
+    }
+
+    const empleadosActivos = Object.values(byEmp)
+      .filter(e => !esEmpleadoTest(e.vend, e.canc))
+      .sort((a, b) => b.total_doc - a.total_doc);
+
+    // Serie pivotada para Recharts BarChart (una fila por mes, una key por empleado)
+    const serie = meses.map(mes => {
+      const row = { mes };
+      for (const emp of empleadosActivos) row[emp.nombre] = emp.por_mes[mes] || 0;
+      return row;
+    });
+
+    res.json({
+      ok: true,
+      data: {
+        periodo:           { desde, hasta },
+        meses,
+        empleados:         empleadosActivos.map(e => ({
+          nombre:        e.nombre,
+          total_docenas: Math.round(e.total_doc * 10000) / 10000,
+          por_mes:       meses.map(mes => ({ mes, docenas: e.por_mes[mes] || 0 })),
+        })),
+        serie,
+        nombres_empleados: empleadosActivos.map(e => e.nombre),
+      },
+    });
+  } catch (err) {
+    console.error('[productos/docenas-por-empleado-mensual]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

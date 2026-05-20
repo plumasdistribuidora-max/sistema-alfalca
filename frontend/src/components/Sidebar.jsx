@@ -16,6 +16,8 @@ const ICON = {
   locales:    '⌂',
   empleados:  '◐',
   historial:  '⌛',
+  docenas:    '◆',
+  catalogo:   '▤',
 };
 
 function NavItem({ to, icon, label }) {
@@ -91,6 +93,11 @@ export default function Sidebar({ open, onClose }) {
           <NavItem to="/ventas/listado"     icon={ICON.listado}    label="Listado" />
           <NavItem to="/ventas/dashboard"   icon={ICON.local}      label="Por local" />
           <NavItem to="/ventas/comparativo" icon={ICON.comparar}   label="Comparativo" />
+
+          <SectionLabel label="Productos" />
+          <NavItem to="/ventas/productos/docenas"   icon={ICON.docenas}   label="Análisis Docenas" />
+          <NavItem to="/ventas/productos/empleados" icon={ICON.personal}  label="Por empleado" />
+          <NavItem to="/ventas/productos/catalogo"  icon={ICON.catalogo}  label="Catálogo" />
 
           <SectionLabel label="Próximamente" />
           <DisabledItem icon={ICON.cashflow}  label="Cash Flow"           badge="Fase 2" />

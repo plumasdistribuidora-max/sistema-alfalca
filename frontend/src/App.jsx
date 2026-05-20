@@ -10,6 +10,9 @@ import VentasListado    from './pages/ventas/Listado';
 import VentasDashboard  from './pages/ventas/DashboardLocal';
 import VentasComparativo from './pages/ventas/Comparativo';
 import HistorialImports from './pages/HistorialImports';
+import DocenasAnalisisPage      from './pages/ventas/productos/DocenasAnalisisPage';
+import DocenasPorEmpleadoPage   from './pages/ventas/productos/DocenasPorEmpleadoPage';
+import CatalogoPage             from './pages/ventas/productos/CatalogoPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -36,7 +39,10 @@ export default function App() {
             <Route path="ventas/listado"       element={<VentasListado />} />
             <Route path="ventas/dashboard"     element={<VentasDashboard />} />
             <Route path="ventas/comparativo"   element={<VentasComparativo />} />
-            <Route path="historial-imports"    element={<HistorialImports />} />
+            <Route path="historial-imports"              element={<HistorialImports />} />
+            <Route path="ventas/productos/docenas"       element={<DocenasAnalisisPage />} />
+            <Route path="ventas/productos/empleados"     element={<DocenasPorEmpleadoPage />} />
+            <Route path="ventas/productos/catalogo"      element={<CatalogoPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

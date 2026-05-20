@@ -17,6 +17,7 @@ app.use('/api/locales',   require('./routes/locales'));
 app.use('/api/empleados', require('./routes/empleados'));
 app.use('/api/ventas',    require('./routes/ventas'));
 app.use('/api/productos', require('./routes/productos'));
+app.use('/api/red',      require('./routes/red'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 

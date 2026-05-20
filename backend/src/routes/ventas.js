@@ -34,8 +34,32 @@ function normalizeEstado(val) {
 }
 
 function parseFiscal(val) {
-  if (!val) return false;
+  if (val === null || val === undefined || val === '') return false;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
   return val.toString().toLowerCase().trim() === 'si';
+}
+
+// Normaliza una clave de columna: quita tildes, lowercase, special chars → espacio
+function normalizeKey(k) {
+  return k.toString()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Lee una hoja y devuelve filas con claves normalizadas (header en fila 1 por defecto)
+function readSheetNorm(wb, sheetName, headerRow = 0) {
+  const key = wb.SheetNames.find(n => n.toLowerCase().includes(sheetName.toLowerCase()));
+  if (!key) return [];
+  const raw = xlsx.utils.sheet_to_json(wb.Sheets[key], { range: headerRow, defval: null });
+  return raw.map(row => {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) out[normalizeKey(k)] = v;
+    return out;
+  });
 }
 
 function getCol(row, ...names) {
@@ -102,14 +126,16 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       return res.status(400).json({ ok: false, error: `Hojas faltantes en el Excel: ${missing.join(', ')}` });
     }
 
+    // Ventas: header en fila 4 (range=3), claves originales (ya funciona)
     const rowsVentas    = readSheet(wb, 'ventas');
-    const rowsAdiciones = readSheet(wb, 'adiciones');
-    const rowsPagos     = readSheet(wb, 'pagos');
-    const rowsDesc      = readSheet(wb, 'descuentos');
-    const rowsFiscales  = readSheet(wb, 'ventas fiscales');
-    const rowsProductos = readSheet(wb, 'productos');
+    // Resto: header en fila 1 (range=0), claves normalizadas
+    const rowsAdiciones = readSheetNorm(wb, 'adiciones');
+    const rowsPagos     = readSheetNorm(wb, 'pagos');
+    const rowsDesc      = readSheetNorm(wb, 'descuentos');
+    const rowsFiscales  = readSheetNorm(wb, 'ventas fiscales');
+    const rowsProductos = readSheetNorm(wb, 'productos');
 
-    // Log column names para diagnóstico de mapping
+    // Debug: claves normalizadas de cada hoja (para diagnóstico futuro)
     const debugColumns = {};
     if (rowsVentas?.[0])    debugColumns.ventas    = Object.keys(rowsVentas[0]);
     if (rowsAdiciones?.[0]) debugColumns.adiciones = Object.keys(rowsAdiciones[0]);
@@ -117,7 +143,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
     if (rowsDesc?.[0])      debugColumns.descuentos = Object.keys(rowsDesc[0]);
     if (rowsFiscales?.[0])  debugColumns.fiscales  = Object.keys(rowsFiscales[0]);
     if (rowsProductos?.[0]) debugColumns.productos = Object.keys(rowsProductos[0]);
-    console.log('[import] columnas detectadas:', JSON.stringify(debugColumns, null, 2));
+    console.log('[import] columnas (norm):', JSON.stringify(debugColumns));
 
     // Upload a R2 antes de la transacción (no bloquea DB)
     const fechaStr     = new Date().toISOString().split('T')[0];
@@ -225,17 +251,20 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       }
 
       // ── PASO 2: productos_catalogo ─────────────────────────────────────
+      // Columnas normalizadas: nombre, categoria, subcategoria, codigo, cantidad, total
+      // "Total ($)" → normaliza a "total"
       let productosNuevos = 0;
       const productoIdMap = {}; // nombre_normalizado → db id
+      const docenasMap    = {}; // db id → docenas_por_unidad
 
       for (const row of rowsProductos) {
-        const nombreRaw = getCol(row, 'Nombre', 'nombre', 'Producto', 'producto');
+        const nombreRaw = row['nombre'];
         if (!nombreRaw) continue;
 
         const nombreNorm    = normalizeNombre(nombreRaw);
         const nombreDisplay = nombreRaw.toString().trim();
-        const cantidad      = parseFloat(getCol(row, 'Cantidad', 'cantidad') ?? 1) || 1;
-        const totalProd     = parseFloat(getCol(row, 'Total', 'total') ?? 0) || 0;
+        const cantidad      = parseFloat(row['cantidad'] ?? 1) || 1;
+        const totalProd     = parseFloat(row['total'] ?? 0) || 0;
         const precioProm    = cantidad > 0 ? Math.round((totalProd / cantidad) * 100) / 100 : null;
 
         const { docenas, esAdicional, regla } = calcularDocenas(nombreDisplay);
@@ -246,43 +275,47 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
              docenas_por_unidad, es_adicional, regla_descripcion, precio_promedio)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
           ON CONFLICT (nombre_normalizado) DO UPDATE SET
-            precio_promedio   = COALESCE($9, productos_catalogo.precio_promedio),
+            precio_promedio    = COALESCE($9, productos_catalogo.precio_promedio),
             docenas_por_unidad = $6,
             regla_descripcion  = $8,
             updated_at         = NOW()
           RETURNING id, (xmax = 0) AS inserted
         `, [
           nombreNorm, nombreDisplay,
-          getCol(row, 'Categoría', 'Categoria', 'categoria') || null,
-          getCol(row, 'Subcategoría', 'Subcategoria', 'subcategoria') || null,
-          getCol(row, 'Código', 'Codigo', 'codigo', 'Id', 'ID') || null,
+          row['categoria'] || null,
+          row['subcategoria'] || null,
+          row['codigo'] || null,
           docenas, esAdicional, regla, precioProm,
         ]);
 
         const { id: prodId, inserted } = r.rows[0];
         productoIdMap[nombreNorm] = prodId;
+        docenasMap[prodId]        = docenas;
         if (inserted) productosNuevos++;
       }
 
       // ── PASO 3: ventas_items (Adiciones) ──────────────────────────────
+      // Columnas norm: "id venta", "creacion", "producto", "categoria",
+      // "cantidad", "precio", "costo base", "costo modificadores", "costo total",
+      // "creada por", "cocina", "cancelada", "cancelada por", "comentario",
+      // "comentario de cancelacion"
       let itemsInsertados = 0, itemsCancelados = 0;
 
       for (const row of rowsAdiciones) {
-        const posTicketId = parseInt(getCol(row, 'Id Ticket', 'IdTicket', 'Id de Ticket', 'id ticket', 'Ticket'));
-        const nombreRaw   = getCol(row, 'Nombre', 'nombre', 'Producto', 'producto', 'Adición', 'Adicion');
+        const posTicketId = parseInt(row['id venta']);
+        const nombreRaw   = row['producto'];
         if (!posTicketId || isNaN(posTicketId) || !nombreRaw) continue;
 
-        const nombreNorm     = normalizeNombre(nombreRaw);
-        const productoId     = productoIdMap[nombreNorm] ?? null;
-        const docenasProd    = productoId
-          ? (await client.query('SELECT docenas_por_unidad FROM productos_catalogo WHERE id=$1', [productoId])).rows[0]?.docenas_por_unidad ?? 0
-          : calcularDocenas(nombreRaw).docenas;
-        const cantidad       = parseFloat(getCol(row, 'Cantidad', 'cantidad') ?? 1) || 1;
-        const docenasEq      = cantidad * parseFloat(docenasProd);
-        const cancelada      = parseFiscal(getCol(row, 'Cancelada', 'cancelada', 'Anulada'));
+        const nombreNorm  = normalizeNombre(nombreRaw);
+        const productoId  = productoIdMap[nombreNorm] ?? null;
+        const docenasProd = productoId ? (docenasMap[productoId] ?? 0) : calcularDocenas(nombreRaw).docenas;
+        const cantidad    = parseFloat(row['cantidad'] ?? 1) || 1;
+        const precioUnit  = parseFloat(row['precio'] ?? 0) || 0;
+        const docenasEq   = cantidad * parseFloat(docenasProd);
+        const cancelada   = parseFiscal(row['cancelada']);
         if (cancelada) itemsCancelados++;
 
-        const fechaCreacion = parseExcelDate(getCol(row, 'Fecha de creación', 'Fecha Creacion', 'Creación', 'Creacion', 'Fecha'));
+        const fechaCreacion = parseExcelDate(row['creacion']);
         const ticketDbId    = ticketIdMap[posTicketId] ?? null;
 
         try {
@@ -299,39 +332,40 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           `, [
             local_id, ticketDbId, posTicketId, productoId,
             nombreRaw.toString().trim(),
-            getCol(row, 'Categoría', 'Categoria', 'categoria') || null,
+            row['categoria'] || null,
             cantidad,
-            parseFloat(getCol(row, 'Precio Unitario', 'Precio Unit', 'Precio', 'precio') ?? 0) || 0,
-            parseFloat(getCol(row, 'Total', 'total', 'Precio Total') ?? 0) || 0,
-            parseFloat(getCol(row, 'Costo Base', 'costo base') ?? 0) || 0,
-            parseFloat(getCol(row, 'Costo Modificadores', 'costo modificadores') ?? 0) || 0,
-            parseFloat(getCol(row, 'Costo Total', 'costo total') ?? 0) || 0,
-            getCol(row, 'Creada por', 'Empleado', 'empleado', 'Creado por') || null,
+            precioUnit,
+            cantidad * precioUnit,           // precio_total calculado (no hay col aparte)
+            parseFloat(row['costo base'] ?? 0) || 0,
+            parseFloat(row['costo modificadores'] ?? 0) || 0,
+            parseFloat(row['costo total'] ?? 0) || 0,
+            row['creada por'] || null,
             fechaCreacion,
-            getCol(row, 'Cocina', 'cocina') || null,
+            row['cocina'] || null,
             cancelada,
-            getCol(row, 'Cancelada por', 'Cancelado por') || null,
-            getCol(row, 'Comentario', 'comentario') || null,
-            getCol(row, 'Comentario Cancelación', 'Comentario Cancelacion') || null,
+            row['cancelada por'] || null,
+            row['comentario'] || null,
+            row['comentario de cancelacion'] || null,
             docenasEq,
           ]);
           itemsInsertados++;
-        } catch (_) { /* ON CONFLICT DO NOTHING ya maneja duplicados */ }
+        } catch (_) { /* ON CONFLICT DO NOTHING */ }
       }
 
       // ── PASO 4: ventas_pagos ───────────────────────────────────────────
+      // Columnas norm: "id venta", "fecha pago", "medio de pago", "monto", "cancelado"
       let pagosInsertados = 0, pagosMixtos = 0;
-      const pagosContar = {}; // pos_ticket_id → count
+      const pagosContar = {};
 
       for (const row of rowsPagos) {
-        const posTicketId = parseInt(getCol(row, 'Id Ticket', 'IdTicket', 'Id de Ticket', 'id ticket', 'Ticket'));
-        const medioPago   = getCol(row, 'Medio de Pago', 'Medio Pago', 'MedioPago', 'Tipo');
-        const monto       = parseFloat(getCol(row, 'Monto', 'monto', 'Total', 'total', 'Importe') ?? 0);
+        const posTicketId = parseInt(row['id venta']);
+        const medioPago   = row['medio de pago'];
+        const monto       = parseFloat(row['monto'] ?? 0);
         if (!posTicketId || isNaN(posTicketId) || !medioPago || isNaN(monto)) continue;
 
-        const fechaPago  = parseExcelDate(getCol(row, 'Fecha', 'fecha', 'Fecha de Pago'));
+        const fechaPago  = parseExcelDate(row['fecha pago']);
         const ticketDbId = ticketIdMap[posTicketId] ?? null;
-        const cancelado  = parseFiscal(getCol(row, 'Cancelado', 'cancelado', 'Anulado'));
+        const cancelado  = parseFiscal(row['cancelado']);
 
         pagosContar[posTicketId] = (pagosContar[posTicketId] || 0) + 1;
 
@@ -347,17 +381,18 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       pagosMixtos = Object.values(pagosContar).filter(c => c > 1).length;
 
       // ── PASO 5: ventas_descuentos ──────────────────────────────────────
+      // Columnas norm: "id venta", "valor", "porcentaje", "creacion descuento", "cancelado"
       let descInsertados = 0;
       let descTotalPesos = 0;
 
       for (const row of rowsDesc) {
-        const posTicketId = parseInt(getCol(row, 'Id Ticket', 'IdTicket', 'Id de Ticket', 'id ticket', 'Ticket'));
+        const posTicketId = parseInt(row['id venta']);
         if (!posTicketId || isNaN(posTicketId)) continue;
 
-        const valor      = parseFloat(getCol(row, 'Valor', 'valor', 'Monto', 'Descuento') ?? 0) || null;
-        const porcentaje = parseFloat(getCol(row, 'Porcentaje', 'porcentaje', '%') ?? 0) || null;
-        const fechaDesc  = parseExcelDate(getCol(row, 'Fecha', 'fecha'));
-        const cancelado  = parseFiscal(getCol(row, 'Cancelado', 'cancelado', 'Anulado'));
+        const valor      = parseFloat(row['valor'] ?? 0) || null;
+        const porcentaje = parseFloat(row['porcentaje'] ?? 0) || null;
+        const fechaDesc  = parseExcelDate(row['creacion descuento']);
+        const cancelado  = parseFiscal(row['cancelado']);
         const ticketDbId = ticketIdMap[posTicketId] ?? null;
 
         await client.query(`
@@ -370,13 +405,16 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       }
 
       // ── PASO 6: ventas_fiscales ────────────────────────────────────────
+      // Columnas norm: "id venta", "creacion", "tipo doc", "letra doc", "n doc",
+      // "condicion iva", "nombre cliente", "cuit cuil dni",
+      // "total sin impuestos", "total iva", "total", "iva 10 5", "iva 21"
       let fiscalesInsertados = 0;
 
       for (const row of rowsFiscales) {
-        const posTicketId = parseInt(getCol(row, 'Id Ticket', 'IdTicket', 'Id de Ticket', 'id ticket', 'Ticket', 'Id'));
+        const posTicketId = parseInt(row['id venta']);
         if (!posTicketId || isNaN(posTicketId)) continue;
 
-        const numeroDoc  = getCol(row, 'Número', 'Numero', 'Nro', 'numero_doc', 'Comprobante');
+        const numeroDoc  = row['n doc'];
         const ticketDbId = ticketIdMap[posTicketId] ?? null;
 
         try {
@@ -391,33 +429,24 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
             ON CONFLICT (local_id, pos_ticket_id, numero_doc) DO NOTHING
           `, [
             local_id, ticketDbId, posTicketId,
-            getCol(row, 'Tipo', 'tipo', 'Tipo Doc', 'Tipo de Doc') || null,
-            getCol(row, 'Letra', 'letra') || null,
+            row['tipo doc'] || null,
+            row['letra doc'] || null,
             numeroDoc ? numeroDoc.toString().trim() : null,
-            getCol(row, 'Condición IVA', 'Condicion IVA', 'IVA', 'Condicion') || null,
-            getCol(row, 'Cliente', 'cliente', 'Nombre', 'Razón Social', 'Razon Social') || null,
-            getCol(row, 'CUIT', 'cuit') || null,
-            parseFloat(getCol(row, 'Total sin Impuestos', 'Neto', 'Sin IVA') ?? 0) || null,
-            parseFloat(getCol(row, 'Total IVA', 'IVA Total') ?? 0) || null,
-            parseFloat(getCol(row, 'Total', 'total', 'Total con IVA') ?? 0) || null,
-            parseFloat(getCol(row, 'IVA 10.5', 'IVA 10,5', 'iva_105') ?? 0) || null,
-            parseFloat(getCol(row, 'IVA 21', 'iva_21') ?? 0) || null,
-            parseExcelDate(getCol(row, 'Fecha', 'fecha', 'Fecha Creación', 'Fecha Creacion')),
+            row['condicion iva'] || null,
+            row['nombre cliente'] || null,
+            row['cuit cuil dni'] || null,
+            parseFloat(row['total sin impuestos'] ?? 0) || null,
+            parseFloat(row['total iva'] ?? 0) || null,
+            parseFloat(row['total'] ?? 0) || null,
+            parseFloat(row['iva 10 5'] ?? 0) || null,
+            parseFloat(row['iva 21'] ?? 0) || null,
+            parseExcelDate(row['creacion']),
           ]);
           fiscalesInsertados++;
         } catch (_) {}
       }
 
       // ── Cálculos de resumen ────────────────────────────────────────────
-      const docenasTotales = rowsAdiciones.reduce((acc, row) => {
-        const nombreRaw = getCol(row, 'Nombre', 'nombre', 'Producto', 'producto', 'Adición', 'Adicion');
-        const cantidad  = parseFloat(getCol(row, 'Cantidad', 'cantidad') ?? 1) || 1;
-        if (!nombreRaw) return acc;
-        const nombreNorm = normalizeNombre(nombreRaw);
-        const productoId = productoIdMap[nombreNorm];
-        const docProd    = productoId ? 0 : calcularDocenas(nombreRaw).docenas;
-        return acc + (cantidad * docProd);
-      }, 0);
 
       // Suma docenas desde la DB (incluye las del catálogo)
       const docDbRes = await client.query(`

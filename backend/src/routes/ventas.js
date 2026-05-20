@@ -126,24 +126,53 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       return res.status(400).json({ ok: false, error: `Hojas faltantes en el Excel: ${missing.join(', ')}` });
     }
 
+    // ── DEBUG: logging exhaustivo de parseo ───────────────────────────────
+    const debugLog = [];
+    debugLog.push(`SheetNames en workbook: ${JSON.stringify(wb.SheetNames)}`);
+
+    function inspectSheet(label, searchName, headerRow) {
+      const matchedName = wb.SheetNames.find(n => n.toLowerCase().includes(searchName.toLowerCase()));
+      debugLog.push(`--- ${label} ---`);
+      debugLog.push(`  busca: "${searchName}" → match: ${matchedName ? '"' + matchedName + '"' : 'NO MATCH'}`);
+      if (!matchedName) return [];
+      const raw = xlsx.utils.sheet_to_json(wb.Sheets[matchedName], { range: headerRow, defval: null });
+      debugLog.push(`  filas raw (range=${headerRow}): ${raw.length}`);
+      if (raw.length > 0) {
+        debugLog.push(`  columnas originales: ${JSON.stringify(Object.keys(raw[0]))}`);
+        debugLog.push(`  primer row original: ${JSON.stringify(raw[0])}`);
+        const normRow = {};
+        for (const [k, v] of Object.entries(raw[0])) normRow[normalizeKey(k)] = v;
+        debugLog.push(`  columnas normalizadas: ${JSON.stringify(Object.keys(normRow))}`);
+        debugLog.push(`  primer row norm: ${JSON.stringify(normRow)}`);
+        return raw.map(row => {
+          const out = {};
+          for (const [k, v] of Object.entries(row)) out[normalizeKey(k)] = v;
+          return out;
+        });
+      }
+      // Si 0 filas con range actual, probá otros ranges para diagnóstico
+      for (const r of [0, 1, 2, 3, 4]) {
+        if (r === headerRow) continue;
+        const probe = xlsx.utils.sheet_to_json(wb.Sheets[matchedName], { range: r, defval: null });
+        debugLog.push(`  probe range=${r}: ${probe.length} filas, cols: ${probe[0] ? JSON.stringify(Object.keys(probe[0])) : 'N/A'}`);
+      }
+      return [];
+    }
+
     // Ventas: header en fila 4 (range=3), claves originales (ya funciona)
     const rowsVentas    = readSheet(wb, 'ventas');
-    // Resto: header en fila 1 (range=0), claves normalizadas
-    const rowsAdiciones = readSheetNorm(wb, 'adiciones');
-    const rowsPagos     = readSheetNorm(wb, 'pagos');
-    const rowsDesc      = readSheetNorm(wb, 'descuentos');
-    const rowsFiscales  = readSheetNorm(wb, 'ventas fiscales');
-    const rowsProductos = readSheetNorm(wb, 'productos');
+    debugLog.push(`--- Ventas (range=3) → ${rowsVentas.length} filas ---`);
 
-    // Debug: claves normalizadas de cada hoja (para diagnóstico futuro)
-    const debugColumns = {};
-    if (rowsVentas?.[0])    debugColumns.ventas    = Object.keys(rowsVentas[0]);
-    if (rowsAdiciones?.[0]) debugColumns.adiciones = Object.keys(rowsAdiciones[0]);
-    if (rowsPagos?.[0])     debugColumns.pagos     = Object.keys(rowsPagos[0]);
-    if (rowsDesc?.[0])      debugColumns.descuentos = Object.keys(rowsDesc[0]);
-    if (rowsFiscales?.[0])  debugColumns.fiscales  = Object.keys(rowsFiscales[0]);
-    if (rowsProductos?.[0]) debugColumns.productos = Object.keys(rowsProductos[0]);
-    console.log('[import] columnas (norm):', JSON.stringify(debugColumns));
+    // Subsidiarias: header en fila 1 (range=0), claves normalizadas
+    const rowsAdiciones = inspectSheet('Adiciones', 'adiciones', 0);
+    const rowsPagos     = inspectSheet('Pagos', 'pagos', 0);
+    const rowsDesc      = inspectSheet('Descuentos', 'descuentos', 0);
+    const rowsFiscales  = inspectSheet('Ventas Fiscales', 'ventas fiscales', 0);
+    const rowsProductos = inspectSheet('Productos', 'productos', 0);
+
+    console.log('[import debug]\n' + debugLog.join('\n'));
+
+    const debugColumns = { _log: debugLog };
 
     // Upload a R2 antes de la transacción (no bloquea DB)
     const fechaStr     = new Date().toISOString().split('T')[0];

@@ -109,6 +109,16 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
     const rowsFiscales  = readSheet(wb, 'ventas fiscales');
     const rowsProductos = readSheet(wb, 'productos');
 
+    // Log column names para diagnóstico de mapping
+    const debugColumns = {};
+    if (rowsVentas?.[0])    debugColumns.ventas    = Object.keys(rowsVentas[0]);
+    if (rowsAdiciones?.[0]) debugColumns.adiciones = Object.keys(rowsAdiciones[0]);
+    if (rowsPagos?.[0])     debugColumns.pagos     = Object.keys(rowsPagos[0]);
+    if (rowsDesc?.[0])      debugColumns.descuentos = Object.keys(rowsDesc[0]);
+    if (rowsFiscales?.[0])  debugColumns.fiscales  = Object.keys(rowsFiscales[0]);
+    if (rowsProductos?.[0]) debugColumns.productos = Object.keys(rowsProductos[0]);
+    console.log('[import] columnas detectadas:', JSON.stringify(debugColumns, null, 2));
+
     // Upload a R2 antes de la transacción (no bloquea DB)
     const fechaStr     = new Date().toISOString().split('T')[0];
     const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -462,6 +472,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           adicionales_total:           parseInt(adicionalesTotal.rows[0].cnt),
           fecha_desde:                 fechaDesde,
           fecha_hasta:                 fechaHasta,
+          debug_columns:               debugColumns,
         },
       });
 

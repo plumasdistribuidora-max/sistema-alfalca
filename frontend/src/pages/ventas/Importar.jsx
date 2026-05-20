@@ -76,15 +76,20 @@ export default function VentasImportar() {
               <div>
                 <p className="font-semibold text-stone-900">Import completado</p>
                 <p className="text-sm text-stone-500">
-                  {selectedLocal?.nombre} · {result.fechaDesde} → {result.fechaHasta}
+                  {selectedLocal?.nombre} · {result.fecha_desde} → {result.fecha_hasta}
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <ResultBadge label="Total filas"   value={result.filas_total}  color="bg-stone-100 text-stone-800" />
-              <ResultBadge label="Insertadas"    value={result.insertadas}   color="bg-green-100 text-green-800" />
-              <ResultBadge label="Actualizadas"  value={result.actualizadas} color="bg-blue-100 text-blue-800" />
-              <ResultBadge label="Con error"     value={result.errores}      color={result.errores > 0 ? 'bg-red-100 text-red-800' : 'bg-stone-100 text-stone-500'} />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <ResultBadge label="Tickets"       value={result.tickets_insertados + result.tickets_actualizados} color="bg-stone-100 text-stone-800" />
+              <ResultBadge label="Insertados"    value={result.tickets_insertados}   color="bg-green-100 text-green-800" />
+              <ResultBadge label="Actualizados"  value={result.tickets_actualizados} color="bg-blue-100 text-blue-800" />
+              <ResultBadge label="Ítems/Adiciones" value={result.items_insertados}  color="bg-violet-100 text-violet-800" />
+              <ResultBadge label="Pagos"         value={result.pagos_insertados}     color="bg-indigo-100 text-indigo-800" />
+              <ResultBadge label="Fiscales"      value={result.fiscales_insertados}  color="bg-sky-100 text-sky-800" />
+              <ResultBadge label="Descuentos"    value={result.descuentos_insertados} color="bg-amber-100 text-amber-800" />
+              <ResultBadge label="Productos catálogo" value={result.productos_nuevos_catalogo} color="bg-emerald-100 text-emerald-800" />
+              <ResultBadge label="Docenas totales" value={result.docenas_totales_periodo > 0 ? result.docenas_totales_periodo.toFixed(2) : '—'} color="bg-purple-100 text-purple-800" />
             </div>
           </div>
           <div className="flex gap-3">

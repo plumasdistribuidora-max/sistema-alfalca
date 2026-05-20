@@ -764,4 +764,134 @@ router.get('/comparativo', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /descuentos-resumen ────────────────────────────────────────────────
+
+router.get('/descuentos-resumen', requireAuth, async (req, res) => {
+  const TZ = 'America/Argentina/Mendoza';
+  try {
+    const { local_id, desde: dq, hasta: hq } = req.query;
+    if (!local_id) return res.status(400).json({ ok: false, error: 'local_id es requerido' });
+    const desde = dq || new Date().toISOString().slice(0, 8) + '01';
+    const hasta  = hq || new Date().toISOString().split('T')[0];
+
+    const lr = await pool.query('SELECT id FROM locales WHERE id = $1 AND activo = true', [local_id]);
+    if (!lr.rows.length) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+
+    const params = [local_id, desde, hasta];
+    const where  = `local_id = $1 AND DATE(fecha_descuento AT TIME ZONE '${TZ}') BETWEEN $2::date AND $3::date AND cancelado = false`;
+
+    const [totRes, diaRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)                                                                     AS total_descuentos,
+          COALESCE(SUM(ABS(valor)), 0)                                                AS monto_total,
+          ROUND(AVG(porcentaje) FILTER (WHERE porcentaje IS NOT NULL AND porcentaje != 0), 2)
+                                                                                      AS porcentaje_promedio,
+          COUNT(*) FILTER (WHERE porcentaje IS NOT NULL AND porcentaje != 0)          AS descuentos_con_porcentaje,
+          COUNT(*) FILTER (WHERE (porcentaje IS NULL OR porcentaje = 0) AND valor IS NOT NULL AND valor != 0)
+                                                                                      AS descuentos_monto_fijo
+        FROM ventas_descuentos
+        WHERE ${where}
+      `, params),
+
+      pool.query(`
+        SELECT
+          DATE_TRUNC('day', fecha_descuento AT TIME ZONE '${TZ}')::date AS fecha,
+          COUNT(*)                                                        AS descuentos,
+          COALESCE(SUM(ABS(valor)), 0)                                   AS monto
+        FROM ventas_descuentos
+        WHERE ${where} AND fecha_descuento IS NOT NULL
+        GROUP BY fecha
+        ORDER BY fecha
+      `, params),
+    ]);
+
+    const t = totRes.rows[0];
+    res.json({
+      ok: true,
+      data: {
+        total_descuentos:          Number(t.total_descuentos) || 0,
+        monto_total:               Number(t.monto_total) || 0,
+        porcentaje_promedio:       Number(t.porcentaje_promedio) || 0,
+        descuentos_con_porcentaje: Number(t.descuentos_con_porcentaje) || 0,
+        descuentos_monto_fijo:     Number(t.descuentos_monto_fijo) || 0,
+        por_dia: diaRes.rows.map(r => ({
+          fecha:      r.fecha,
+          descuentos: Number(r.descuentos),
+          monto:      Number(r.monto),
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[ventas/descuentos-resumen]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── GET /fiscales-resumen ──────────────────────────────────────────────────
+
+router.get('/fiscales-resumen', requireAuth, async (req, res) => {
+  const TZ = 'America/Argentina/Mendoza';
+  try {
+    const { local_id, desde: dq, hasta: hq } = req.query;
+    if (!local_id) return res.status(400).json({ ok: false, error: 'local_id es requerido' });
+    const desde = dq || new Date().toISOString().slice(0, 8) + '01';
+    const hasta  = hq || new Date().toISOString().split('T')[0];
+
+    const lr = await pool.query('SELECT id FROM locales WHERE id = $1 AND activo = true', [local_id]);
+    if (!lr.rows.length) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+
+    const params = [local_id, desde, hasta];
+
+    const [fiscRes, tickRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)                                                           AS total_comprobantes,
+          COUNT(*)      FILTER (WHERE letra_doc = 'A')                      AS fa_count,
+          COALESCE(SUM(total)     FILTER (WHERE letra_doc = 'A'), 0)        AS fa_monto,
+          COALESCE(SUM(total_iva) FILTER (WHERE letra_doc = 'A'), 0)        AS fa_iva,
+          COUNT(*)      FILTER (WHERE letra_doc = 'B')                      AS fb_count,
+          COALESCE(SUM(total)     FILTER (WHERE letra_doc = 'B'), 0)        AS fb_monto,
+          COALESCE(SUM(total_iva) FILTER (WHERE letra_doc = 'B'), 0)        AS fb_iva,
+          COUNT(*)      FILTER (WHERE letra_doc NOT IN ('A','B') OR letra_doc IS NULL) AS otros_count,
+          COALESCE(SUM(total) FILTER (WHERE letra_doc NOT IN ('A','B') OR letra_doc IS NULL), 0)
+                                                                             AS otros_monto,
+          COALESCE(SUM(total_iva), 0)                                        AS iva_total_periodo
+        FROM ventas_fiscales
+        WHERE local_id = $1
+          AND DATE(fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $2::date AND $3::date
+      `, params),
+
+      pool.query(`
+        SELECT
+          COALESCE(SUM(total) FILTER (WHERE fiscal = true  AND estado = 'cerrada'), 0) AS ventas_fiscal,
+          COALESCE(SUM(total) FILTER (WHERE               estado = 'cerrada'), 0)      AS ventas_total
+        FROM ventas_tickets
+        WHERE local_id = $1 AND fecha BETWEEN $2::date AND $3::date
+      `, params),
+    ]);
+
+    const f  = fiscRes.rows[0];
+    const vt = tickRes.rows[0];
+    const vTotal  = Number(vt.ventas_total)  || 0;
+    const vFiscal = Number(vt.ventas_fiscal) || 0;
+
+    res.json({
+      ok: true,
+      data: {
+        total_comprobantes:   Number(f.total_comprobantes) || 0,
+        facturas_a:           { count: Number(f.fa_count), monto_total: Number(f.fa_monto), iva_total: Number(f.fa_iva) },
+        facturas_b:           { count: Number(f.fb_count), monto_total: Number(f.fb_monto), iva_total: Number(f.fb_iva) },
+        otros:                { count: Number(f.otros_count), monto_total: Number(f.otros_monto) },
+        monto_no_facturado:   Math.max(0, vTotal - vFiscal),
+        porcentaje_facturado: vTotal > 0 ? Math.round(vFiscal / vTotal * 1000) / 10 : 0,
+        iva_total_periodo:    Number(f.iva_total_periodo) || 0,
+      },
+    });
+  } catch (err) {
+    console.error('[ventas/fiscales-resumen]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;

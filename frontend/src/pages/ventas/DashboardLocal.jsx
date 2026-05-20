@@ -58,7 +58,7 @@ export default function VentasDashboardLocal() {
     ventas: Number(d.ventas_brutas) || 0,
     tickets: Number(d.tickets) || 0,
   }));
-  const mixMedios = data?.mix_medios || [];
+  const mixMedios = (data?.mix_medios || []).map(m => ({ ...m, total: Number(m.total) || 0 }));
   const ranking   = data?.ranking_empleados || [];
 
   const pctFiscal = totales.ventas_total > 0
@@ -118,15 +118,17 @@ export default function VentasDashboardLocal() {
               <div className="card p-5">
                 <h2 className="font-semibold text-stone-800 mb-4">Mix de medios de pago</h2>
                 <div className="flex items-center gap-4">
-                  <ResponsiveContainer width="50%" height={180}>
-                    <PieChart>
-                      <Pie data={mixMedios} dataKey="total" nameKey="medio_pago" cx="50%" cy="50%" outerRadius={70} paddingAngle={2}>
-                        {mixMedios.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={v => formatARS(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex-1 space-y-2">
+                  <div className="w-1/2 flex-shrink-0" style={{ height: 180 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={mixMedios} dataKey="total" nameKey="medio_pago" cx="50%" cy="50%" outerRadius={70} paddingAngle={2}>
+                          {mixMedios.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={v => formatARS(v)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-2">
                     {mixMedios.map((m, i) => {
                       const tot = mixMedios.reduce((s, x) => s + Number(x.total), 0);
                       const pct = tot > 0 ? Math.round((Number(m.total) / tot) * 100) : 0;

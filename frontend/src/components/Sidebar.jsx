@@ -87,30 +87,14 @@ export default function Sidebar({ open, onClose }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-          <NavItem to="/dashboard"          icon={ICON.dashboard}  label="Dashboard" />
-          <NavItem to="/red"                icon={ICON.red}        label="Red de tiendas" />
-
-          <SectionLabel label="Ventas" />
-          <NavItem to="/ventas/importar"    icon={ICON.importar}   label="Importar Excel" />
-          <NavItem to="/ventas/listado"     icon={ICON.listado}    label="Listado" />
-          <NavItem to="/ventas/dashboard"   icon={ICON.local}      label="Por local" />
-          <NavItem to="/ventas/comparativo" icon={ICON.comparar}   label="Comparativo" />
-
-          <SectionLabel label="Productos" />
-          <NavItem to="/ventas/productos/docenas"   icon={ICON.docenas}   label="Análisis Docenas" />
-          <NavItem to="/ventas/productos/empleados" icon={ICON.personal}  label="Por empleado" />
-          <NavItem to="/ventas/productos/catalogo"  icon={ICON.catalogo}  label="Catálogo" />
+          <NavItem to="/red"             icon={ICON.red}      label="Red de tiendas" />
+          <NavItem to="/ventas/importar" icon={ICON.importar} label="Importar Excel" />
 
           <SectionLabel label="Próximamente" />
-          <DisabledItem icon={ICON.cashflow}  label="Cash Flow"           badge="Fase 2" />
-          <DisabledItem icon={ICON.stock}     label="Stock"               badge="Fase 3" />
+          <DisabledItem icon={ICON.cashflow}  label="Cash Flow"            badge="Fase 2" />
+          <DisabledItem icon={ICON.stock}     label="Stock"                badge="Fase 3" />
           <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />
-          <DisabledItem icon={ICON.personal}  label="Personal"            badge="Fase 5" />
-
-          <SectionLabel label="Configuración" />
-          {isAdmin && <NavItem to="/locales"  icon={ICON.locales}   label="Locales" />}
-          <NavItem to="/empleados"            icon={ICON.empleados} label="Empleados" />
-          <NavItem to="/historial-imports"    icon={ICON.historial} label="Historial imports" />
+          <DisabledItem icon={ICON.personal}  label="Personal"             badge="Fase 5" />
         </nav>
 
         <div className="px-4 py-3 border-t border-white/10">

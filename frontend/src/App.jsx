@@ -32,7 +32,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<Navigate to="/red" replace />} />
             <Route path="dashboard"            element={<Dashboard />} />
             <Route path="locales"              element={<Locales />} />
             <Route path="empleados"            element={<Empleados />} />

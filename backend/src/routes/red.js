@@ -14,6 +14,14 @@ function n(v)             { return Number(v) || 0; }
 function pct(part, total) { return total > 0 ? Math.round(part / total * 1000) / 10 : 0; }
 function isDate(s)        { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s)); }
 
+function fmtOperacion(dpd) {
+  const v = Number(dpd);
+  if (!v) return '× 0';
+  if (v >= 0.5) return `× ${parseFloat(v.toFixed(4)).toString().replace('.', ',')}`;
+  if (Math.abs(v - 0.25) < 0.001) return '× 0,25';
+  return `÷ ${Math.round(1 / v)}`;
+}
+
 function yearRange() {
   const y = new Date().getFullYear();
   return { desde: `${y}-01-01`, hasta: `${y}-12-31` };
@@ -275,17 +283,37 @@ router.get('/docenas-mensuales', requireAuth, async (req, res) => {
     const [desde, hasta] = range;
 
     const r = await pool.query(`
-      SELECT l.nombre,
+      SELECT l.id, l.nombre,
         TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
         COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS valor
       FROM ventas_items vi
       JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
       WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
-      GROUP BY l.nombre, mes
+      GROUP BY l.id, l.nombre, mes
       ORDER BY mes, l.nombre
     `, [desde, hasta]);
 
-    res.json({ ok: true, data: pivot(r.rows) });
+    // Pivot inline para incluir local_id en series
+    const meses  = [...new Set(r.rows.map(row => row.mes))].sort();
+    const names  = [...new Set(r.rows.map(row => row.nombre))];
+    const lu     = {};
+    const idMap  = {};
+    r.rows.forEach(row => {
+      lu[`${row.nombre}|${row.mes}`] = n(row.valor);
+      idMap[row.nombre] = Number(row.id);
+    });
+    const series = names.map(nombre => ({
+      tienda:   nombre,
+      local_id: idMap[nombre],
+      por_mes:  Object.fromEntries(meses.map(mes => [mes, lu[`${nombre}|${mes}`] || 0])),
+    }));
+    series.sort((a, b) => {
+      const totA = Object.values(a.por_mes).reduce((s, v) => s + v, 0);
+      const totB = Object.values(b.por_mes).reduce((s, v) => s + v, 0);
+      return totB - totA;
+    });
+
+    res.json({ ok: true, data: { meses, series } });
   } catch (err) {
     console.error('[red/docenas-mensuales]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -680,6 +708,111 @@ router.get('/analisis', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('[red/analisis]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── G) GET /docenas-detalle ──────────────────────────────────────────────────
+
+async function fetchDetalleDocenas(localId, mes) {
+  const [localRes, itemRes] = await Promise.all([
+    pool.query('SELECT nombre FROM locales WHERE id = $1', [localId]),
+    pool.query(`
+      SELECT
+        COALESCE(p.nombre_display, vi.producto_nombre_raw) AS producto,
+        COALESCE(p.categoria, vi.categoria_raw)            AS categoria,
+        ROUND(SUM(vi.cantidad)::numeric, 2)                AS cantidad,
+        ROUND(SUM(vi.docenas_equivalentes)::numeric, 4)    AS docenas,
+        ROUND(SUM(vi.precio_total)::numeric, 0)            AS facturacion,
+        ROUND(
+          CASE WHEN SUM(vi.cantidad) > 0
+               THEN SUM(vi.docenas_equivalentes) / SUM(vi.cantidad)
+               ELSE 0
+          END::numeric, 4
+        ) AS dpd
+      FROM ventas_items vi
+      LEFT JOIN productos_catalogo p ON p.id = vi.producto_id
+      WHERE vi.local_id = $1
+        AND TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') = $2
+        AND NOT vi.cancelada
+      GROUP BY
+        COALESCE(p.nombre_display, vi.producto_nombre_raw),
+        COALESCE(p.categoria, vi.categoria_raw)
+      ORDER BY docenas DESC, cantidad DESC
+    `, [localId, mes]),
+  ]);
+
+  const localNombre = localRes.rows[0]?.nombre || '';
+  const all = itemRes.rows.map(r => ({
+    producto:    r.producto,
+    categoria:   r.categoria || null,
+    cantidad:    Number(r.cantidad),
+    docenas:     Math.round(Number(r.docenas) * 10000) / 10000,
+    facturacion: Number(r.facturacion),
+    dpd:         Number(r.dpd),
+    operacion:   fmtOperacion(Number(r.dpd)),
+  }));
+
+  const productos_que_suman   = all.filter(r => r.docenas > 0);
+  const productos_sin_docenas = all.filter(r => r.docenas <= 0);
+  const docenas_total     = Math.round(productos_que_suman.reduce((s, r) => s + r.docenas, 0) * 10000) / 10000;
+  const facturacion_total = Math.round(all.reduce((s, r) => s + r.facturacion, 0));
+
+  return { localNombre, productos_que_suman, productos_sin_docenas, docenas_total, facturacion_total };
+}
+
+router.get('/docenas-detalle', requireAuth, async (req, res) => {
+  try {
+    const localId = parseInt(req.query.local_id);
+    const mes     = req.query.mes;
+    if (!localId || !mes || !/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
+
+    const result = await fetchDetalleDocenas(localId, mes);
+    res.json({ ok: true, data: result });
+  } catch (err) {
+    console.error('[red/docenas-detalle]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── H) GET /docenas-detalle/export ──────────────────────────────────────────
+
+router.get('/docenas-detalle/export', requireAuth, async (req, res) => {
+  try {
+    const localId = parseInt(req.query.local_id);
+    const mes     = req.query.mes;
+    if (!localId || !mes || !/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
+
+    const { localNombre, productos_que_suman, productos_sin_docenas, docenas_total } = await fetchDetalleDocenas(localId, mes);
+
+    const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const num    = v => String(v).replace('.', ',');
+
+    const header = '﻿Producto;Categoría;Cantidad;Conversión;Docenas;% Total;Facturación\r\n';
+    const rows   = [
+      ...productos_que_suman.map(r => [
+        escape(r.producto), escape(r.categoria || ''), num(r.cantidad), escape(r.operacion),
+        num(r.docenas),
+        docenas_total > 0 ? num((r.docenas / docenas_total * 100).toFixed(1)) : '0',
+        num(r.facturacion),
+      ].join(';')),
+      ...(productos_sin_docenas.length ? [
+        `"--- Sin docenas ---";;;;;;;`,
+        ...productos_sin_docenas.map(r => [
+          escape(r.producto), escape(r.categoria || ''), num(r.cantidad), '',
+          '0', '', num(r.facturacion),
+        ].join(';')),
+      ] : []),
+    ];
+
+    const filename = `docenas_${localNombre.replace(/\s+/g, '_')}_${mes}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(header + rows.join('\r\n'));
+  } catch (err) {
+    console.error('[red/docenas-detalle/export]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

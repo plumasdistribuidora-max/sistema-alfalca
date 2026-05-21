@@ -4,6 +4,7 @@ import logo from '../assets/logo.svg';
 
 const ICON = {
   dashboard:  '◉',
+  red:        '⊙',
   ventas:     '₿',
   importar:   '↑',
   listado:    '☰',
@@ -87,6 +88,7 @@ export default function Sidebar({ open, onClose }) {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
           <NavItem to="/dashboard"          icon={ICON.dashboard}  label="Dashboard" />
+          <NavItem to="/red"                icon={ICON.red}        label="Red de tiendas" />
 
           <SectionLabel label="Ventas" />
           <NavItem to="/ventas/importar"    icon={ICON.importar}   label="Importar Excel" />

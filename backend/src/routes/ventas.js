@@ -208,75 +208,152 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       let fechaDesde = null, fechaHasta = null;
       const ticketIdMap = {}; // pos_id → db id
 
-      for (const row of rowsVentas) {
-        const posId = parseInt(getCol(row, 'id', 'id venta', 'nro', 'nro ticket', 'numero', 'numero ticket', 'ticket', 'comprobante', 'n'));
-        if (!posId || isNaN(posId)) continue;
+      // Detectar formato: alfajorerías tienen 'id' en hoja Ventas, Café no
+      const ventasSinId = rowsVentas.length > 0 && !rowsVentas.some(r => 'id' in r);
+      debugLog.push(`ventasSinId: ${ventasSinId}`);
 
-        const fecha       = parseExcelDate(getCol(row, 'fecha'));
-        const creacion    = parseExcelDate(getCol(row, 'creacion', 'apertura'));
-        const cerrada     = parseExcelDate(getCol(row, 'cerrada', 'cierre'));
-        const estado      = normalizeEstado(getCol(row, 'estado'));
-        const camareroRaw = getCol(row, 'camarero repartidor', 'camarero', 'repartidor', 'mozo', 'vendedor');
-        const camareroPos = camareroRaw ? camareroRaw.toString().toLowerCase().trim() : null;
-        const empleadoId  = camareroPos ? (empMap[camareroPos] ?? null) : null;
-        const fiscal      = parseFiscal(getCol(row, 'fiscal'));
-        const total       = parseFloat(getCol(row, 'total') ?? 0) || 0;
-        const personas    = parseInt(getCol(row, 'personas')) || null;
+      if (!ventasSinId) {
+        // ── PATH NORMAL: alfajorerías (hoja Ventas con columna Id) ─────────
+        for (const row of rowsVentas) {
+          const posId = parseInt(getCol(row, 'id', 'id venta', 'nro', 'nro ticket', 'numero', 'numero ticket', 'ticket', 'comprobante', 'n'));
+          if (!posId || isNaN(posId)) continue;
 
-        if (fecha) {
-          const d = new Date(fecha);
-          if (!fechaDesde || d < new Date(fechaDesde)) fechaDesde = d.toISOString().split('T')[0];
-          if (!fechaHasta || d > new Date(fechaHasta)) fechaHasta = d.toISOString().split('T')[0];
+          const fecha       = parseExcelDate(getCol(row, 'fecha'));
+          const creacion    = parseExcelDate(getCol(row, 'creacion', 'apertura'));
+          const cerrada     = parseExcelDate(getCol(row, 'cerrada', 'cierre'));
+          const estado      = normalizeEstado(getCol(row, 'estado'));
+          const camareroRaw = getCol(row, 'camarero repartidor', 'camarero', 'repartidor', 'mozo', 'vendedor');
+          const camareroPos = camareroRaw ? camareroRaw.toString().toLowerCase().trim() : null;
+          const empleadoId  = camareroPos ? (empMap[camareroPos] ?? null) : null;
+          const fiscal      = parseFiscal(getCol(row, 'fiscal'));
+          const total       = parseFloat(getCol(row, 'total') ?? 0) || 0;
+          const personas    = parseInt(getCol(row, 'personas')) || null;
+
+          if (fecha) {
+            const d = new Date(fecha);
+            if (!fechaDesde || d < new Date(fechaDesde)) fechaDesde = d.toISOString().split('T')[0];
+            if (!fechaHasta || d > new Date(fechaHasta)) fechaHasta = d.toISOString().split('T')[0];
+          }
+
+          const upsert = await client.query(`
+            INSERT INTO ventas_tickets (
+              local_id, pos_id, fecha, creacion, cerrada, caja, estado,
+              cliente, mesa, sala, personas, camarero_pos, empleado_id,
+              medio_pago, total, fiscal, tipo_venta, comentario, origen, id_origen,
+              archivo_import_id, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW())
+            ON CONFLICT (local_id, pos_id) DO UPDATE SET
+              fecha             = EXCLUDED.fecha,
+              creacion          = EXCLUDED.creacion,
+              cerrada           = EXCLUDED.cerrada,
+              caja              = EXCLUDED.caja,
+              estado            = EXCLUDED.estado,
+              cliente           = EXCLUDED.cliente,
+              mesa              = EXCLUDED.mesa,
+              sala              = EXCLUDED.sala,
+              personas          = EXCLUDED.personas,
+              camarero_pos      = EXCLUDED.camarero_pos,
+              empleado_id       = COALESCE(EXCLUDED.empleado_id, ventas_tickets.empleado_id),
+              medio_pago        = EXCLUDED.medio_pago,
+              total             = EXCLUDED.total,
+              fiscal            = EXCLUDED.fiscal,
+              tipo_venta        = EXCLUDED.tipo_venta,
+              comentario        = EXCLUDED.comentario,
+              origen            = EXCLUDED.origen,
+              id_origen         = EXCLUDED.id_origen,
+              archivo_import_id = EXCLUDED.archivo_import_id,
+              updated_at        = NOW()
+            RETURNING id, (xmax = 0) AS inserted
+          `, [
+            local_id, posId, fecha, creacion, cerrada,
+            getCol(row, 'caja') || null, estado,
+            getCol(row, 'cliente') || null,
+            getCol(row, 'mesa') || null,
+            getCol(row, 'sala') || null,
+            personas, camareroPos || null, empleadoId,
+            getCol(row, 'medio de pago', 'medio pago') || null,
+            total, fiscal,
+            getCol(row, 'tipo de venta', 'tipo venta') || null,
+            getCol(row, 'comentario') || null,
+            getCol(row, 'origen') || null,
+            getCol(row, 'id origen') || null,
+            importId,
+          ]);
+
+          const { id: dbId, inserted } = upsert.rows[0];
+          ticketIdMap[posId] = dbId;
+          inserted ? ticketsInsertados++ : ticketsActualizados++;
         }
 
-        const upsert = await client.query(`
-          INSERT INTO ventas_tickets (
-            local_id, pos_id, fecha, creacion, cerrada, caja, estado,
-            cliente, mesa, sala, personas, camarero_pos, empleado_id,
-            medio_pago, total, fiscal, tipo_venta, comentario, origen, id_origen,
-            archivo_import_id, updated_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW())
-          ON CONFLICT (local_id, pos_id) DO UPDATE SET
-            fecha             = EXCLUDED.fecha,
-            creacion          = EXCLUDED.creacion,
-            cerrada           = EXCLUDED.cerrada,
-            caja              = EXCLUDED.caja,
-            estado            = EXCLUDED.estado,
-            cliente           = EXCLUDED.cliente,
-            mesa              = EXCLUDED.mesa,
-            sala              = EXCLUDED.sala,
-            personas          = EXCLUDED.personas,
-            camarero_pos      = EXCLUDED.camarero_pos,
-            empleado_id       = COALESCE(EXCLUDED.empleado_id, ventas_tickets.empleado_id),
-            medio_pago        = EXCLUDED.medio_pago,
-            total             = EXCLUDED.total,
-            fiscal            = EXCLUDED.fiscal,
-            tipo_venta        = EXCLUDED.tipo_venta,
-            comentario        = EXCLUDED.comentario,
-            origen            = EXCLUDED.origen,
-            id_origen         = EXCLUDED.id_origen,
-            archivo_import_id = EXCLUDED.archivo_import_id,
-            updated_at        = NOW()
-          RETURNING id, (xmax = 0) AS inserted
-        `, [
-          local_id, posId, fecha, creacion, cerrada,
-          getCol(row, 'caja') || null, estado,
-          getCol(row, 'cliente') || null,
-          getCol(row, 'mesa') || null,
-          getCol(row, 'sala') || null,
-          personas, camareroPos || null, empleadoId,
-          getCol(row, 'medio de pago', 'medio pago') || null,
-          total, fiscal,
-          getCol(row, 'tipo de venta', 'tipo venta') || null,
-          getCol(row, 'comentario') || null,
-          getCol(row, 'origen') || null,
-          getCol(row, 'id origen') || null,
-          importId,
-        ]);
+      } else {
+        // ── PATH CAFÉ: hoja Ventas sin Id → construir tickets desde Pagos ──
+        // Agrupa por 'id venta', excluye cancelados, suma montos, fecha mínima
+        const ticketsPorId = {};
+        for (const row of rowsPagos) {
+          const posId = parseInt(row['id venta']);
+          if (!posId || isNaN(posId)) continue;
+          if (parseFiscal(row['cancelado'])) continue;
 
-        const { id: dbId, inserted } = upsert.rows[0];
-        ticketIdMap[posId] = dbId;
-        inserted ? ticketsInsertados++ : ticketsActualizados++;
+          const monto     = parseFloat(row['monto'] ?? 0) || 0;
+          const fechaPago = parseExcelDate(row['fecha pago']);
+
+          if (!ticketsPorId[posId]) {
+            ticketsPorId[posId] = {
+              pos_id:     posId,
+              total:      0,
+              fecha:      fechaPago,
+              mesa:       row['mesa'] || null,
+              sala:       row['sala'] || null,
+              medio_pago: row['medio de pago'] ? row['medio de pago'].toString().trim() : null,
+              caja:       row['caja'] || null,
+            };
+          }
+          ticketsPorId[posId].total += monto;
+          // Quedarse con la fecha más temprana del grupo
+          if (fechaPago && (!ticketsPorId[posId].fecha || fechaPago < ticketsPorId[posId].fecha)) {
+            ticketsPorId[posId].fecha = fechaPago;
+          }
+        }
+
+        debugLog.push(`Café path: ${Object.keys(ticketsPorId).length} tickets únicos construidos desde Pagos`);
+
+        for (const t of Object.values(ticketsPorId)) {
+          const upsert = await client.query(`
+            INSERT INTO ventas_tickets (
+              local_id, pos_id, fecha, creacion, cerrada, caja, estado,
+              cliente, mesa, sala, personas, camarero_pos, empleado_id,
+              medio_pago, total, fiscal, tipo_venta, comentario, origen, id_origen,
+              archivo_import_id, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW())
+            ON CONFLICT (local_id, pos_id) DO UPDATE SET
+              total             = EXCLUDED.total,
+              fecha             = EXCLUDED.fecha,
+              medio_pago        = EXCLUDED.medio_pago,
+              caja              = EXCLUDED.caja,
+              mesa              = EXCLUDED.mesa,
+              sala              = EXCLUDED.sala,
+              archivo_import_id = EXCLUDED.archivo_import_id,
+              updated_at        = NOW()
+            RETURNING id, (xmax = 0) AS inserted
+          `, [
+            local_id, t.pos_id, t.fecha, t.fecha, null,
+            t.caja, 'cerrada',
+            null, t.mesa, t.sala, null, null, null,
+            t.medio_pago, Math.round(t.total * 100) / 100, false,
+            null, null, null, null,
+            importId,
+          ]);
+
+          const { id: dbId, inserted } = upsert.rows[0];
+          ticketIdMap[t.pos_id] = dbId;
+          inserted ? ticketsInsertados++ : ticketsActualizados++;
+
+          if (t.fecha) {
+            const d = new Date(t.fecha);
+            if (!fechaDesde || d < new Date(fechaDesde)) fechaDesde = d.toISOString().split('T')[0];
+            if (!fechaHasta || d > new Date(fechaHasta)) fechaHasta = d.toISOString().split('T')[0];
+          }
+        }
       }
 
       // ── PASO 2: productos_catalogo ─────────────────────────────────────

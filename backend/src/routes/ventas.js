@@ -159,9 +159,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       return [];
     }
 
-    // Ventas: header en fila 4 (range=3), claves originales (ya funciona)
-    const rowsVentas    = readSheet(wb, 'ventas');
-    debugLog.push(`--- Ventas (range=3) → ${rowsVentas.length} filas ---`);
+    // Ventas: header en fila 4 (range=3), claves normalizadas (compatible con todos los formatos)
+    const rowsVentas    = readSheetNorm(wb, 'ventas', 3);
+    debugLog.push(`--- Ventas (range=3, norm) → ${rowsVentas.length} filas ---`);
 
     // Subsidiarias: header en fila 1 (range=0), claves normalizadas
     const rowsAdiciones = inspectSheet('Adiciones', 'adiciones', 0);
@@ -209,19 +209,19 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       const ticketIdMap = {}; // pos_id → db id
 
       for (const row of rowsVentas) {
-        const posId = parseInt(getCol(row, 'Id', 'ID', 'id'));
+        const posId = parseInt(getCol(row, 'id', 'id venta', 'nro', 'nro ticket', 'numero', 'numero ticket', 'ticket', 'comprobante', 'n'));
         if (!posId || isNaN(posId)) continue;
 
-        const fecha       = parseExcelDate(getCol(row, 'Fecha'));
-        const creacion    = parseExcelDate(getCol(row, 'Creación', 'Creacion', 'Apertura'));
-        const cerrada     = parseExcelDate(getCol(row, 'Cerrada', 'Cierre'));
-        const estado      = normalizeEstado(getCol(row, 'Estado'));
-        const camareroRaw = getCol(row, 'Camarero / Repartidor', 'Camarero', 'Repartidor', 'Mozo');
+        const fecha       = parseExcelDate(getCol(row, 'fecha'));
+        const creacion    = parseExcelDate(getCol(row, 'creacion', 'apertura'));
+        const cerrada     = parseExcelDate(getCol(row, 'cerrada', 'cierre'));
+        const estado      = normalizeEstado(getCol(row, 'estado'));
+        const camareroRaw = getCol(row, 'camarero repartidor', 'camarero', 'repartidor', 'mozo', 'vendedor');
         const camareroPos = camareroRaw ? camareroRaw.toString().toLowerCase().trim() : null;
         const empleadoId  = camareroPos ? (empMap[camareroPos] ?? null) : null;
-        const fiscal      = parseFiscal(getCol(row, 'Fiscal'));
-        const total       = parseFloat(getCol(row, 'Total') ?? 0) || 0;
-        const personas    = parseInt(getCol(row, 'Personas')) || null;
+        const fiscal      = parseFiscal(getCol(row, 'fiscal'));
+        const total       = parseFloat(getCol(row, 'total') ?? 0) || 0;
+        const personas    = parseInt(getCol(row, 'personas')) || null;
 
         if (fecha) {
           const d = new Date(fecha);
@@ -260,17 +260,17 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           RETURNING id, (xmax = 0) AS inserted
         `, [
           local_id, posId, fecha, creacion, cerrada,
-          getCol(row, 'Caja') || null, estado,
-          getCol(row, 'Cliente') || null,
-          getCol(row, 'Mesa') || null,
-          getCol(row, 'Sala') || null,
+          getCol(row, 'caja') || null, estado,
+          getCol(row, 'cliente') || null,
+          getCol(row, 'mesa') || null,
+          getCol(row, 'sala') || null,
           personas, camareroPos || null, empleadoId,
-          getCol(row, 'Medio de Pago', 'Medio Pago') || null,
+          getCol(row, 'medio de pago', 'medio pago') || null,
           total, fiscal,
-          getCol(row, 'Tipo de Venta', 'Tipo Venta') || null,
-          getCol(row, 'Comentario') || null,
-          getCol(row, 'Origen') || null,
-          getCol(row, 'Id. Origen', 'Id Origen') || null,
+          getCol(row, 'tipo de venta', 'tipo venta') || null,
+          getCol(row, 'comentario') || null,
+          getCol(row, 'origen') || null,
+          getCol(row, 'id origen') || null,
           importId,
         ]);
 

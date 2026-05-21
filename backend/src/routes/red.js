@@ -26,19 +26,22 @@ function parseRange(req) {
   return isDate(desde) && isDate(hasta) ? [desde, hasta] : null;
 }
 
-// Pivot rows [{nombre, mes, valor}] → {meses, series:[{tienda, por_mes:{}}]}
+// Pivot rows [{nombre, mes, valor}] → {meses, series:[{tienda, por_mes:{}}]} ordenado por total DESC
 function pivot(rows) {
   const meses = [...new Set(rows.map(r => r.mes))].sort();
   const names = [...new Set(rows.map(r => r.nombre))];
   const lu    = {};
   rows.forEach(r => { lu[`${r.nombre}|${r.mes}`] = n(r.valor); });
-  return {
-    meses,
-    series: names.map(nombre => ({
-      tienda:  nombre,
-      por_mes: Object.fromEntries(meses.map(mes => [mes, lu[`${nombre}|${mes}`] || 0])),
-    })),
-  };
+  const series = names.map(nombre => ({
+    tienda:  nombre,
+    por_mes: Object.fromEntries(meses.map(mes => [mes, lu[`${nombre}|${mes}`] || 0])),
+  }));
+  series.sort((a, b) => {
+    const totA = Object.values(a.por_mes).reduce((s, v) => s + v, 0);
+    const totB = Object.values(b.por_mes).reduce((s, v) => s + v, 0);
+    return totB - totA;
+  });
+  return { meses, series };
 }
 
 // Totalizador con variacion_pct por celda
@@ -212,10 +215,13 @@ router.get('/resumen', requireAuth, async (req, res) => {
     const docenas_totales   = n(docRes.rows[0]?.docenas);
     const precio_implicito_docena = docenas_totales > 0 ? Math.round(fact_alfajoreras / docenas_totales) : null;
 
-    const mesesEvol = [...new Set(evolRes.rows.map(r => r.mes))].sort();
+    const mesesEvol   = [...new Set(evolRes.rows.map(r => r.mes))].sort();
+    const tiendaOrden = factRows.map(r => r.nombre); // ya viene ORDER BY facturacion DESC
+    const evolLu      = {};
+    evolRes.rows.forEach(r => { evolLu[`${r.nombre}|${r.mes}`] = n(r.valor); });
     const evolucion_mensual = mesesEvol.map(mes => {
       const por_tienda = {};
-      evolRes.rows.filter(r => r.mes === mes).forEach(r => { por_tienda[r.nombre] = n(r.valor); });
+      tiendaOrden.forEach(nombre => { por_tienda[nombre] = evolLu[`${nombre}|${mes}`] || 0; });
       return { mes, por_tienda };
     });
 
@@ -612,9 +618,22 @@ router.get('/analisis', requireAuth, async (req, res) => {
     const concentracion_top2_pct = facturacion_total > 0
       ? Math.round(top2.reduce((s, v) => s + v, 0) / facturacion_total * 1000) / 10 : null;
 
+    // ── Resumen tiendas ordenado por facturación DESC ────────────────────────
+    const tiendas_resumen = locales.map(l => {
+      const factTienda = factRows.filter(r => r.nombre === l.nombre).reduce((s, r) => s + n(r.valor), 0);
+      const tickTienda = factRows.filter(r => r.nombre === l.nombre).reduce((s, r) => s + n(r.tickets), 0);
+      return {
+        nombre:        l.nombre,
+        es_alfajorera: l.es_alfajorera,
+        facturacion:   factTienda,
+        tickets:       tickTienda,
+        prom_ticket:   tickTienda > 0 ? Math.round(factTienda / tickTienda) : 0,
+      };
+    }).sort((a, b) => b.facturacion - a.facturacion);
+
     // ── Totalizador mensual ──────────────────────────────────────────────────
-    const todasTiendas = locales.map(l => ({ nombre: l.nombre, es_alfajorera: l.es_alfajorera }));
-    const alfajorerasTiendas = locales.filter(l => l.es_alfajorera).map(l => ({ nombre: l.nombre }));
+    const todasTiendas       = tiendas_resumen.map(l => ({ nombre: l.nombre, es_alfajorera: l.es_alfajorera }));
+    const alfajorerasTiendas = tiendas_resumen.filter(l => l.es_alfajorera).map(l => ({ nombre: l.nombre }));
 
     const totalizador_mensual = {
       modo_facturacion: buildTotalizador(factRows, todasTiendas),
@@ -623,19 +642,6 @@ router.get('/analisis', requireAuth, async (req, res) => {
 
     // ── Pivot facturación mensual (todas las unidades) ───────────────────────
     const facturacion_mensual_acumulada = pivot(factRows);
-
-    // ── Resumen tiendas para conclusiones ────────────────────────────────────
-    const tiendas_resumen = locales.map(l => {
-      const factTienda  = factRows.filter(r => r.nombre === l.nombre).reduce((s, r) => s + n(r.valor), 0);
-      const tickTienda  = factRows.filter(r => r.nombre === l.nombre).reduce((s, r) => s + n(r.tickets), 0);
-      return {
-        nombre:       l.nombre,
-        es_alfajorera: l.es_alfajorera,
-        facturacion:  factTienda,
-        tickets:      tickTienda,
-        prom_ticket:  tickTienda > 0 ? Math.round(factTienda / tickTienda) : 0,
-      };
-    });
 
     // ── Quincenal para conclusiones ──────────────────────────────────────────
     const q = formatQuincenalRows(qRes.rows);

@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout           from './components/Layout';
 import Login            from './pages/Login';
 import Home             from './pages/Home';
-import Dashboard        from './pages/Dashboard';
 import Locales          from './pages/Locales';
 import Empleados        from './pages/Empleados';
 import VentasImportar   from './pages/ventas/Importar';
@@ -35,7 +34,6 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Home />} />
-            <Route path="dashboard"            element={<Dashboard />} />
             <Route path="locales"              element={<Locales />} />
             <Route path="empleados"            element={<Empleados />} />
             <Route path="ventas/importar"      element={<VentasImportar />} />

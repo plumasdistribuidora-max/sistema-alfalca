@@ -105,7 +105,7 @@ async function queryQuincenal(hasta) {
       GROUP BY vt.local_id
     ),
     anterior AS (
-      SELECT vt.local_id, SUM(vt.total) AS fact
+      SELECT vt.local_id, SUM(vt.total) AS fact, COUNT(DISTINCT vt.id) AS tkt_ant
       FROM ventas_tickets vt CROSS JOIN meta m
       WHERE vt.fecha >= m.mes_ant_ini AND vt.fecha < m.mes_ini
         AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
@@ -119,44 +119,101 @@ async function queryQuincenal(hasta) {
         AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') >= m.mes_ini
         AND EXTRACT(DAY FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')::date) <= m.n_dias
       GROUP BY vi.local_id
+    ),
+    docs_ant AS (
+      SELECT vi.local_id,
+        COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
+      FROM ventas_items vi CROSS JOIN meta m
+      WHERE vi.local_id IN (SELECT id FROM locales WHERE es_alfajorera = true AND activo = true)
+        AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') >= m.mes_ant_ini
+        AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') < m.mes_ini
+        AND EXTRACT(DAY FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')::date) <= m.n_dias
+      GROUP BY vi.local_id
+    ),
+    personas_act AS (
+      SELECT vt.local_id, COALESCE(SUM(vt.personas), 0) AS personas
+      FROM ventas_tickets vt CROSS JOIN meta m
+      WHERE vt.fecha >= m.mes_ini AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
+      GROUP BY vt.local_id
+    ),
+    personas_ant AS (
+      SELECT vt.local_id, COALESCE(SUM(vt.personas), 0) AS personas
+      FROM ventas_tickets vt CROSS JOIN meta m
+      WHERE vt.fecha >= m.mes_ant_ini AND vt.fecha < m.mes_ini
+        AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
+      GROUP BY vt.local_id
     )
     SELECT l.id, l.nombre, l.es_alfajorera,
       m.n_dias, m.mes_ini, m.mes_ant_ini, m.mes_label,
-      COALESCE(a.fact,   0) AS facturacion_actual,
-      COALESCE(ant.fact, 0) AS facturacion_anterior,
-      COALESCE(a.tkt,    0) AS tickets,
-      CASE WHEN COALESCE(ant.fact, 0) > 0
-        THEN ROUND(((COALESCE(a.fact, 0) - COALESCE(ant.fact, 0))
-                    / COALESCE(ant.fact, 0) * 100)::numeric, 1)
-        ELSE NULL END AS variacion_pct,
-      COALESCE(d.docenas, 0) AS docenas
+      COALESCE(a.fact,    0) AS facturacion_actual,
+      COALESCE(ant.fact,  0) AS facturacion_anterior,
+      COALESCE(a.tkt,     0) AS tickets,
+      COALESCE(ant.tkt_ant, 0) AS tickets_anterior,
+      COALESCE(d.docenas,  0) AS docenas,
+      COALESCE(da.docenas, 0) AS docenas_anterior,
+      COALESCE(pa.personas,  0) AS personas_actual,
+      COALESCE(pan.personas, 0) AS personas_anterior
     FROM locales l
     CROSS JOIN meta m
-    LEFT JOIN actual    a   ON a.local_id   = l.id
-    LEFT JOIN anterior  ant ON ant.local_id = l.id
-    LEFT JOIN docs      d   ON d.local_id   = l.id
+    LEFT JOIN actual       a   ON a.local_id   = l.id
+    LEFT JOIN anterior     ant ON ant.local_id = l.id
+    LEFT JOIN docs         d   ON d.local_id   = l.id
+    LEFT JOIN docs_ant     da  ON da.local_id  = l.id
+    LEFT JOIN personas_act pa  ON pa.local_id  = l.id
+    LEFT JOIN personas_ant pan ON pan.local_id = l.id
     WHERE l.activo = true
     ORDER BY COALESCE(a.fact, 0) DESC
   `, [hasta]);
 }
 
+function varPct(actual, ant) {
+  if (!ant || ant === 0) return null;
+  return Math.round((actual - ant) / ant * 1000) / 10;
+}
+
 function formatQuincenalRows(qRows) {
-  const meta = qRows[0] || {};
+  if (!qRows.length) return { n_dias: 0, mes_actual_label: '', mes_ini: null, mes_ant_ini: null, tiendas: [] };
+  const meta  = qRows[0];
+  const nDias = n(meta.n_dias);
+
   return {
-    n_dias:           n(meta.n_dias),
+    n_dias:           nDias,
     mes_actual_label: (meta.mes_label || '').trim(),
-    tiendas: qRows.map((r, i) => ({
-      nombre:               r.nombre,
-      es_alfajorera:        r.es_alfajorera,
-      facturacion_actual:   n(r.facturacion_actual),
-      facturacion_anterior: n(r.facturacion_anterior),
-      variacion_pct:        r.variacion_pct != null ? Number(r.variacion_pct) : null,
-      tickets:              n(r.tickets),
-      prom_ticket:          n(r.tickets) > 0 ? Math.round(n(r.facturacion_actual) / n(r.tickets)) : 0,
-      docenas:              Math.round(n(r.docenas) * 100) / 100,
-      unidad_medida:        r.es_alfajorera ? 'tickets' : 'mesas',
-      medalla:              i < 3 ? i + 1 : null,
-    })),
+    mes_ini:          meta.mes_ini,
+    mes_ant_ini:      meta.mes_ant_ini,
+    tiendas: qRows.map((r, i) => {
+      const fact_act  = n(r.facturacion_actual);
+      const fact_ant  = n(r.facturacion_anterior);
+      const tkt_act   = n(r.tickets);
+      const tkt_ant   = n(r.tickets_anterior);
+      const doc_act   = Math.round(n(r.docenas)           * 100) / 100;
+      const doc_ant   = Math.round(n(r.docenas_anterior)  * 100) / 100;
+      const pers_act  = n(r.personas_actual);
+      const pers_ant  = n(r.personas_anterior);
+      const pt_act    = tkt_act > 0 ? Math.round(fact_act / tkt_act) : 0;
+      const pt_ant    = tkt_ant > 0 ? Math.round(fact_ant / tkt_ant) : null;
+
+      return {
+        nombre:               r.nombre,
+        es_alfajorera:        r.es_alfajorera,
+        facturacion_actual:   fact_act,
+        facturacion_anterior: fact_ant,
+        var_facturacion:      varPct(fact_act, fact_ant),
+        tickets:              tkt_act,
+        tickets_anterior:     tkt_ant,
+        var_tickets:          varPct(tkt_act, tkt_ant),
+        prom_ticket:          pt_act,
+        prom_ticket_anterior: pt_ant,
+        var_prom_ticket:      pt_ant !== null ? varPct(pt_act, pt_ant) : null,
+        docenas:              doc_act,
+        docenas_anterior:     doc_ant,
+        var_docenas:          varPct(doc_act, doc_ant),
+        personas_actual:      pers_act,
+        personas_anterior:    pers_ant,
+        var_personas:         varPct(pers_act, pers_ant),
+        medalla:              i + 1,
+      };
+    }),
   };
 }
 
@@ -257,8 +314,10 @@ router.get('/resumen', requireAuth, async (req, res) => {
         comparativo_quincenal: {
           titulo: `${mesLbl} · primeros ${nDias} días vs mismos días del mes anterior`,
           mes_actual_label: mesLbl,
-          n_dias: nDias,
-          tiendas: q.tiendas,
+          n_dias:      nDias,
+          mes_ini:     q.mes_ini,
+          mes_ant_ini: q.mes_ant_ini,
+          tiendas:     q.tiendas,
         },
         evolucion_mensual,
         participacion: factRows.map(r => ({

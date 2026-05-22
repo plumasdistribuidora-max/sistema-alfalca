@@ -6,6 +6,48 @@ import {
 import api from '../../../api';
 import { fmtM, fmtNum, fmtDoc, fmtPct, fmtARS, colorDeTienda, shortName, yearRange } from '../redUtils';
 
+// ── Constantes y helpers ────────────────────────────────────────────────────
+
+const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const MESES_ES    = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+const MESES_FULL  = {'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
+
+function fmtMesLabel(yyyymm)     { if (!yyyymm) return ''; const [,m] = yyyymm.split('-'); return MESES_ES[m] || yyyymm; }
+function fmtMesLabelFull(yyyymm) { if (!yyyymm) return ''; const [y, m] = yyyymm.split('-'); return `${MESES_FULL[m] || yyyymm} ${y}`; }
+
+// "2026-05-01", 21  →  "1–21 may"
+function rangoLabel(isoDate, nDias) {
+  if (!isoDate || !nDias) return '—';
+  const mes = parseInt(String(isoDate).slice(5, 7), 10) - 1;
+  return `1–${nDias} ${MESES_CORTO[mes]}`;
+}
+
+// "2026-05-01"  →  "2026"
+function anioDeIso(isoDate) {
+  return isoDate ? String(isoDate).slice(0, 4) : '';
+}
+
+// Filas de métrica para cada tarjeta según tipo de tienda
+function buildRows(t) {
+  const ptAnt = t.prom_ticket_anterior != null ? fmtARS(t.prom_ticket_anterior) : '—';
+  const base = [
+    { label: 'Facturación', actual: fmtM(t.facturacion_actual),  anterior: fmtM(t.facturacion_anterior), var: t.var_facturacion },
+  ];
+  if (t.es_alfajorera) {
+    return [...base,
+      { label: 'Tickets',     actual: fmtNum(t.tickets),         anterior: fmtNum(t.tickets_anterior),    var: t.var_tickets     },
+      { label: 'Ticket prom', actual: fmtARS(t.prom_ticket),     anterior: ptAnt,                         var: t.var_prom_ticket },
+      { label: 'Docenas',     actual: fmtDoc(t.docenas),         anterior: fmtDoc(t.docenas_anterior),    var: t.var_docenas     },
+    ];
+  }
+  return [...base,
+    { label: 'Personas',    actual: fmtNum(t.personas_actual), anterior: fmtNum(t.personas_anterior),   var: t.var_personas    },
+    { label: 'Ticket prom', actual: fmtARS(t.prom_ticket),     anterior: ptAnt,                         var: t.var_prom_ticket },
+  ];
+}
+
+// ── Componentes UI ──────────────────────────────────────────────────────────
+
 function Skeleton({ className = '' }) {
   return <div className={`bg-stone-200 rounded-xl animate-pulse ${className}`} />;
 }
@@ -29,12 +71,24 @@ function KpiCard({ label, value, sub, primary }) {
   );
 }
 
+// Badge de variación para texto grande (header de tarjeta)
 function VarBadge({ v }) {
   if (v === null || v === undefined) return <span className="text-stone-300 text-xs">—</span>;
   const pos = Number(v) >= 0;
   return (
     <span className={`text-sm font-semibold ${pos ? 'text-emerald-600' : 'text-red-600'}`}>
       {pos ? '▲' : '▼'} {Math.abs(Number(v))}%
+    </span>
+  );
+}
+
+// Variación para celda de tabla (más compacto)
+function VarCell({ v }) {
+  if (v === null || v === undefined) return <span className="text-stone-300">—</span>;
+  const pos = Number(v) >= 0;
+  return (
+    <span className={`font-semibold ${pos ? 'text-emerald-600' : 'text-red-500'}`}>
+      {pos ? '▲' : '▼'}{Math.abs(Number(v))}%
     </span>
   );
 }
@@ -46,17 +100,14 @@ function Medalla({ m }) {
   return <span className="text-sm text-stone-400 w-6 text-center inline-block">{m}</span>;
 }
 
-const MESES_ES = { '01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic' };
-const MESES_FULL = { '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre' };
-function fmtMesLabel(yyyymm) { if (!yyyymm) return ''; const [,m] = yyyymm.split('-'); return MESES_ES[m] || yyyymm; }
-function fmtMesLabelFull(yyyymm) { if (!yyyymm) return ''; const [y, m] = yyyymm.split('-'); return `${MESES_FULL[m] || yyyymm} ${y}`; }
+// ── Componente principal ────────────────────────────────────────────────────
 
 export default function ResumenSection() {
   const [data,        setData]        = useState(null);
   const [docenas,     setDocenas]     = useState(null);
   const [loading,     setLoading]     = useState(true);
-  const [modalDoc,    setModalDoc]    = useState(null);  // {mes, mesLabel}
-  const [modalLocal,  setModalLocal]  = useState(null);  // {local_id, nombre}
+  const [modalDoc,    setModalDoc]    = useState(null);
+  const [modalLocal,  setModalLocal]  = useState(null);
   const [detalle,     setDetalle]     = useState(null);
   const [loadDetalle, setLoadDetalle] = useState(false);
   const [sinDocColl,  setSinDocColl]  = useState(true);
@@ -125,8 +176,17 @@ export default function ResumenSection() {
     return row;
   });
 
-  const quincenal = data.comparativo_quincenal || {};
-  const tiendas_q = quincenal.tiendas || [];
+  // Comparativo quincenal
+  const quincenal  = data.comparativo_quincenal || {};
+  const tiendas_q  = quincenal.tiendas || [];
+  const nDias      = quincenal.n_dias || 0;
+  const rangoAct   = rangoLabel(quincenal.mes_ini,     nDias);
+  const rangoAnt   = rangoLabel(quincenal.mes_ant_ini, nDias);
+  const anioAct    = anioDeIso(quincenal.mes_ini);
+  const anioAnt    = anioDeIso(quincenal.mes_ant_ini);
+  const totalAct   = tiendas_q.reduce((s, t) => s + t.facturacion_actual,   0);
+  const totalAnt   = tiendas_q.reduce((s, t) => s + t.facturacion_anterior, 0);
+  const varTotal   = totalAnt > 0 ? Math.round((totalAct - totalAnt) / totalAnt * 1000) / 10 : null;
 
   function handleBarClick(payload) {
     if (!payload?.activePayload?.length) return;
@@ -181,40 +241,96 @@ export default function ResumenSection() {
         />
       </div>
 
-      {/* Comparativo quincenal */}
-      <div className="card p-5">
-        <h2 className="font-semibold text-stone-800 mb-1" style={{ fontFamily: 'Nunito, sans-serif' }}>
-          {quincenal.titulo || 'Comparativo quincenal'}
-        </h2>
-        <p className="text-xs text-stone-400 mb-4">Facturación · variación vs mismos días del mes anterior</p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {tiendas_q.map((t, i) => (
-            <div
-              key={t.nombre}
-              className="rounded-xl p-4 border"
-              style={{
-                borderColor: colorDeTienda(t.nombre, i) + '55',
-                background: colorDeTienda(t.nombre, i) + '10',
-              }}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <Medalla m={t.medalla} />
-                  <p className="font-semibold text-stone-800 text-sm">{shortName(t.nombre)}</p>
-                </div>
-                <VarBadge v={t.variacion_pct} />
-              </div>
-              <p className="text-xl font-bold text-stone-900">{fmtM(t.facturacion_actual)}</p>
+      {/* ── Comparativo quincenal ─────────────────────────────────────────── */}
+      {tiendas_q.length > 0 && (
+        <div className="space-y-3">
+
+          {/* Encabezado + total consolidado */}
+          <div className="card p-5 space-y-4">
+            <div>
+              <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                Comparativo por tienda
+              </h2>
               <p className="text-xs text-stone-400 mt-0.5">
-                ant: {fmtM(t.facturacion_anterior)} · {fmtNum(t.tickets)} {t.unidad_medida}
+                {rangoAct} {anioAct} comparado con {rangoAnt} {anioAnt} · ranking por facturación
               </p>
-              {t.es_alfajorera && (
-                <p className="text-xs text-stone-400">{fmtDoc(t.docenas)} doc · ${fmtNum(t.prom_ticket)}/tkt</p>
-              )}
             </div>
-          ))}
+
+            {/* Total consolidado (5 tiendas) */}
+            <div className="rounded-xl px-5 py-4 text-white flex flex-wrap items-center justify-between gap-4"
+              style={{ background: '#4C1D95' }}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-0.5">
+                  Total 5 tiendas · {rangoAct}
+                </p>
+                <p className="text-2xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                  {fmtM(totalAct)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs opacity-50 mb-0.5">{rangoAnt}</p>
+                <p className="text-lg font-semibold opacity-75">{fmtM(totalAnt)}</p>
+              </div>
+              <div className="text-xl font-bold">
+                {varTotal === null
+                  ? <span className="text-white/40 text-sm">—</span>
+                  : <span className={varTotal >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                      {varTotal >= 0 ? '▲' : '▼'} {Math.abs(varTotal)}%
+                    </span>
+                }
+              </div>
+            </div>
+          </div>
+
+          {/* Tarjetas por tienda */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {tiendas_q.map((t, i) => {
+              const rows = buildRows(t);
+              return (
+                <div
+                  key={t.nombre}
+                  className="card p-4 space-y-2.5"
+                  style={{ borderLeft: `3px solid ${colorDeTienda(t.nombre, i)}` }}
+                >
+                  {/* Header: medalla + nombre + variación facturación */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Medalla m={t.medalla} />
+                      <span className="font-semibold text-stone-800 text-sm">{shortName(t.nombre)}</span>
+                      {!t.es_alfajorera && (
+                        <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">café</span>
+                      )}
+                    </div>
+                    <VarBadge v={t.var_facturacion} />
+                  </div>
+
+                  {/* Tabla 3 columnas */}
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-stone-100">
+                        <th className="text-left pb-1.5 text-stone-400 font-medium" />
+                        <th className="text-right pb-1.5 text-stone-700 font-semibold pr-2">{rangoAct}</th>
+                        <th className="text-right pb-1.5 text-stone-400 font-medium pr-2">{rangoAnt}</th>
+                        <th className="text-right pb-1.5 text-stone-400 font-medium">Var</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(row => (
+                        <tr key={row.label} className="border-b border-stone-50 last:border-0">
+                          <td className="py-1.5 text-stone-500 pr-2 whitespace-nowrap">{row.label}</td>
+                          <td className="py-1.5 text-right font-semibold text-stone-800 pr-2 whitespace-nowrap">{row.actual}</td>
+                          <td className="py-1.5 text-right text-stone-400 pr-2 whitespace-nowrap">{row.anterior}</td>
+                          <td className="py-1.5 text-right whitespace-nowrap"><VarCell v={row.var} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Gráficos: líneas + dona */}
       <div className="grid md:grid-cols-3 gap-5">
@@ -310,7 +426,7 @@ export default function ResumenSection() {
         </div>
       )}
 
-      {/* Modal drill-down */}
+      {/* Modal drill-down docenas */}
       {modalDoc && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
@@ -320,7 +436,6 @@ export default function ResumenSection() {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
@@ -334,7 +449,6 @@ export default function ResumenSection() {
               >✕</button>
             </div>
 
-            {/* Local pills */}
             <div className="px-6 pt-3 flex flex-wrap gap-2">
               {seriesDoc.map((s, idx) => {
                 const active = modalLocal?.local_id === s.local_id;
@@ -358,7 +472,6 @@ export default function ResumenSection() {
               })}
             </div>
 
-            {/* Body */}
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
               {loadDetalle && (
                 <div className="flex justify-center py-8">
@@ -368,7 +481,6 @@ export default function ResumenSection() {
 
               {!loadDetalle && detalle && (
                 <>
-                  {/* KPIs */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-violet-50 rounded-xl p-3">
                       <p className="text-xs text-violet-600 font-semibold uppercase tracking-wide mb-0.5">Docenas totales</p>
@@ -384,7 +496,6 @@ export default function ResumenSection() {
                     </div>
                   </div>
 
-                  {/* Tabla productos que suman docenas */}
                   {detalle.productos_que_suman.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-stone-700 mb-2">Productos que suman docenas</h4>
@@ -404,9 +515,7 @@ export default function ResumenSection() {
                               <tr key={i} className="hover:bg-stone-50">
                                 <td className="py-2 px-3">
                                   <span className="font-medium text-stone-800">{p.producto}</span>
-                                  {p.categoria && (
-                                    <span className="ml-1.5 text-xs text-stone-400">{p.categoria}</span>
-                                  )}
+                                  {p.categoria && <span className="ml-1.5 text-xs text-stone-400">{p.categoria}</span>}
                                 </td>
                                 <td className="text-right py-2 px-3 text-stone-600">{fmtNum(p.cantidad)}</td>
                                 <td className="text-center py-2 px-3">
@@ -414,9 +523,7 @@ export default function ResumenSection() {
                                     {p.operacion}
                                   </span>
                                 </td>
-                                <td className="text-right py-2 px-3 font-semibold text-violet-900">
-                                  {fmtDoc(p.docenas)}
-                                </td>
+                                <td className="text-right py-2 px-3 font-semibold text-violet-900">{fmtDoc(p.docenas)}</td>
                                 <td className="text-right py-2 px-3 text-stone-500">
                                   {detalle.docenas_total > 0
                                     ? fmtPct(Math.round(p.docenas / detalle.docenas_total * 1000) / 10)
@@ -430,7 +537,6 @@ export default function ResumenSection() {
                     </div>
                   )}
 
-                  {/* Collapsible: productos sin docenas */}
                   {detalle.productos_sin_docenas.length > 0 && (
                     <div>
                       <button
@@ -455,9 +561,7 @@ export default function ResumenSection() {
                                 <tr key={i} className="hover:bg-stone-50">
                                   <td className="py-2 px-3">
                                     <span className="text-stone-700">{p.producto}</span>
-                                    {p.categoria && (
-                                      <span className="ml-1.5 text-xs text-stone-400">{p.categoria}</span>
-                                    )}
+                                    {p.categoria && <span className="ml-1.5 text-xs text-stone-400">{p.categoria}</span>}
                                   </td>
                                   <td className="text-right py-2 px-3 text-stone-500">{fmtNum(p.cantidad)}</td>
                                   <td className="text-right py-2 px-3 text-stone-500">{fmtARS(p.facturacion)}</td>
@@ -473,7 +577,6 @@ export default function ResumenSection() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="px-6 py-3 border-t border-stone-100 flex justify-between items-center">
               <button
                 onClick={downloadCsv}

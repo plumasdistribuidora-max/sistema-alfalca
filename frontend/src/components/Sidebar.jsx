@@ -88,7 +88,8 @@ export default function Sidebar({ open, onClose }) {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
           <NavItem to="/red"             icon={ICON.red}      label="Red de tiendas" />
-          <NavItem to="/ventas/importar" icon={ICON.importar} label="Importar Excel" />
+          <NavItem to="/ventas/importar"  icon={ICON.importar}  label="Importar Excel" />
+          <NavItem to="/historial-imports" icon={ICON.historial} label="Historial imports" />
           <NavItem to="/stock"           icon={ICON.stock}    label="Stock inteligente" />
 
           <SectionLabel label="Próximamente" />

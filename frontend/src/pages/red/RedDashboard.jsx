@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import logo from '../../assets/logo.svg';
+import api from '../../api';
 import ResumenSection  from './secciones/ResumenSection';
 import TiendasSection  from './secciones/TiendasSection';
 import MesesSection    from './secciones/MesesSection';
@@ -12,8 +13,35 @@ const TABS = [
   { id: 'analisis',label: 'Análisis'},
 ];
 
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function formatUltimoImport(isoStr) {
+  const ar = new Date(
+    new Date(isoStr).toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
+  );
+  const dia  = ar.getDate();
+  const mes  = MESES[ar.getMonth()];
+  const anio = ar.getFullYear();
+  const hh   = String(ar.getHours()).padStart(2, '0');
+  const mm   = String(ar.getMinutes()).padStart(2, '0');
+  return `${dia} ${mes} ${anio}, ${hh}:${mm}`;
+}
+
 export default function RedDashboard() {
-  const [activeTab, setActiveTab] = useState('resumen');
+  const [activeTab, setActiveTab]     = useState('resumen');
+  const [ultimoImport, setUltimoImport] = useState(undefined); // undefined = cargando, null = sin datos
+
+  useEffect(() => {
+    api.get('/imports/ultimo')
+      .then(r => setUltimoImport(r.data.data))
+      .catch(() => setUltimoImport(null));
+  }, []);
+
+  const badgeTexto = ultimoImport === undefined
+    ? 'Actualizado'
+    : ultimoImport === null
+      ? null
+      : `Actualizado ${formatUltimoImport(ultimoImport.created_at)}`;
 
   return (
     <div className="space-y-0 -mt-2">
@@ -41,10 +69,17 @@ export default function RedDashboard() {
               </p>
             </div>
           </div>
-          <span className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            Actualizado
-          </span>
+
+          {badgeTexto ? (
+            <span className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              {badgeTexto}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 bg-white/10 text-white/40 text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0">
+              Sin datos
+            </span>
+          )}
         </div>
 
         <p className="px-6 pb-3 text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>

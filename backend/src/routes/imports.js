@@ -5,6 +5,22 @@ const { getFromR2, deleteFromR2 }   = require('../config/r2');
 
 const router = express.Router();
 
+// GET /api/imports/ultimo — fecha del import más reciente completado
+router.get('/ultimo', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT created_at FROM imports_log
+      WHERE status = 'completado'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    res.json({ ok: true, data: rows[0] || null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: 'Error al obtener último import' });
+  }
+});
+
 // GET /api/imports/historial
 router.get('/historial', requireAuth, async (req, res) => {
   try {

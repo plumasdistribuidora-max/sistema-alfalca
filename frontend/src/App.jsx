@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout           from './components/Layout';
 import Login            from './pages/Login';
+import Home             from './pages/Home';
 import Dashboard        from './pages/Dashboard';
 import Locales          from './pages/Locales';
 import Empleados        from './pages/Empleados';
@@ -33,7 +34,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Navigate to="/red" replace />} />
+            <Route index element={<Home />} />
             <Route path="dashboard"            element={<Dashboard />} />
             <Route path="locales"              element={<Locales />} />
             <Route path="empleados"            element={<Empleados />} />

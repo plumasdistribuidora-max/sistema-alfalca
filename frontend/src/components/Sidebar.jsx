@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.svg';
 
@@ -21,6 +22,8 @@ const ICON = {
   catalogo:   '▤',
 };
 
+const TIENDA_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
+
 function NavItem({ to, icon, label }) {
   return (
     <NavLink
@@ -33,6 +36,23 @@ function NavItem({ to, icon, label }) {
       }
     >
       <span className="text-base w-5 text-center">{icon}</span>
+      {label}
+    </NavLink>
+  );
+}
+
+function SubNavItem({ to, icon, label }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+         ${isActive
+           ? 'bg-white/20 text-white'
+           : 'text-white/60 hover:bg-white/10 hover:text-white'}`
+      }
+    >
+      <span className="text-sm w-4 text-center">{icon}</span>
       {label}
     </NavLink>
   );
@@ -57,8 +77,14 @@ function SectionLabel({ label }) {
 }
 
 export default function Sidebar({ open, onClose }) {
-  const { user } = useAuth();
-  const isAdmin  = user?.rol === 'admin';
+  const { user }   = useAuth();
+  const location   = useLocation();
+  const [tiendaExpanded, setTiendaExpanded] = useState(false);
+
+  const isOnTiendaRoute = TIENDA_ROUTES.some(
+    r => location.pathname === r || location.pathname.startsWith(r + '/')
+  );
+  const tiendaOpen = tiendaExpanded || isOnTiendaRoute;
 
   return (
     <>
@@ -87,10 +113,28 @@ export default function Sidebar({ open, onClose }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-          <NavItem to="/red"             icon={ICON.red}      label="Red de tiendas" />
-          <NavItem to="/ventas/importar"  icon={ICON.importar}  label="Importar Excel" />
-          <NavItem to="/historial-imports" icon={ICON.historial} label="Historial imports" />
-          <NavItem to="/stock"           icon={ICON.stock}    label="Stock inteligente" />
+
+          {/* Tiendas — grupo desplegable */}
+          <button
+            onClick={() => setTiendaExpanded(prev => !prev)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <span className="text-base w-5 text-center">{ICON.red}</span>
+            <span className="flex-1 text-left">Tiendas</span>
+            <span className={`text-xs inline-block transition-transform duration-200 ${tiendaOpen ? 'rotate-0' : '-rotate-90'}`}>
+              ▾
+            </span>
+          </button>
+
+          {tiendaOpen && (
+            <div className="space-y-0.5 pb-0.5">
+              <SubNavItem to="/red"               icon={ICON.red}      label="Dashboard" />
+              <SubNavItem to="/ventas/importar"   icon={ICON.importar} label="Importar Excel" />
+              <SubNavItem to="/historial-imports" icon={ICON.historial} label="Historial Excel" />
+            </div>
+          )}
+
+          <NavItem to="/stock" icon={ICON.stock} label="Stock inteligente" />
 
           <SectionLabel label="Próximamente" />
           <DisabledItem icon={ICON.cashflow}  label="Cash Flow"            badge="Fase 2" />

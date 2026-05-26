@@ -15,10 +15,10 @@ const seq = [
   { key: 'logo' },
 ];
 
-const FLOOR_Y  = 165;
-const DROP_DUR = 950;
-const RISE_DUR = 850;
-const HOLD_TOP = 350;
+const FLOOR_Y  = 100;
+const DROP_DUR = 520;
+const RISE_DUR = 460;
+const HOLD_TOP = 120;
 const SPIN_GAP = 6000;
 
 export default function Home() {
@@ -51,12 +51,12 @@ export default function Home() {
     }
 
     setContent(seq[0].key);
-    ball.style.top = '-140px';
+    ball.style.top = '-130px';
 
     let t = 0;
 
     seq.forEach((step, i) => {
-      const fromY = i === 0 ? -140 : -40;
+      const fromY = i === 0 ? -130 : -36;
 
       timers.push(setTimeout(() => {
         ball.animate(
@@ -74,7 +74,7 @@ export default function Home() {
       if (i < seq.length - 1) {
         timers.push(setTimeout(() => {
           ball.animate(
-            [{ top: `${FLOOR_Y}px` }, { top: '-40px' }],
+            [{ top: `${FLOOR_Y}px` }, { top: '-36px' }],
             { duration: RISE_DUR, easing: 'cubic-bezier(0.3,0,0.55,1)', fill: 'forwards' }
           );
         }, t));

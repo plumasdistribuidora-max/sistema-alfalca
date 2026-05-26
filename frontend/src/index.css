@@ -2,25 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-.ahg-stage {
-  width: 140px;
-  height: 140px;
-  perspective: 600px;
-  margin: 0 auto;
-}
-.ahg-ball {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.4s ease-in;
-  transform-style: preserve-3d;
-  will-change: transform;
-}
-.ahg-ball svg { width: 124px; height: 124px; }
-.ahg-ball .ahg-emoji { font-size: 90px; line-height: 1; }
-.ahg-flip { transform: rotateY(90deg); }
+.ahg-scene { width: 100%; height: 200px; position: relative; overflow: hidden; margin: 0 auto; }
+.ahg-scene svg.ahg-trail { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ahg-mover { position: absolute; left: 0; top: 0; width: 78px; height: 78px; margin: -39px 0 0 -39px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ahg-mover .ahg-ic { width: 64px; height: 64px; }
+.ahg-mover .ahg-ic svg { width: 100%; height: 100%; }
+.ahg-mover .ahg-tag { font-size: 9px; font-weight: 500; color: #4C1D95; margin-top: 2px; white-space: nowrap; background: rgba(255,255,255,0.7); padding: 1px 5px; border-radius: 6px; }
+.ahg-logo-center { position: absolute; left: 0; top: 0; width: 90px; height: 90px; margin: -45px 0 0 -45px; display: flex; align-items: center; justify-content: center; }
+.ahg-logo-center svg { width: 100%; height: 100%; }
 
 @layer base {
   body { @apply bg-ahg-bg text-ahg-text antialiased; font-family: 'Inter', sans-serif; }

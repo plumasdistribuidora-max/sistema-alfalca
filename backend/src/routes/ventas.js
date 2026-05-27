@@ -633,6 +633,74 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
   }
 });
 
+// ── DELETE /reset ─────────────────────────────────────────────────────────
+// Borra ventas históricas para poder re-importar con el maestro de docenas.
+// Query: local_id? desde? hasta? confirm=SI (obligatorio)
+
+router.delete('/reset', requireAuth, async (req, res) => {
+  const { local_id, desde, hasta, confirm } = req.query;
+
+  if (confirm !== 'SI')
+    return res.status(400).json({ ok: false, error: "Falta confirmación: agregá ?confirm=SI" });
+
+  // WHERE dinámico para ventas_tickets (y subquery para tablas hijo)
+  const conds  = [];
+  const params = [];
+  const addP   = (v) => { params.push(v); return `$${params.length}`; };
+
+  if (local_id) conds.push(`local_id = ${addP(parseInt(local_id))}`);
+  if (desde)    conds.push(`fecha >= ${addP(desde)}`);
+  if (hasta)    conds.push(`fecha <= ${addP(hasta)}`);
+
+  const ticketWhere = conds.length ? conds.join(' AND ') : 'TRUE';
+  const subq        = `(SELECT id FROM ventas_tickets WHERE ${ticketWhere})`;
+
+  const filtro = {
+    local_id: local_id ? parseInt(local_id) : null,
+    desde:    desde    || null,
+    hasta:    hasta    || null,
+  };
+
+  console.log(`[VENTAS_RESET] Iniciando — filtro: ${JSON.stringify(filtro)}`);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Orden FK inverso: hijos primero, cabeceras al final
+    const rFisc = await client.query(`DELETE FROM ventas_fiscales   WHERE ticket_id IN ${subq}`, params);
+    const rDesc = await client.query(`DELETE FROM ventas_descuentos WHERE ticket_id IN ${subq}`, params);
+    const rPago = await client.query(`DELETE FROM ventas_pagos      WHERE ticket_id IN ${subq}`, params);
+    const rItem = await client.query(`DELETE FROM ventas_items      WHERE ticket_id IN ${subq}`, params);
+    const rTick = await client.query(`DELETE FROM ventas_tickets    WHERE ${ticketWhere}`,       params);
+
+    await client.query('COMMIT');
+
+    console.log(
+      `[VENTAS_RESET] OK — tickets: ${rTick.rowCount}, items: ${rItem.rowCount}, ` +
+      `pagos: ${rPago.rowCount}, descuentos: ${rDesc.rowCount}, fiscales: ${rFisc.rowCount}`
+    );
+
+    res.json({
+      ok: true,
+      data: {
+        ventas_borradas:     rTick.rowCount,
+        items_borrados:      rItem.rowCount,
+        pagos_borrados:      rPago.rowCount,
+        descuentos_borrados: rDesc.rowCount,
+        fiscales_borrados:   rFisc.rowCount,
+        filtro,
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[VENTAS_RESET] Error — ROLLBACK:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // ── GET /imports (historial) ───────────────────────────────────────────────
 
 router.get('/imports', requireAuth, async (req, res) => {

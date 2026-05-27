@@ -4,7 +4,7 @@ const xlsx     = require('xlsx');
 const pool     = require('../config/db');
 const { uploadToR2 } = require('../config/r2');
 const { requireAuth, canAccessLocal } = require('../middleware/auth');
-const { calcularDocenas } = require('../utils/docenas');
+const { getDocenasPorProducto, isEnMaestro, isLoaded: maestroIsLoaded } = require('../services/maestroDocenas');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -373,7 +373,12 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         const totalProd     = parseFloat(row['total'] ?? 0) || 0;
         const precioProm    = cantidad > 0 ? Math.round((totalProd / cantidad) * 100) / 100 : null;
 
-        const { docenas, esAdicional, regla } = calcularDocenas(nombreDisplay);
+        const docenas     = getDocenasPorProducto(nombreDisplay);
+        const esAdicional = normalizeNombre(nombreDisplay).includes('adicional');
+        const regla       = isEnMaestro(nombreDisplay) ? 'Maestro R2' : 'Sin match';
+        if (!isEnMaestro(nombreDisplay) && maestroIsLoaded())
+          console.warn(`[import] Sin match en maestro: "${nombreDisplay}"`);
+
 
         const r = await client.query(`
           INSERT INTO productos_catalogo
@@ -414,7 +419,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
         const nombreNorm  = normalizeNombre(nombreRaw);
         const productoId  = productoIdMap[nombreNorm] ?? null;
-        const docenasProd = productoId ? (docenasMap[productoId] ?? 0) : calcularDocenas(nombreRaw).docenas;
+        const docenasProd = productoId ? (docenasMap[productoId] ?? 0) : getDocenasPorProducto(nombreRaw);
         const cantidad    = parseFloat(row['cantidad'] ?? 1) || 1;
         const precioUnit  = parseFloat(row['precio'] ?? 0) || 0;
         const docenasEq   = cantidad * parseFloat(docenasProd);
@@ -971,4 +976,97 @@ router.get('/fiscales-resumen', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /docenas ───────────────────────────────────────────────────────────
+// Total de docenas vendidas por local + desglose por producto y mes.
+// Query params: local_id (o local), desde, hasta (YYYY-MM-DD)
+
+router.get('/docenas', requireAuth, async (req, res) => {
+  try {
+    const { local_id: lid, local, desde: dq, hasta: hq } = req.query;
+    const local_id = lid || local;
+    if (!local_id) return res.status(400).json({ ok: false, error: 'local_id es requerido' });
+
+    const now   = new Date();
+    const desde = dq || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const hasta  = hq || now.toISOString().slice(0, 10);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))
+      return res.status(400).json({ ok: false, error: 'Fechas inválidas (usar YYYY-MM-DD)' });
+
+    const lr = await pool.query(
+      'SELECT nombre FROM locales WHERE id = $1 AND activo = true',
+      [parseInt(local_id)]
+    );
+    if (!lr.rows.length) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+
+    const TZ     = 'America/Argentina/Mendoza';
+    const params = [parseInt(local_id), desde, hasta];
+    const WHERE  = `vi.local_id = $1 AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $2::date AND $3::date`;
+
+    const [prodRes, mesRes, totRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          vi.producto_nombre_raw                                                     AS nombre,
+          COALESCE(SUM(vi.cantidad)             FILTER (WHERE NOT vi.cancelada), 0)  AS unidades,
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0)  AS docenas
+        FROM ventas_items vi
+        WHERE ${WHERE}
+        GROUP BY vi.producto_nombre_raw
+        ORDER BY docenas DESC, unidades DESC
+      `, params),
+
+      pool.query(`
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0)        AS docenas
+        FROM ventas_items vi
+        WHERE ${WHERE} AND vi.fecha_creacion IS NOT NULL
+        GROUP BY mes ORDER BY mes
+      `, params),
+
+      pool.query(`
+        SELECT COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS total
+        FROM ventas_items vi WHERE ${WHERE}
+      `, params),
+    ]);
+
+    const n = v => Number(v) || 0;
+
+    const porProducto = prodRes.rows
+      .filter(r => n(r.docenas) > 0)
+      .map(r => ({
+        nombre:   r.nombre,
+        unidades: n(r.unidades),
+        docenas:  Math.round(n(r.docenas) * 10000) / 10000,
+      }));
+
+    // Productos que vinieron en ventas pero NO están en el maestro (para auditoría)
+    const noMatcheados = maestroIsLoaded()
+      ? prodRes.rows
+          .filter(r => !isEnMaestro(r.nombre))
+          .map(r => ({ nombre: r.nombre, unidades: n(r.unidades) }))
+          .sort((a, b) => b.unidades - a.unidades)
+      : [];
+
+    res.json({
+      ok: true,
+      data: {
+        local:         lr.rows[0].nombre,
+        periodo:       { desde, hasta },
+        total_docenas: Math.round(n(totRes.rows[0].total) * 10000) / 10000,
+        por_producto:  porProducto,
+        por_mes:       mesRes.rows.map(r => ({
+          mes:     r.mes,
+          docenas: Math.round(n(r.docenas) * 10000) / 10000,
+        })),
+        no_matcheados: noMatcheados,
+      },
+    });
+  } catch (err) {
+    console.error('[ventas/docenas]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;
+

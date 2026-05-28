@@ -18,9 +18,10 @@ app.use('/api/empleados', require('./routes/empleados'));
 app.use('/api/ventas',    require('./routes/ventas'));
 app.use('/api/productos', require('./routes/productos'));
 app.use('/api/red',      require('./routes/red'));
-app.use('/api/stock',   require('./routes/stock'));
+app.use('/api/stock',    require('./routes/stock'));
 app.use('/api/imports',  require('./routes/imports'));
 app.use('/api/maestros', require('./routes/maestros'));
+app.use('/api/cashflow', require('./routes/cashflow'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 

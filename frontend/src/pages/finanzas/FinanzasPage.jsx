@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import logo from '../../assets/logo.svg';
-import EerrSection from '../red/secciones/EerrSection';
+import EerrSection     from '../red/secciones/EerrSection';
+import CashFlowSection from './CashFlowSection';
 
 const TABS = [
   { id: 'eerr',      label: 'EERR'      },
@@ -57,22 +58,7 @@ export default function FinanzasPage() {
 
       {/* Contenido */}
       {activeTab === 'eerr'     && <EerrSection />}
-      {activeTab === 'cashflow' && <CashFlowPlaceholder />}
-    </div>
-  );
-}
-
-function CashFlowPlaceholder() {
-  return (
-    <div className="card p-12 flex flex-col items-center justify-center text-center gap-3">
-      <span style={{ fontSize: 40 }}>⊛</span>
-      <h2 className="text-lg font-bold text-stone-700">Cash Flow</h2>
-      <p className="text-stone-400 text-sm max-w-xs">
-        Esta sección está en desarrollo. Próximamente podrás ver el flujo de caja por local y período.
-      </p>
-      <span className="mt-2 text-xs bg-violet-100 text-violet-700 font-semibold px-3 py-1 rounded-full">
-        Próximamente · Fase 2
-      </span>
+      {activeTab === 'cashflow' && <CashFlowSection />}
     </div>
   );
 }

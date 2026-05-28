@@ -87,9 +87,9 @@ function getCalDays(yyyymm) {
 }
 
 function getSemaforo(saldo, piso) {
-  if (saldo >= piso) return { bg: '#E1F5EE', headColor: '#0F6E56', saldoColor: '#04342C' };
-  if (saldo >= 0)   return { bg: '#FAEEDA', headColor: '#854F0B', saldoColor: '#412402' };
-  return                   { bg: '#FCEBEB', headColor: '#A32D2D', saldoColor: '#501313' };
+  if (saldo >= piso) return { bg: '#E1F5EE', headColor: '#0F6E56', saldoColor: '#04342C', barColor: '#1D9E75' };
+  if (saldo >= 0)   return { bg: '#FAEEDA', headColor: '#854F0B', saldoColor: '#412402', barColor: '#EF9F27' };
+  return                   { bg: '#FCEBEB', headColor: '#A32D2D', saldoColor: '#501313', barColor: '#E24B4A' };
 }
 
 // ── Sub-componentes ───────────────────────────────────────────────────────────
@@ -289,6 +289,15 @@ export default function CashFlowSection() {
   const diaEgresos   = diaModal ? (egresoMap[diaModal] || []) : [];
   const totalEgresos = calData?.egresos?.reduce((s, e) => s + e.importe, 0) ?? 0;
   const [viewY, viewM] = viewMes.split('-');
+
+  // Máximo saldo positivo del mes (para escalar la barra de nivel)
+  const saldoMax = (() => {
+    if (!calData?.saldo_por_dia) return 1;
+    const vals = calDays
+      .filter(d => d && calData.saldo_por_dia[d] !== undefined && calData.saldo_por_dia[d] > 0)
+      .map(d => calData.saldo_por_dia[d]);
+    return vals.length > 0 ? Math.max(...vals) : 1;
+  })();
 
   return (
     <div className="space-y-4">
@@ -508,42 +517,44 @@ export default function CashFlowSection() {
                     ...(isToday ? { boxShadow: 'inset 0 0 0 1.5px #1D9E75', zIndex: 1, position: 'relative' } : {}),
                   }}
                 >
-                  {/* Fila superior: número + hoy */}
-                  <div className="flex items-center justify-between mb-0.5 w-full">
-                    <span
-                      className="text-xs font-bold leading-none"
-                      style={{ color: sem?.headColor || (isToday ? '#1D9E75' : '#78716C') }}
-                    >
-                      {dd}
-                    </span>
-                    {isToday && (
-                      <span
-                        className="text-[8px] font-bold px-1 py-0.5 rounded leading-none"
-                        style={{ background: '#1D9E75', color: 'white' }}
-                      >
-                        hoy
-                      </span>
-                    )}
-                  </div>
+                  {/* Número del día */}
+                  <p
+                    className="text-xs font-bold leading-none mb-1.5"
+                    style={{ color: sem?.headColor || '#78716C' }}
+                  >
+                    {dd}{isToday ? ' · hoy' : ''}
+                  </p>
 
-                  {/* Egresos del día */}
+                  {/* Egresos */}
                   {dayTotal > 0 && (
-                    <p
-                      className="text-[10px] font-semibold leading-none mb-1"
-                      style={{ color: '#DC2626' }}
-                    >
-                      −{fmtAbrev(dayTotal)}
-                    </p>
+                    <div className="mb-1">
+                      <p className="leading-none mb-0.5" style={{ fontSize: 10, color: 'rgba(0,0,0,0.38)' }}>Egr.</p>
+                      <p className="text-xs font-semibold leading-none" style={{ color: '#A32D2D' }}>
+                        −{fmtAbrev(dayTotal)}
+                      </p>
+                    </div>
                   )}
 
-                  {/* Saldo proyectado */}
+                  {/* Saldo caja */}
                   {sem && saldoDia !== undefined && (
-                    <p
-                      className="text-sm font-bold leading-tight mt-auto"
-                      style={{ color: sem.saldoColor }}
-                    >
-                      {fmtAbrev(saldoDia)}
-                    </p>
+                    <div className="mb-1">
+                      <p className="leading-none mb-0.5" style={{ fontSize: 10, color: 'rgba(0,0,0,0.38)' }}>Saldo</p>
+                      <p className="font-bold leading-tight" style={{ fontSize: 13, color: sem.saldoColor }}>
+                        {fmtAbrev(saldoDia)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Barra de nivel */}
+                  {sem && saldoDia !== undefined && (
+                    <div className="mt-auto w-full" style={{ height: 5, background: 'rgba(0,0,0,0.07)', borderRadius: 3 }}>
+                      <div style={{
+                        height: '100%',
+                        borderRadius: 3,
+                        width: saldoDia <= 0 ? '100%' : `${Math.min(100, Math.round((saldoDia / saldoMax) * 100))}%`,
+                        background: sem.barColor,
+                      }} />
+                    </div>
                   )}
                 </button>
               );

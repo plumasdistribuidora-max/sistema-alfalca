@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import api from '../../../api';
 import { formatNumber, firstOfMonth, today } from '../../../utils/format';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const DIAS = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 8); // 8–23
@@ -26,12 +27,16 @@ function heatColor(val, max) {
 }
 
 export default function DocenasAnalisisPage() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [locales,  setLocales]  = useState([]);
-  const [resumen,  setResumen]  = useState(null);
-  const [serie,    setSerie]    = useState([]);
-  const [heatmap,  setHeatmap]  = useState([]);
-  const [loading,  setLoading]  = useState(false);
+  const [locales,      setLocales]      = useState([]);
+  const [resumen,      setResumen]      = useState(null);
+  const [serie,        setSerie]        = useState([]);
+  const [heatmap,      setHeatmap]      = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [reloading,    setReloading]    = useState(false);
+  const [reloadMsg,    setReloadMsg]    = useState(null); // { ok, text }
+  const reloadTimerRef = useRef(null);
 
   const localId = searchParams.get('local_id') || '';
   const desde   = searchParams.get('desde')    || firstOfMonth();
@@ -67,6 +72,23 @@ export default function DocenasAnalisisPage() {
   const heatMax    = heatmap.reduce((m, c) => Math.max(m, c.docenas), 0);
   const heatLookup = Object.fromEntries(heatmap.map(h => [`${h.dia_semana}_${h.hora}`, h.docenas]));
 
+  async function handleReloadMaestro() {
+    setReloading(true);
+    setReloadMsg(null);
+    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    try {
+      const res = await api.post('/maestros/docenas/reload');
+      const d   = res.data;
+      setReloadMsg({ ok: true, text: `Maestro recargado: ${d.productos} productos, ${d.variantes} variantes` });
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.response?.data?.mensaje || err.message || 'Error al recargar';
+      setReloadMsg({ ok: false, text: msg });
+    } finally {
+      setReloading(false);
+      reloadTimerRef.current = setTimeout(() => setReloadMsg(null), 6000);
+    }
+  }
+
   const selectedLocal = locales.find(l => String(l.id) === String(localId));
   const top1          = resumen?.top_productos_docenas?.[0];
   const totalItems    = (resumen?.total_items_vendidos || 0) + (resumen?.total_items_cancelados || 0);
@@ -89,8 +111,32 @@ export default function DocenasAnalisisPage() {
           <input type="date" className="input text-sm w-36" value={desde} onChange={e => setParam('desde', e.target.value)} />
           <span className="text-stone-400 text-sm">→</span>
           <input type="date" className="input text-sm w-36" value={hasta} onChange={e => setParam('hasta', e.target.value)} />
+          {user?.rol === 'admin' && (
+            <button
+              onClick={handleReloadMaestro}
+              disabled={reloading}
+              title="Vuelve a leer el archivo del maestro de docenas desde R2. Usá esto después de subir una nueva versión del Excel."
+              className="btn-secondary text-sm flex items-center gap-1.5 disabled:opacity-60"
+            >
+              {reloading
+                ? <><span className="inline-block w-3.5 h-3.5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />Recargando...</>
+                : <>🔄 Recargar maestro</>}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Toast de reload */}
+      {reloadMsg && (
+        <div className={`text-sm px-4 py-2.5 rounded-lg border ${
+          reloadMsg.ok
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          {reloadMsg.ok ? '✓ ' : '✕ '}{reloadMsg.text}
+          {reloadMsg.ok && <span className="ml-2 text-emerald-600 text-xs">Recordá re-importar ventas para que apliquen los cambios.</span>}
+        </div>
+      )}
 
       {loading && <div className="text-center text-stone-400 py-12">Cargando datos...</div>}
 

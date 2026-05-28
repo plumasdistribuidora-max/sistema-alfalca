@@ -54,6 +54,27 @@ function addDay(yyyymmdd) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
+function parseGetNetDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : toDateStr(val);
+  if (typeof val === 'number') { const d = parseExcelDate(val); return d ? toDateStr(d) : null; }
+  if (typeof val === 'string') {
+    const s = val.trim();
+    const hit = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (hit) return `${hit[3]}-${hit[2].padStart(2,'0')}-${hit[1].padStart(2,'0')}`;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : toDateStr(d);
+  }
+  return null;
+}
+
+function parseMontoAR(val) {
+  if (val == null) return null;
+  if (typeof val === 'number') return val;
+  const num = parseFloat(String(val).trim().replace(/\./g, '').replace(',', '.'));
+  return isNaN(num) ? null : num;
+}
+
 const CUENTAS = ['santander', 'mp', 'galicia', 'efectivo'];
 
 function categorizarEstado(estado) {
@@ -306,9 +327,62 @@ router.get('/calendario', requireAuth, async (req, res) => {
       cur = addDay(cur);
     }
 
+    // ── GetNet proyección ─────────────────────────────────────────────────────
+    const getnetRes = await pool.query(`
+      SELECT fecha_estimada_pago::text AS fecha, tipo,
+        SUM(monto_neto) AS total, COUNT(*) AS cantidad
+      FROM getnet_transacciones
+      WHERE fecha_estimada_pago >= $1
+      GROUP BY fecha_estimada_pago, tipo
+      ORDER BY fecha_estimada_pago, tipo
+    `, [today]);
+
+    const ingresoDia   = {};  // date → total sum
+    const getnetDetalle = {}; // date → [{tipo, total, cantidad}]
+    for (const row of getnetRes.rows) {
+      const d = row.fecha;
+      ingresoDia[d] = (ingresoDia[d] || 0) + n(row.total);
+      if (!getnetDetalle[d]) getnetDetalle[d] = [];
+      getnetDetalle[d].push({ tipo: row.tipo, total: n(row.total), cantidad: Number(row.cantidad) });
+    }
+
+    // saldo_proyectado_por_dia: acumula egresos Y ingresos GetNet
+    const saldo_proyectado_por_dia = {};
+    let runProy = saldoTotal;
+    cur = today;
+    while (cur <= finMes) {
+      runProy += (ingresoDia[cur] || 0) - (daily[cur] || 0);
+      saldo_proyectado_por_dia[cur] = Math.round(runProy);
+      cur = addDay(cur);
+    }
+
+    // alcanza_hasta_proyectado: sparse, puede extenderse más allá de finMes
+    const allFutureDates = [...new Set([...Object.keys(daily), ...Object.keys(ingresoDia)])].sort();
+    let runProyAlc = saldoTotal;
+    let alcanza_hasta_proyectado = null;
+    for (const d of allFutureDates) {
+      runProyAlc += (ingresoDia[d] || 0) - (daily[d] || 0);
+      if (runProyAlc < 0 && !alcanza_hasta_proyectado) { alcanza_hasta_proyectado = d; break; }
+    }
+
+    // ingresos_semana: suma GetNet próximos 7 días
+    let ingresos_semana = 0;
+    let curSem = today;
+    for (let i = 0; i < 7; i++) {
+      ingresos_semana += (ingresoDia[curSem] || 0);
+      curSem = addDay(curSem);
+    }
+
     res.json({
       ok: true,
-      data: { mes, saldo_total: saldoTotal, alcanza_hasta, egresos, saldo_por_dia },
+      data: {
+        mes, saldo_total: saldoTotal,
+        alcanza_hasta, alcanza_hasta_proyectado,
+        egresos, saldo_por_dia, saldo_proyectado_por_dia,
+        ingreso_getnet_por_dia: ingresoDia,
+        getnet_detalle_por_dia: getnetDetalle,
+        ingresos_semana: Math.round(ingresos_semana),
+      },
     });
   } catch (err) {
     console.error('[cashflow/calendario]', err);
@@ -357,6 +431,101 @@ router.delete('/gastos/:id', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[cashflow/gastos DELETE]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── POST /getnet/import ───────────────────────────────────────────────────────
+
+router.post('/getnet/import', requireAuth, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'No se recibió archivo' });
+
+  const posnet = (req.body?.posnet || '').trim() || 'Desconocido';
+
+  try {
+    const wb  = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    const raw = xlsx.utils.sheet_to_json(ws, { defval: null }); // header en fila 1 (idx 0)
+
+    let importados = 0, actualizados = 0, errores = 0;
+
+    for (const row of raw) {
+      const norm = {};
+      for (const [k, v] of Object.entries(row)) norm[normalizeKey(k)] = v;
+
+      // Código único (tolera variantes de nombre de columna)
+      const codRaw = norm['cod de transaccion'] ?? norm['codigo de transaccion'] ?? norm['n de transaccion'];
+      if (!codRaw || String(codRaw).trim() === '') { errores++; continue; }
+      const codStr = String(codRaw).trim();
+
+      const fechaOp   = parseGetNetDate(norm['fecha de operacion'] ?? norm['fecha operacion']);
+      const fechaPago = parseGetNetDate(norm['fecha estimada de pago'] ?? norm['fecha est de pago'] ?? norm['fecha estimada pago']);
+      const tipo      = norm['tipo de transaccion'] ?? norm['tipo'];
+      const tipoStr   = tipo ? String(tipo).trim() : null;
+      const monto     = parseMontoAR(norm['monto neto transaccion'] ?? norm['monto neto'] ?? norm['importe neto']);
+      const estado    = norm['estado'] ? String(norm['estado']).trim() : null;
+
+      try {
+        const r = await pool.query(`
+          INSERT INTO getnet_transacciones
+            (cod_transaccion, posnet, fecha_operacion, fecha_estimada_pago, tipo, monto_neto, estado, raw, updated_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NOW())
+          ON CONFLICT (cod_transaccion) DO UPDATE SET
+            posnet              = EXCLUDED.posnet,
+            fecha_operacion     = EXCLUDED.fecha_operacion,
+            fecha_estimada_pago = EXCLUDED.fecha_estimada_pago,
+            tipo                = EXCLUDED.tipo,
+            monto_neto          = EXCLUDED.monto_neto,
+            estado              = EXCLUDED.estado,
+            raw                 = EXCLUDED.raw,
+            updated_at          = NOW()
+          RETURNING (xmax = 0) AS inserted
+        `, [codStr, posnet, fechaOp, fechaPago, tipoStr, monto, estado, JSON.stringify(norm)]);
+        if (r.rows[0]?.inserted) importados++; else actualizados++;
+      } catch {
+        errores++;
+      }
+    }
+
+    res.json({ ok: true, data: { importados, actualizados, errores, total: raw.length } });
+  } catch (err) {
+    console.error('[cashflow/getnet/import]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── GET /getnet ───────────────────────────────────────────────────────────────
+
+router.get('/getnet', requireAuth, async (req, res) => {
+  try {
+    const { mes } = req.query;
+    if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
+      return res.status(400).json({ ok: false, error: 'mes (YYYY-MM) requerido' });
+    }
+    const [y, m] = mes.split('-').map(Number);
+    const iniMes = `${mes}-01`;
+    const finMes = `${mes}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+
+    const { rows } = await pool.query(`
+      SELECT fecha_estimada_pago::text AS fecha, tipo,
+        SUM(monto_neto) AS total, COUNT(*) AS cantidad,
+        estado
+      FROM getnet_transacciones
+      WHERE fecha_estimada_pago BETWEEN $1 AND $2
+      GROUP BY fecha_estimada_pago, tipo, estado
+      ORDER BY fecha_estimada_pago, tipo
+    `, [iniMes, finMes]);
+
+    const porDia = {};
+    for (const r of rows) {
+      if (!porDia[r.fecha]) porDia[r.fecha] = { total: 0, detalle: [] };
+      porDia[r.fecha].total += n(r.total);
+      porDia[r.fecha].detalle.push({ tipo: r.tipo, estado: r.estado, total: n(r.total), cantidad: Number(r.cantidad) });
+    }
+
+    res.json({ ok: true, data: { mes, por_dia: porDia } });
+  } catch (err) {
+    console.error('[cashflow/getnet GET]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

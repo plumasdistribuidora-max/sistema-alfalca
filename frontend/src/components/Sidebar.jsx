@@ -12,6 +12,7 @@ const ICON = {
   local:      '◎',
   comparar:   '⊞',
   cashflow:   '⊛',
+  finanzas:   '⊛',
   stock:      '▣',
   benchmark:  '⊕',
   personal:   '◈',
@@ -134,10 +135,10 @@ export default function Sidebar({ open, onClose }) {
             </div>
           )}
 
-          <NavItem to="/stock" icon={ICON.stock} label="Stock inteligente" />
+          <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
+          <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
 
           <SectionLabel label="Próximamente" />
-          <DisabledItem icon={ICON.cashflow}  label="Cash Flow"            badge="Fase 2" />
           <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />
           <DisabledItem icon={ICON.personal}  label="Personal"             badge="Fase 5" />
         </nav>

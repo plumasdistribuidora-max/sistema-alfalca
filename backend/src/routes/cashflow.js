@@ -333,6 +333,7 @@ router.get('/calendario', requireAuth, async (req, res) => {
         SUM(monto_neto) AS total, COUNT(*) AS cantidad
       FROM getnet_transacciones
       WHERE fecha_estimada_pago >= $1
+        AND LOWER(estado) != 'rechazado'
       GROUP BY fecha_estimada_pago, tipo
       ORDER BY fecha_estimada_pago, tipo
     `, [today]);
@@ -440,8 +441,6 @@ router.delete('/gastos/:id', requireAuth, async (req, res) => {
 router.post('/getnet/import', requireAuth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, error: 'No se recibió archivo' });
 
-  const posnet = (req.body?.posnet || '').trim() || 'Desconocido';
-
   try {
     const wb  = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const ws  = wb.Sheets[wb.SheetNames[0]];
@@ -458,6 +457,8 @@ router.post('/getnet/import', requireAuth, upload.single('file'), async (req, re
       if (!codRaw || String(codRaw).trim() === '') { errores++; continue; }
       const codStr = String(codRaw).trim();
 
+      // Posnet desde la columna "Nombre Establecimiento" del propio Excel
+      const posnet    = norm['nombre establecimiento'] ? String(norm['nombre establecimiento']).trim() : null;
       const fechaOp   = parseGetNetDate(norm['fecha de operacion'] ?? norm['fecha operacion']);
       const fechaPago = parseGetNetDate(norm['fecha estimada de pago'] ?? norm['fecha est de pago'] ?? norm['fecha estimada pago']);
       const tipo      = norm['tipo de transaccion'] ?? norm['tipo'];
@@ -512,6 +513,7 @@ router.get('/getnet', requireAuth, async (req, res) => {
         estado
       FROM getnet_transacciones
       WHERE fecha_estimada_pago BETWEEN $1 AND $2
+        AND LOWER(estado) != 'rechazado'
       GROUP BY fecha_estimada_pago, tipo, estado
       ORDER BY fecha_estimada_pago, tipo
     `, [iniMes, finMes]);

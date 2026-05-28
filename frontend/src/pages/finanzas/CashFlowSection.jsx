@@ -18,7 +18,6 @@ const CUENTA_META = {
   efectivo:  { label: 'Efectivo',     icon: '💵' },
 };
 
-const POSNET_OPTIONS = ['Casa Entre Dos', 'Entre Dos', 'Entre Dos Sarmiento'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -174,10 +173,9 @@ export default function CashFlowSection() {
   const fileRef = useRef();
 
   // Import GetNet
-  const [getnetModal,    setGetnetModal]    = useState(false);
-  const [getnetPosnet,   setGetnetPosnet]   = useState(POSNET_OPTIONS[0]);
-  const [importandoGN,   setImportandoGN]   = useState(false);
-  const [importMsgGN,    setImportMsgGN]    = useState(null);
+  const [getnetModal,  setGetnetModal]  = useState(false);
+  const [importandoGN, setImportandoGN] = useState(false);
+  const [importMsgGN,  setImportMsgGN]  = useState(null);
   const getnetFileRef = useRef();
 
   const todayDateStr = todayIso();
@@ -260,7 +258,6 @@ export default function CashFlowSection() {
     setImportandoGN(true); setImportMsgGN(null);
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('posnet', getnetPosnet);
     try {
       const r = await api.post('/cashflow/getnet/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const d = r.data.data;
@@ -775,13 +772,9 @@ export default function CashFlowSection() {
       {getnetModal && (
         <ModalShell title="Importar informe GetNet" onClose={() => setGetnetModal(false)}>
           <div className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-stone-600 mb-1 block">Terminal / Posnet</label>
-              <select value={getnetPosnet} onChange={e => setGetnetPosnet(e.target.value)}
-                className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-                {POSNET_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
+            <p className="text-sm text-stone-600">
+              Subí el Excel con las transacciones de los 3 posnet. El sistema lee la columna <strong>"Nombre Establecimiento"</strong> para identificar cada terminal y <strong>"Fecha Estimada de Pago"</strong> para proyectar los ingresos.
+            </p>
 
             <input ref={getnetFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportGetnet} />
 
@@ -798,7 +791,7 @@ export default function CashFlowSection() {
             )}
 
             <p className="text-xs text-stone-400">
-              Subí el informe de transacciones GetNet de cualquiera de los 3 posnet. El sistema usa la columna <strong>"Fecha Estimada de Pago"</strong> para proyectar cuándo entra cada monto.
+              Podés re-subir el mismo rango de fechas sin duplicar — el sistema actualiza las transacciones existentes (por ejemplo, de Capturado a Liquidado). Las transacciones Rechazadas se guardan pero no se suman a la proyección.
             </p>
           </div>
         </ModalShell>

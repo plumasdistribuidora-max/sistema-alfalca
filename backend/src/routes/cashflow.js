@@ -366,13 +366,18 @@ router.get('/calendario', requireAuth, async (req, res) => {
       if (runProyAlc < 0 && !alcanza_hasta_proyectado) { alcanza_hasta_proyectado = d; break; }
     }
 
-    // ingresos_semana: suma GetNet próximos 7 días
+    // ingresos_semana: suma GetNet próximos 7 días (hoy + 6)
     let ingresos_semana = 0;
     let curSem = today;
     for (let i = 0; i < 7; i++) {
       ingresos_semana += (ingresoDia[curSem] || 0);
       curSem = addDay(curSem);
     }
+
+    // ingresos_total_futuro: suma GetNet de todos los días desde hoy en adelante
+    const ingresos_total_futuro = Math.round(
+      Object.values(ingresoDia).reduce((s, v) => s + v, 0)
+    );
 
     res.json({
       ok: true,
@@ -383,6 +388,7 @@ router.get('/calendario', requireAuth, async (req, res) => {
         ingreso_getnet_por_dia: ingresoDia,
         getnet_detalle_por_dia: getnetDetalle,
         ingresos_semana: Math.round(ingresos_semana),
+        ingresos_total_futuro,
       },
     });
   } catch (err) {

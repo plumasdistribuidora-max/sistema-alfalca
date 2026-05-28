@@ -54,6 +54,14 @@ function fmtFechaCorta(yyyymmdd) {
   return `${parseInt(dd, 10)}/${parseInt(mm, 10)}`;
 }
 
+function fmtRango7Dias() {
+  const ini = new Date();
+  const fin = new Date();
+  fin.setDate(fin.getDate() + 6);
+  const f = (d) => `${d.getDate()}/${d.getMonth() + 1}`;
+  return `${f(ini)} al ${f(fin)}`;
+}
+
 function hace(isoStr) {
   if (!isoStr) return 'nunca';
   const diff  = Date.now() - new Date(isoStr).getTime();
@@ -333,15 +341,32 @@ export default function CashFlowSection() {
           </p>
         </div>
 
-        {/* Entra esta semana (GetNet) */}
+        {/* Proyección GetNet */}
         <div className="rounded-2xl px-4 py-3 flex flex-col" style={{ background: '#EBF3FD' }}>
-          <p className="text-xs font-semibold" style={{ color: '#185FA5' }}>Entra esta semana</p>
-          <p className="text-2xl font-bold mt-0.5 leading-none" style={{ color: '#0D3B6E' }}>
-            {loadingCal ? '…' : fmt$(calData?.ingresos_semana ?? 0)}
-          </p>
-          <p className="text-[10px] mt-0.5 leading-none" style={{ color: '#378ADD' }}>
-            proyección GetNet
-          </p>
+          <p className="text-xs font-semibold mb-1.5" style={{ color: '#185FA5' }}>Proyección GetNet</p>
+
+          {/* Próximos 7 días */}
+          <div>
+            <p className="leading-none mb-0.5" style={{ fontSize: 9, color: 'rgba(24,95,165,0.65)' }}>
+              Próximos 7 días · {fmtRango7Dias()}
+            </p>
+            <p className="text-lg font-bold leading-none" style={{ color: '#0D3B6E' }}>
+              {loadingCal ? '…' : fmt$(calData?.ingresos_semana ?? 0)}
+            </p>
+          </div>
+
+          {/* Separador */}
+          <div style={{ borderTop: '0.5px solid rgba(24,95,165,0.2)', margin: '5px 0' }} />
+
+          {/* Total por entrar */}
+          <div>
+            <p className="leading-none mb-0.5" style={{ fontSize: 9, color: 'rgba(24,95,165,0.65)' }}>
+              Total por entrar
+            </p>
+            <p className="text-lg font-bold leading-none" style={{ color: '#0D3B6E' }}>
+              {loadingCal ? '…' : fmt$(calData?.ingresos_total_futuro ?? 0)}
+            </p>
+          </div>
         </div>
 
         {/* Alcanza hasta — dos fechas */}

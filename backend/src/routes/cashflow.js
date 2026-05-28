@@ -332,7 +332,7 @@ router.get('/calendario', requireAuth, async (req, res) => {
       SELECT fecha_estimada_pago::text AS fecha, tipo,
         SUM(monto_neto) AS total, COUNT(*) AS cantidad
       FROM getnet_transacciones
-      WHERE fecha_estimada_pago >= $1
+      WHERE fecha_estimada_pago > $1
         AND LOWER(estado) != 'rechazado'
       GROUP BY fecha_estimada_pago, tipo
       ORDER BY fecha_estimada_pago, tipo
@@ -366,9 +366,9 @@ router.get('/calendario', requireAuth, async (req, res) => {
       if (runProyAlc < 0 && !alcanza_hasta_proyectado) { alcanza_hasta_proyectado = d; break; }
     }
 
-    // ingresos_semana: suma GetNet próximos 7 días (hoy + 6)
+    // ingresos_semana: suma GetNet mañana + 6 (hoy ya entró a caja)
     let ingresos_semana = 0;
-    let curSem = today;
+    let curSem = addDay(today);
     for (let i = 0; i < 7; i++) {
       ingresos_semana += (ingresoDia[curSem] || 0);
       curSem = addDay(curSem);

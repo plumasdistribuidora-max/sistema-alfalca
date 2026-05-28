@@ -56,8 +56,9 @@ function fmtFechaCorta(yyyymmdd) {
 
 function fmtRango7Dias() {
   const ini = new Date();
+  ini.setDate(ini.getDate() + 1); // mañana
   const fin = new Date();
-  fin.setDate(fin.getDate() + 6);
+  fin.setDate(fin.getDate() + 7); // hoy + 7
   const f = (d) => `${d.getDate()}/${d.getMonth() + 1}`;
   return `${f(ini)} al ${f(fin)}`;
 }
@@ -595,9 +596,11 @@ export default function CashFlowSection() {
                       <div style={{ borderTop: '0.5px solid rgba(0,0,0,0.13)', margin: '4px 0' }} />
                       <div>
                         <p style={{ fontSize: 9, color: 'rgba(55,138,221,0.75)', lineHeight: 1, marginBottom: 1 }}>+ GN</p>
-                        {ingresoGN > 0
-                          ? <p style={{ fontSize: 10, fontWeight: 600, color: '#378ADD', lineHeight: 1, marginBottom: 3 }}>+{fmtAbrev(ingresoGN)}</p>
-                          : <p style={{ fontSize: 10, fontWeight: 500, color: '#C8C5C2', lineHeight: 1, marginBottom: 3 }}>—</p>
+                        {isToday
+                          ? <p style={{ fontSize: 9, fontWeight: 500, color: '#A8A29E', lineHeight: 1, marginBottom: 3 }}>ya ingresó</p>
+                          : ingresoGN > 0
+                            ? <p style={{ fontSize: 10, fontWeight: 600, color: '#378ADD', lineHeight: 1, marginBottom: 3 }}>+{fmtAbrev(ingresoGN)}</p>
+                            : <p style={{ fontSize: 10, fontWeight: 500, color: '#C8C5C2', lineHeight: 1, marginBottom: 3 }}>—</p>
                         }
                         {saldoProyDia !== undefined && (
                           <>

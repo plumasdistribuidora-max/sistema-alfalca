@@ -419,7 +419,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
         const nombreNorm  = normalizeNombre(nombreRaw);
         const productoId  = productoIdMap[nombreNorm] ?? null;
-        const docenasProd = productoId ? (docenasMap[productoId] ?? 0) : getDocenasPorProducto(nombreRaw);
+        const docenasProd = productoId ? (docenasMap[productoId] ?? 0) : (getDocenasPorProducto(nombreRaw) ?? 0);
         const cantidad    = parseFloat(row['cantidad'] ?? 1) || 1;
         const precioUnit  = parseFloat(row['precio'] ?? 0) || 0;
         const docenasEq   = cantidad * parseFloat(docenasProd);

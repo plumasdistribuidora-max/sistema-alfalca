@@ -1,21 +1,23 @@
-const xlsx     = require('xlsx');
+'use strict';
+
+const xlsx          = require('xlsx');
 const { getFromR2 } = require('../config/r2');
 
-const R2_KEY    = 'maestros/alfalca/Maestro_Productos_Docenas_ALFALCA.xlsx';
-const HOJA      = 'Maestro Docenas';
-const HEADER_ROW = 2; // fila 3 del Excel (0-based); equivalente a pandas skiprows=2
+const R2_KEY     = 'maestros/alfalca/Maestro_Productos_Docenas_ALFALCA.xlsx';
+const HOJA       = 'Maestro Docenas';
+const HEADER_ROW = 2; // fila 3 del Excel (0-based)
 
-// Normalización estricta para matching case-insensitive sin acentos
+// Normalización canónica — misma función para maestro Y para nombres de venta
 function normalizar(s) {
   return (s || '').toString()
-    .trim()
+    .replace(/ /g, ' ')                       // non-breaking space → espacio normal
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // quitar tildes/diacríticos
     .replace(/\s+/g, ' ')
-    .replace(/[.,]+$/, '');
+    .trim();
 }
 
-let _map    = new Map(); // nombre_normalizado → { docenas, categoria, locales, nombre_original }
+let _map    = new Map(); // nombre_normalizado → { docenas, categoria, producto }
 let _arr    = [];
 let _loaded = false;
 
@@ -36,39 +38,47 @@ async function loadMaestro() {
   let dupes = 0;
 
   for (const row of rows) {
-    // Soporta "Categoría" (con tilde) y "Categoria" (sin tilde) por si el Excel varía
-    const categoria  = (row['Categoría'] || row['Categoria'] || '').toString().trim();
-    const nombre     = row['Nombre del producto'];
-    const docenasRaw = row['DOCENAS (equivalente)'];
-    const locales    = row['Locales']               || null;
-    const notas      = row['Notas']                 || null;
+    // Col 1: Categoría
+    const categoria = (row['Categoría'] || row['Categoria'] || '').toString().trim();
 
-    if (!nombre) continue;
-    const nombreStr = nombre.toString().trim();
-    if (!nombreStr) continue;
+    // Col 2: Producto (nombre canónico de la fila)
+    const producto = row['Producto'];
+    if (!producto || !String(producto).trim()) continue;
+    const productoStr = String(producto).trim();
 
-    // Filtrar filas separadoras de categoría (empiezan con ▸)
-    if (categoria.startsWith('▸') || nombreStr.startsWith('▸')) continue;
+    // Col 3: Variantes separadas por " | "
+    const variantesRaw = row['Variantes de nombre (todas matchean)'];
+    const variantesStr = variantesRaw ? String(variantesRaw).trim() : productoStr;
+    const variantes    = variantesStr.split('|').map(v => v.trim()).filter(Boolean);
+    if (variantes.length === 0) variantes.push(productoStr);
 
-    const key = normalizar(nombreStr);
-    if (!key) continue;
-
-    // DOCENAS: null/undefined/'' → 0 (no cuenta). Número explícito → ese valor.
+    // Col 4: DOCENAS — acepta clave con o sin salto de línea en el header del Excel
+    const docenasRaw =
+      row['DOCENAS\n(equivalente)'] ??
+      row['DOCENAS (equivalente)']  ??
+      row['DOCENAS'];
     let docenas = 0;
     if (docenasRaw !== null && docenasRaw !== undefined && docenasRaw !== '') {
       const parsed = parseFloat(docenasRaw);
       docenas = isNaN(parsed) ? 0 : parsed;
     }
 
-    if (newMap.has(key)) {
-      console.warn(`[maestroDocenas] Duplicado normalizado: "${key}" (original: "${nombreStr}") — se mantiene el primero`);
-      dupes++;
-      continue;
+    // Col 5: Locales
+    const locales = row['Locales'] ? String(row['Locales']).trim() : null;
+
+    // Registrar cada variante en el mapa apuntando al mismo valor de docenas
+    for (const variante of variantes) {
+      const key = normalizar(variante);
+      if (!key) continue;
+      if (newMap.has(key)) {
+        console.warn(`[maestroDocenas] Variante duplicada: "${key}" (producto: "${productoStr}") — se mantiene la primera`);
+        dupes++;
+        continue;
+      }
+      newMap.set(key, { docenas, categoria, producto: productoStr });
     }
 
-    const entry = { docenas, categoria, locales, notas, nombre_original: nombreStr };
-    newMap.set(key, entry);
-    newArr.push({ nombre_normalizado: key, nombre_original: nombreStr, docenas, categoria, locales, notas });
+    newArr.push({ producto: productoStr, variantes, docenas, categoria, locales });
   }
 
   _map    = newMap;
@@ -76,17 +86,23 @@ async function loadMaestro() {
   _loaded = true;
 
   const conDocenas = newArr.filter(e => e.docenas > 0).length;
-  console.log(`[maestroDocenas] OK — ${newArr.length} productos (${conDocenas} con docenas > 0, ${dupes} duplicados ignorados)`);
-  return { productos: newArr.length, con_docenas: conDocenas, duplicados: dupes };
+  console.log(
+    `[maestroDocenas] OK — ${newArr.length} productos, ${newMap.size} variantes ` +
+    `(${conDocenas} con docenas > 0, ${dupes} dupes ignorados)`
+  );
+  return { productos: newArr.length, variantes: newMap.size, con_docenas: conDocenas, duplicados: dupes };
 }
 
-// Retorna el factor de docenas del producto (0 si no está en el maestro o tiene valor vacío)
+/**
+ * Retorna el valor de docenas si el nombre matchea alguna variante del maestro
+ * (el valor puede ser 0 para productos que no suman docenas).
+ * Retorna null si el nombre no tiene ningún match.
+ */
 function getDocenasPorProducto(nombre) {
   const entry = _map.get(normalizar(nombre));
-  return entry ? entry.docenas : 0;
+  return entry !== undefined ? entry.docenas : null;
 }
 
-// Retorna true si el nombre tiene entrada en el maestro (sea docenas > 0 o no)
 function isEnMaestro(nombre) {
   return _map.has(normalizar(nombre));
 }

@@ -22,16 +22,29 @@ let _arr    = [];
 let _loaded = false;
 
 async function loadMaestro() {
+  console.log('[maestroDocenas] === INICIO RELOAD ===');
+
   const r2Res = await getFromR2(R2_KEY);
   const chunks = [];
   for await (const chunk of r2Res.Body) chunks.push(chunk);
   const buffer = Buffer.concat(chunks);
 
+  console.log('[maestroDocenas] Excel descargado, tamaño:', buffer.length, 'bytes');
+
   const wb = xlsx.read(buffer, { type: 'buffer' });
+
+  console.log('[maestroDocenas] Hojas disponibles:', wb.SheetNames);
+
   const ws = wb.Sheets[HOJA];
   if (!ws) throw new Error(`Hoja "${HOJA}" no encontrada en el Excel del maestro`);
 
+  console.log('[maestroDocenas] Hoja seleccionada:', HOJA);
+
   const rows = xlsx.utils.sheet_to_json(ws, { range: HEADER_ROW, defval: null });
+
+  console.log('[maestroDocenas] Filas crudas leídas:', rows.length);
+  console.log('[maestroDocenas] Primera fila:', JSON.stringify(rows[0]));
+  console.log('[maestroDocenas] Segunda fila:', JSON.stringify(rows[1]));
 
   const newMap = new Map();
   const newArr = [];
@@ -43,7 +56,10 @@ async function loadMaestro() {
 
     // Col 2: Producto (nombre canónico de la fila)
     const producto = row['Producto'];
-    if (!producto || !String(producto).trim()) continue;
+    if (!producto || !String(producto).trim()) {
+      console.log('[maestroDocenas] Fila descartada (razón: sin producto):', JSON.stringify(row));
+      continue;
+    }
     const productoStr = String(producto).trim();
 
     // Col 3: Variantes separadas por " | "
@@ -90,6 +106,7 @@ async function loadMaestro() {
     `[maestroDocenas] OK — ${newArr.length} productos, ${newMap.size} variantes ` +
     `(${conDocenas} con docenas > 0, ${dupes} dupes ignorados)`
   );
+  console.log('[maestroDocenas] === FIN RELOAD ===', 'productos:', newArr.length, 'variantes:', newMap.size, 'con_docenas:', conDocenas);
   return { productos: newArr.length, variantes: newMap.size, con_docenas: conDocenas, duplicados: dupes };
 }
 

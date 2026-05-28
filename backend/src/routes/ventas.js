@@ -373,7 +373,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         const totalProd     = parseFloat(row['total'] ?? 0) || 0;
         const precioProm    = cantidad > 0 ? Math.round((totalProd / cantidad) * 100) / 100 : null;
 
-        const docenas     = getDocenasPorProducto(nombreDisplay);
+        const docenas     = getDocenasPorProducto(nombreDisplay) ?? 0;
         const esAdicional = normalizeNombre(nombreDisplay).includes('adicional');
         const regla       = isEnMaestro(nombreDisplay) ? 'Maestro R2' : 'Sin match';
         if (!isEnMaestro(nombreDisplay) && maestroIsLoaded())
@@ -698,6 +698,26 @@ router.delete('/reset', requireAuth, async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   } finally {
     client.release();
+  }
+});
+
+// ── PATCH /imports/cancelar-procesando ────────────────────────────────────
+// Marca como 'error' todos los imports que quedaron en estado 'procesando'
+// (ej. cuando el proceso murió antes de poder actualizarlos).
+
+router.patch('/imports/cancelar-procesando', requireAuth, async (req, res) => {
+  if (req.user?.rol !== 'admin') return res.status(403).json({ ok: false, error: 'Se requieren permisos de administrador' });
+  try {
+    const { rowCount } = await pool.query(`
+      UPDATE imports_log
+      SET status       = 'error',
+          error_detail = $1
+      WHERE status = 'procesando'
+    `, [JSON.stringify({ error: 'Cancelado manualmente: import quedó trabado sin finalizar' })]);
+    res.json({ ok: true, cancelados: rowCount });
+  } catch (err) {
+    console.error('[imports/cancelar-procesando]', err);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

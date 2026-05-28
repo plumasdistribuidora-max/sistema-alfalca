@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import api from '../api';
 import { formatDateTime, formatDate, formatNumber } from '../utils/format';
+import { useAuth } from '../contexts/AuthContext';
 
 const STATUS_CLASS = {
   completado: 'bg-green-100 text-green-700',
@@ -108,6 +109,7 @@ function ModalBorrarB({ row, borrando, onCancel, onConfirm }) {
 }
 
 export default function HistorialImports() {
+  const { user } = useAuth();
   const [locales, setLocales]         = useState([]);
   const [data, setData]               = useState([]);
   const [localFiltro, setLocalFiltro] = useState('');
@@ -117,6 +119,8 @@ export default function HistorialImports() {
   const [modalB, setModalB]           = useState(null);
   const [borrando, setBorrando]       = useState(false);
   const [descargando, setDescargando] = useState(null);
+  const [cancelando, setCancelando]   = useState(false);
+  const [cancelMsg, setCancelMsg]     = useState(null);
 
   useEffect(() => {
     api.get('/locales').then(r => setLocales(r.data.data.filter(l => l.activo)));
@@ -165,6 +169,21 @@ export default function HistorialImports() {
     }
   }
 
+  async function cancelarTrabados() {
+    setCancelando(true);
+    setCancelMsg(null);
+    try {
+      const res = await api.patch('/ventas/imports/cancelar-procesando');
+      setCancelMsg({ ok: true, text: `${res.data.cancelados} import(s) cancelados` });
+      load();
+    } catch (err) {
+      setCancelMsg({ ok: false, text: err?.response?.data?.error || 'Error al cancelar' });
+    } finally {
+      setCancelando(false);
+      setTimeout(() => setCancelMsg(null), 5000);
+    }
+  }
+
   const filtered = localFiltro
     ? data.filter(r => String(r.local_id) === localFiltro)
     : data;
@@ -201,8 +220,28 @@ export default function HistorialImports() {
             {locales.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
           </select>
           <button onClick={load} className="btn-secondary text-sm">Actualizar</button>
+          {user?.rol?.toLowerCase() === 'admin' && (
+            <button
+              onClick={cancelarTrabados}
+              disabled={cancelando}
+              title="Marca como error todos los imports que quedaron en estado 'procesando'"
+              className="btn-secondary text-sm text-yellow-700 disabled:opacity-60"
+            >
+              {cancelando ? 'Cancelando…' : 'Cancelar trabados'}
+            </button>
+          )}
         </div>
       </div>
+
+      {cancelMsg && (
+        <div className={`text-sm px-4 py-2.5 rounded-lg border ${
+          cancelMsg.ok
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          {cancelMsg.ok ? '✓ ' : '✕ '}{cancelMsg.text}
+        </div>
+      )}
 
       <div className="card overflow-x-auto">
         {loading ? (

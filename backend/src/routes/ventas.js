@@ -115,10 +115,10 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
     // ── Parsear Excel ──────────────────────────────────────────────────────
     const wb = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
 
-    // Validar hojas requeridas
-    const REQUIRED_SHEETS = ['ventas', 'adiciones', 'pagos', 'descuentos', 'ventas fiscales', 'productos'];
+    // Validar hojas requeridas (ventas fiscales es opcional: hay períodos sin facturación)
+    const REQUIRED_SHEETS = ['ventas', 'adiciones', 'pagos', 'descuentos', 'productos'];
     const missing = REQUIRED_SHEETS.filter(s =>
-      !wb.SheetNames.some(n => n.toLowerCase().includes(s))
+      !wb.SheetNames.some(n => n.toLowerCase().trim().includes(s))
     );
     if (missing.length) {
       await pool.query("UPDATE imports_log SET status='error', error_detail=$1 WHERE id=$2",
@@ -167,7 +167,11 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
     const rowsAdiciones = inspectSheet('Adiciones', 'adiciones', 0);
     const rowsPagos     = inspectSheet('Pagos', 'pagos', 0);
     const rowsDesc      = inspectSheet('Descuentos', 'descuentos', 0);
+    const tieneFiscales = wb.SheetNames.some(n => n.toLowerCase().trim().includes('ventas fiscal'));
     const rowsFiscales  = inspectSheet('Ventas Fiscales', 'ventas fiscales', 0);
+    if (!tieneFiscales) {
+      console.warn("[import] Hoja 'ventas fiscales' no encontrada para este período. Se procesa el resto del Excel sin datos fiscales.");
+    }
     const rowsProductos = inspectSheet('Productos', 'productos', 0);
 
     console.log('[import debug]\n' + debugLog.join('\n'));
@@ -583,6 +587,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           filas_actualizadas = $4,
           filas_error        = 0,
           status             = 'completado',
+          error_detail       = $8,
           fecha_desde        = $5,
           fecha_hasta        = $6
         WHERE id = $7
@@ -592,6 +597,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         ticketsInsertados + itemsInsertados + pagosInsertados + descInsertados + fiscalesInsertados,
         ticketsActualizados,
         fechaDesde, fechaHasta, importId,
+        tieneFiscales ? null : JSON.stringify({ warnings: ["Sin hoja 'ventas fiscales' en este Excel"] }),
       ]);
 
       return res.json({
@@ -607,6 +613,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           descuentos_insertados:       descInsertados,
           descuentos_total_pesos:      Math.round(descTotalPesos * 100) / 100,
           fiscales_insertados:         fiscalesInsertados,
+          sin_datos_fiscales:          !tieneFiscales,
           productos_nuevos_catalogo:   productosNuevos,
           docenas_totales_periodo:     Math.round(docenasTotalesDB * 10000) / 10000,
           adicionales_total:           parseInt(adicionalesTotal.rows[0].cnt),

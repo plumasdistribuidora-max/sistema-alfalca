@@ -21,6 +21,7 @@ const ICON = {
   historial:  '⌛',
   docenas:    '◆',
   catalogo:   '▤',
+  maestros:   '⊟',
 };
 
 const TIENDA_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
@@ -137,6 +138,13 @@ export default function Sidebar({ open, onClose }) {
 
           <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
           <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
+
+          {user?.rol?.toLowerCase() === 'admin' && (
+            <>
+              <SectionLabel label="Admin" />
+              <NavItem to="/admin/maestros/docenas" icon={ICON.maestros} label="Maestro de docenas" />
+            </>
+          )}
 
           <SectionLabel label="Próximamente" />
           <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />

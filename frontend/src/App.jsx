@@ -16,6 +16,7 @@ import CatalogoPage             from './pages/ventas/productos/CatalogoPage';
 import RedDashboard             from './pages/red/RedDashboard';
 import StockInteligente        from './pages/stock/StockInteligente';
 import FinanzasPage            from './pages/finanzas/FinanzasPage';
+import MaestroDocenasPage      from './pages/admin/MaestroDocenasPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="red"                            element={<RedDashboard />} />
             <Route path="stock"                          element={<StockInteligente />} />
             <Route path="finanzas"                       element={<FinanzasPage />} />
+            <Route path="admin/maestros/docenas"         element={<MaestroDocenasPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

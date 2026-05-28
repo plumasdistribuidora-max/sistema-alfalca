@@ -100,6 +100,35 @@ function Medalla({ m }) {
   return <span className="text-sm text-stone-400 w-6 text-center inline-block">{m}</span>;
 }
 
+// Tooltip personalizado para el gráfico de docenas mensuales
+const ALFAJORERAS_DOC = ['Peatonal', '9 de Julio', 'Amigorena', 'Sheraton'];
+function fmtDocRound(v) {
+  return Math.round(Number(v) || 0).toLocaleString('es-AR');
+}
+function DocTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const mesRaw = payload[0]?.payload?.mes_raw;
+  const totalGrupo = payload
+    .filter(p => ALFAJORERAS_DOC.includes(p.dataKey))
+    .reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 14px', minWidth: 210, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+      <p style={{ fontWeight: 600, marginBottom: 8, color: '#1c1917', fontSize: 13 }}>{fmtMesLabelFull(mesRaw)}</p>
+      <div style={{ background: '#EEEDFE', borderRadius: 6, padding: '5px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>Total Grupo</span>
+        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>{fmtDocRound(totalGrupo)} doc</span>
+      </div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.fill, flexShrink: 0 }} />
+          <span style={{ flex: 1, color: '#44403c', fontSize: 12 }}>{p.dataKey}</span>
+          <span style={{ color: '#1c1917', fontWeight: 500, fontSize: 12 }}>{fmtDocRound(p.value)} doc</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Componente principal ────────────────────────────────────────────────────
 
 export default function ResumenSection() {
@@ -409,7 +438,7 @@ export default function ResumenSection() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" />
                 <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v, name) => [fmtDoc(v) + ' doc', name]} />
+                <Tooltip content={<DocTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {seriesDoc.map((s, idx) => (
                   <Bar

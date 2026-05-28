@@ -18,19 +18,31 @@ const CUENTA_META = {
   efectivo:  { label: 'Efectivo',     icon: '💵', color: '#16a34a' },
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function currentMesStr() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+function todayIso() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
 
 const fmt$ = (v) => fmtARS(Math.round(Number(v) || 0));
 
-function fmtFecha(yyyymmdd) {
-  if (!yyyymmdd) return '—';
-  const [, mm, dd] = yyyymmdd.split('-');
-  return `${dd}/${mm}`;
+function fmtAbrev(v) {
+  const num = Number(v) || 0;
+  const sign = num < 0 ? '-' : '';
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000) {
+    return `${sign}$${(abs / 1_000_000).toLocaleString('es-AR', { maximumFractionDigits: 1 })}M`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}$${Math.round(abs / 1_000).toLocaleString('es-AR')}k`;
+  }
+  return `${sign}$${Math.round(abs).toLocaleString('es-AR')}`;
 }
 
 function fmtFechaLarga(yyyymmdd) {
@@ -64,7 +76,7 @@ function nextMes(yyyymm) {
 function getCalDays(yyyymm) {
   const [y, m] = yyyymm.split('-').map(Number);
   const lastDate = new Date(y, m, 0).getDate();
-  const firstDow = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Mon-based
+  const firstDow = (new Date(y, m - 1, 1).getDay() + 6) % 7;
   const days = [];
   for (let i = 0; i < firstDow; i++) days.push(null);
   for (let d = 1; d <= lastDate; d++) {
@@ -72,6 +84,12 @@ function getCalDays(yyyymm) {
   }
   while (days.length % 7 !== 0) days.push(null);
   return days;
+}
+
+function getSemaforo(saldo, piso) {
+  if (saldo >= piso) return { bg: '#E1F5EE', headColor: '#0F6E56', saldoColor: '#04342C' };
+  if (saldo >= 0)   return { bg: '#FAEEDA', headColor: '#854F0B', saldoColor: '#412402' };
+  return                   { bg: '#FCEBEB', headColor: '#A32D2D', saldoColor: '#501313' };
 }
 
 // ── Sub-componentes ───────────────────────────────────────────────────────────
@@ -112,11 +130,11 @@ function EstadoBadge({ estado, arrastrado }) {
   }
   const s = (estado || '').toLowerCase();
   const map = {
-    pagado:    ['bg-emerald-100 text-emerald-800', '✓ Pagado'],
-    aceptado:  ['bg-blue-100 text-blue-800', 'Aceptado'],
-    activo:    ['bg-blue-100 text-blue-800', 'Activo'],
-    depositado:['bg-violet-100 text-violet-800', 'Depositado'],
-    presentado:['bg-violet-100 text-violet-800', 'Presentado'],
+    pagado:     ['bg-emerald-100 text-emerald-800', '✓ Pagado'],
+    aceptado:   ['bg-blue-100 text-blue-800', 'Aceptado'],
+    activo:     ['bg-blue-100 text-blue-800', 'Activo'],
+    depositado: ['bg-violet-100 text-violet-800', 'Depositado'],
+    presentado: ['bg-violet-100 text-violet-800', 'Presentado'],
   };
   const [cls, lbl] = map[s] || ['bg-stone-100 text-stone-600', estado || '—'];
   return <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{lbl}</span>;
@@ -125,35 +143,34 @@ function EstadoBadge({ estado, arrastrado }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function CashFlowSection() {
-  const [saldosData,  setSaldosData]  = useState(null);
-  const [calData,     setCalData]     = useState(null);
-  const [viewMes,     setViewMes]     = useState(currentMesStr);
-  const [loadingSal,  setLoadingSal]  = useState(true);
-  const [loadingCal,  setLoadingCal]  = useState(true);
+  const [saldosData,   setSaldosData]   = useState(null);
+  const [calData,      setCalData]      = useState(null);
+  const [configData,   setConfigData]   = useState({ piso_seguridad: 3_000_000 });
+  const [editPiso,     setEditPiso]     = useState('3000000');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [showConfig,   setShowConfig]   = useState(false);
+  const [viewMes,      setViewMes]      = useState(currentMesStr);
+  const [loadingSal,   setLoadingSal]   = useState(true);
+  const [loadingCal,   setLoadingCal]   = useState(true);
 
-  // Modal: editar saldo
-  const [saldoModal,  setSaldoModal]  = useState(null); // cuenta key
-  const [saldoVal,    setSaldoVal]    = useState('');
-  const [savingSaldo, setSavingSaldo] = useState(false);
+  const [saldoModal,   setSaldoModal]   = useState(null);
+  const [saldoVal,     setSaldoVal]     = useState('');
+  const [savingSaldo,  setSavingSaldo]  = useState(false);
 
-  // Modal: gasto
-  const [gastoModal,  setGastoModal]  = useState(null); // null | {mode:'add',fecha?} | {mode:'edit',item}
-  const [gastoForm,   setGastoForm]   = useState({ concepto: '', monto: '', fecha: '' });
-  const [savingGasto, setSavingGasto] = useState(false);
+  const [gastoModal,   setGastoModal]   = useState(null);
+  const [gastoForm,    setGastoForm]    = useState({ concepto: '', monto: '', fecha: '' });
+  const [savingGasto,  setSavingGasto]  = useState(false);
 
-  // Modal: detalle día
-  const [diaModal,    setDiaModal]    = useState(null); // date string YYYY-MM-DD
+  const [diaModal,     setDiaModal]     = useState(null);
 
-  // Import
-  const [importando,  setImportando]  = useState(false);
-  const [importMsg,   setImportMsg]   = useState(null);
+  const [importando,   setImportando]   = useState(false);
+  const [importMsg,    setImportMsg]    = useState(null);
   const fileRef = useRef();
 
-  const today = currentMesStr().split('-')[1]
-    ? (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })()
-    : '';
-  const todayDateStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
+  const todayDateStr = todayIso();
+  const piso = configData.piso_seguridad;
 
+  // ── Loaders ──
   const loadSaldos = () => {
     setLoadingSal(true);
     api.get('/cashflow/saldos')
@@ -170,7 +187,16 @@ export default function CashFlowSection() {
       .finally(() => setLoadingCal(false));
   };
 
-  useEffect(() => { loadSaldos(); }, []);
+  const loadConfig = () => {
+    api.get('/cashflow/config')
+      .then(r => {
+        setConfigData(r.data.data);
+        setEditPiso(String(Math.round(r.data.data.piso_seguridad)));
+      })
+      .catch(console.error);
+  };
+
+  useEffect(() => { loadSaldos(); loadConfig(); }, []);
   useEffect(() => { loadCalendario(viewMes); }, [viewMes]);
 
   // ── Saldo modal ──
@@ -189,6 +215,17 @@ export default function CashFlowSection() {
       loadCalendario(viewMes);
     } catch (err) { console.error(err); alert('Error al guardar saldo'); }
     finally { setSavingSaldo(false); }
+  }
+
+  // ── Config ──
+  async function handleSaveConfig() {
+    setSavingConfig(true);
+    try {
+      const val = parseFloat(editPiso.replace(/\./g, '').replace(',', '.')) || 3_000_000;
+      await api.post('/cashflow/config', { piso_seguridad: val });
+      loadConfig();
+    } catch (err) { console.error(err); }
+    finally { setSavingConfig(false); }
   }
 
   // ── Import cheques ──
@@ -242,56 +279,64 @@ export default function CashFlowSection() {
 
   // ── Datos calendario ──
   const calDays   = getCalDays(viewMes);
-  const egresoMap = {}; // date string → array
+  const egresoMap = {};
   if (calData?.egresos) {
     for (const e of calData.egresos) {
       if (!egresoMap[e.fecha]) egresoMap[e.fecha] = [];
       egresoMap[e.fecha].push(e);
     }
   }
-  const diaEgresos = diaModal ? (egresoMap[diaModal] || []) : [];
+  const diaEgresos   = diaModal ? (egresoMap[diaModal] || []) : [];
+  const totalEgresos = calData?.egresos?.reduce((s, e) => s + e.importe, 0) ?? 0;
   const [viewY, viewM] = viewMes.split('-');
 
   return (
     <div className="space-y-4">
 
-      {/* ── Banner resumen ── */}
-      <div className="card px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <p className="text-xs text-stone-500 mb-0.5">Caja disponible hoy</p>
-          <p className="text-2xl font-bold text-stone-900">
+      {/* ── Banner 3 tarjetas ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-2xl px-4 py-3 flex flex-col" style={{ background: '#E1F5EE' }}>
+          <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>Caja disponible</p>
+          <p className="text-2xl font-bold mt-0.5 leading-none" style={{ color: '#04342C' }}>
             {loadingSal ? '…' : fmt$(saldosData?.total ?? 0)}
           </p>
         </div>
-        {calData && (
-          <div className="text-right">
-            {calData.alcanza_hasta ? (
-              <>
-                <p className="text-xs text-stone-500 mb-0.5">La caja alcanza hasta</p>
-                <p className="text-lg font-bold text-emerald-700">{fmtFechaLarga(calData.alcanza_hasta)}</p>
-              </>
-            ) : (
-              <p className="text-sm font-semibold text-emerald-600">Sin vencimientos que comprometan la caja</p>
-            )}
-          </div>
-        )}
+
+        <div className="rounded-2xl px-4 py-3 flex flex-col bg-stone-50 border border-stone-100">
+          <p className="text-xs font-semibold text-stone-500">Egresos del mes</p>
+          <p className={`text-2xl font-bold mt-0.5 leading-none ${totalEgresos > 0 ? 'text-red-700' : 'text-stone-700'}`}>
+            {loadingCal ? '…' : fmt$(totalEgresos)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl px-4 py-3 flex flex-col" style={{ background: '#FAEEDA' }}>
+          <p className="text-xs font-semibold" style={{ color: '#854F0B' }}>Alcanza hasta</p>
+          <p className="text-base font-bold mt-0.5 leading-tight" style={{ color: '#412402' }}>
+            {loadingCal
+              ? '…'
+              : calData?.alcanza_hasta
+                ? fmtFechaLarga(calData.alcanza_hasta)
+                : 'Sin compromiso'}
+          </p>
+        </div>
       </div>
 
-      {/* ── Saldos ── */}
+      {/* ── Alerta efectivo ── */}
       {saldosData?.efectivo_warning && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
           <span>⚠</span>
           <span>
             Actualizá el efectivo
             {saldosData.efectivo_dias != null
-              ? ` (última vez: ${fmtFechaLarga(saldosData.saldos?.efectivo?.fecha?.slice(0,10))})`
+              ? ` (última vez: ${fmtFechaLarga(saldosData.saldos?.efectivo?.fecha?.slice(0, 10))})`
               : ' (nunca registrado)'}
           </span>
         </div>
       )}
 
+      {/* ── Saldos por cuenta ── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {['santander','mp','galicia','efectivo'].map(cuenta => {
+        {['santander', 'mp', 'galicia', 'efectivo'].map(cuenta => {
           const meta = CUENTA_META[cuenta];
           const d    = saldosData?.saldos?.[cuenta];
           return (
@@ -336,6 +381,68 @@ export default function CashFlowSection() {
         )}
       </div>
 
+      {/* ── Semáforo config ── */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4C1D95" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span className="text-sm font-bold text-stone-800">Piso de seguridad de caja</span>
+            <span className="text-sm font-semibold text-violet-700">{fmt$(piso)}</span>
+          </div>
+          <button
+            onClick={() => setShowConfig(v => !v)}
+            className="text-xs text-stone-400 hover:text-stone-600 font-medium px-2 py-1 rounded-lg hover:bg-stone-50"
+          >
+            {showConfig ? 'Ocultar' : 'Configurar'}
+          </button>
+        </div>
+
+        {showConfig && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-stone-600 mb-1 block">Monto mínimo ($)</label>
+                <input
+                  type="number" min="0" value={editPiso}
+                  onChange={e => setEditPiso(e.target.value)}
+                  className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                />
+              </div>
+              <div className="pt-5">
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={savingConfig}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ background: '#4C1D95' }}
+                >
+                  {savingConfig ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2.5 text-sm text-stone-600">
+                <span className="w-3.5 h-3.5 rounded flex-shrink-0" style={{ background: '#E1F5EE', border: '1px solid #0F6E56' }} />
+                Verde — caja por encima del piso de seguridad
+              </div>
+              <div className="flex items-center gap-2.5 text-sm text-stone-600">
+                <span className="w-3.5 h-3.5 rounded flex-shrink-0" style={{ background: '#FAEEDA', border: '1px solid #854F0B' }} />
+                Amarillo — caja entre $0 y el piso de seguridad
+              </div>
+              <div className="flex items-center gap-2.5 text-sm text-stone-600">
+                <span className="w-3.5 h-3.5 rounded flex-shrink-0" style={{ background: '#FCEBEB', border: '1px solid #A32D2D' }} />
+                Rojo — caja proyectada en negativo
+              </div>
+            </div>
+            <p className="text-xs text-stone-400">
+              El color de cada día refleja el saldo proyectado acumulado luego de todos los egresos hasta esa fecha.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* ── Calendario ── */}
       <div className="card p-4">
         {/* Cabecera del mes */}
@@ -344,11 +451,9 @@ export default function CashFlowSection() {
             onClick={() => setViewMes(prevMes(viewMes))}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-600 font-bold"
           >‹</button>
-          <div className="text-center">
-            <p className="font-bold text-stone-900">
-              {MESES_FULL[viewM]} {viewY}
-            </p>
-          </div>
+          <p className="font-bold text-stone-900">
+            {MESES_FULL[viewM]} {viewY}
+          </p>
           <div className="flex items-center gap-1">
             {viewMes !== currentMesStr() && (
               <button
@@ -365,7 +470,7 @@ export default function CashFlowSection() {
           </div>
         </div>
 
-        {/* Días de semana */}
+        {/* Encabezados día de semana */}
         <div className="grid grid-cols-7 mb-1">
           {DOW.map(d => (
             <div key={d} className="text-center text-xs font-semibold text-stone-400 py-1">{d}</div>
@@ -376,36 +481,68 @@ export default function CashFlowSection() {
         {loadingCal ? (
           <div className="h-48 flex items-center justify-center text-stone-400 text-sm">Cargando…</div>
         ) : (
-          <div className="grid grid-cols-7 gap-px bg-stone-100 rounded-xl overflow-hidden">
+          <div className="grid grid-cols-7 gap-px" style={{ background: '#E7E5E4', borderRadius: 12, overflow: 'hidden' }}>
             {calDays.map((day, i) => {
-              if (!day) return <div key={`e-${i}`} className="bg-white min-h-[80px]" />;
-              const isPast   = day < todayDateStr;
-              const isToday  = day === todayDateStr;
-              const dayEgr   = egresoMap[day] || [];
+              if (!day) return <div key={`e-${i}`} style={{ background: 'transparent', minHeight: 72 }} />;
+
+              const isPast  = day < todayDateStr;
+              const isToday = day === todayDateStr;
+              const dayEgr  = egresoMap[day] || [];
               const dayTotal = dayEgr.reduce((s, e) => s + e.importe, 0);
-              const dd       = day.slice(8);
+              const saldoDia = calData?.saldo_por_dia?.[day];
+              const sem = (!isPast && saldoDia !== undefined) ? getSemaforo(saldoDia, piso) : null;
+              const dd  = parseInt(day.slice(8), 10);
+
+              const cellBg = isPast ? '#F5F4F2' : (sem?.bg || '#FFFFFF');
 
               return (
                 <button
                   key={day}
                   onClick={() => setDiaModal(day)}
-                  className={`bg-white min-h-[80px] p-1.5 text-left flex flex-col transition-colors hover:bg-stone-50 ${isPast ? 'opacity-45' : ''}`}
-                  style={isToday ? { outline: '2px solid #16a34a', outlineOffset: '-2px', zIndex: 1 } : {}}
+                  className="text-left flex flex-col transition-colors hover:brightness-95 active:brightness-90"
+                  style={{
+                    background: cellBg,
+                    minHeight: 72,
+                    padding: '6px 7px',
+                    opacity: isPast ? 0.5 : 1,
+                    ...(isToday ? { boxShadow: 'inset 0 0 0 1.5px #1D9E75', zIndex: 1, position: 'relative' } : {}),
+                  }}
                 >
-                  <span className={`text-xs font-bold mb-1 ${isToday ? 'text-emerald-700' : 'text-stone-600'}`}>
-                    {parseInt(dd, 10)}
-                  </span>
-                  <div className="space-y-0.5 flex-1 min-h-0 overflow-hidden">
-                    {dayEgr.slice(0, 3).map((e, ei) => (
-                      <EgresoChip key={ei} egreso={e} />
-                    ))}
-                    {dayEgr.length > 3 && (
-                      <span className="text-xs text-stone-400">+{dayEgr.length - 3} más</span>
+                  {/* Fila superior: número + hoy */}
+                  <div className="flex items-center justify-between mb-0.5 w-full">
+                    <span
+                      className="text-xs font-bold leading-none"
+                      style={{ color: sem?.headColor || (isToday ? '#1D9E75' : '#78716C') }}
+                    >
+                      {dd}
+                    </span>
+                    {isToday && (
+                      <span
+                        className="text-[8px] font-bold px-1 py-0.5 rounded leading-none"
+                        style={{ background: '#1D9E75', color: 'white' }}
+                      >
+                        hoy
+                      </span>
                     )}
                   </div>
+
+                  {/* Egresos del día */}
                   {dayTotal > 0 && (
-                    <p className="text-xs font-bold text-stone-700 mt-1 border-t border-stone-100 pt-0.5">
-                      −{fmt$(dayTotal)}
+                    <p
+                      className="text-[10px] font-semibold leading-none mb-1"
+                      style={{ color: '#DC2626' }}
+                    >
+                      −{fmtAbrev(dayTotal)}
+                    </p>
+                  )}
+
+                  {/* Saldo proyectado */}
+                  {sem && saldoDia !== undefined && (
+                    <p
+                      className="text-sm font-bold leading-tight mt-auto"
+                      style={{ color: sem.saldoColor }}
+                    >
+                      {fmtAbrev(saldoDia)}
                     </p>
                   )}
                 </button>
@@ -415,12 +552,24 @@ export default function CashFlowSection() {
         )}
 
         {/* Leyenda */}
-        <div className="flex items-center gap-4 mt-3 justify-end">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 justify-end">
           <span className="flex items-center gap-1.5 text-xs text-stone-500">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400 flex-shrink-0" /> Cheque Galicia
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#E24B4A' }} /> Cheque
           </span>
           <span className="flex items-center gap-1.5 text-xs text-stone-500">
-            <span className="w-2.5 h-2.5 rounded-full bg-violet-500 flex-shrink-0" /> Gasto manual
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#7F77DD' }} /> Gasto manual
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-stone-500">
+            <span className="w-2.5 h-2.5 rounded flex-shrink-0" style={{ background: '#E1F5EE', border: '1px solid #0F6E56' }} /> Caja ok
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-stone-500">
+            <span className="w-2.5 h-2.5 rounded flex-shrink-0" style={{ background: '#FAEEDA', border: '1px solid #854F0B' }} /> Bajo piso
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-stone-500">
+            <span className="w-2.5 h-2.5 rounded flex-shrink-0" style={{ background: '#FCEBEB', border: '1px solid #A32D2D' }} /> Negativo
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-stone-500">
+            <span className="w-2.5 h-2.5 rounded flex-shrink-0" style={{ border: '1.5px solid #1D9E75' }} /> Hoy
           </span>
         </div>
       </div>
@@ -506,7 +655,6 @@ export default function CashFlowSection() {
               <p className="text-sm text-stone-400 text-center py-4">Sin egresos en este día.</p>
             )}
 
-            {/* Cheques */}
             {diaEgresos.filter(e => e.tipo === 'cheque').map((c, i) => (
               <div key={i} className="rounded-xl bg-red-50 border border-red-100 px-4 py-3">
                 <div className="flex items-start justify-between gap-2">
@@ -527,7 +675,6 @@ export default function CashFlowSection() {
               </div>
             ))}
 
-            {/* Gastos */}
             {diaEgresos.filter(e => e.tipo === 'gasto').map((g, i) => (
               <div key={i} className="rounded-xl bg-violet-50 border border-violet-100 px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
@@ -547,15 +694,13 @@ export default function CashFlowSection() {
               </div>
             ))}
 
-            {/* Total del día */}
             {diaEgresos.length > 0 && (
               <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-stone-50 border border-stone-100 mt-2">
                 <span className="text-sm font-semibold text-stone-700">Total del día</span>
-                <span className="font-bold text-stone-900">{fmt$(diaEgresos.reduce((s,e) => s+e.importe, 0))}</span>
+                <span className="font-bold text-stone-900">{fmt$(diaEgresos.reduce((s, e) => s + e.importe, 0))}</span>
               </div>
             )}
 
-            {/* Agregar gasto para este día */}
             <button
               onClick={() => { setDiaModal(null); openAddGasto(diaModal); }}
               className="w-full py-2.5 rounded-xl text-sm font-semibold border border-violet-200 text-violet-700 hover:bg-violet-50 transition-colors mt-2"
@@ -565,27 +710,6 @@ export default function CashFlowSection() {
           </div>
         </ModalShell>
       )}
-    </div>
-  );
-}
-
-// ── EgresoChip ────────────────────────────────────────────────────────────────
-
-function EgresoChip({ egreso }) {
-  if (egreso.tipo === 'cheque') {
-    return (
-      <div className="flex items-center gap-1 text-xs">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${egreso.arrastrado ? 'bg-amber-500' : 'bg-red-400'}`} />
-        <span className="truncate text-stone-600 flex-1 min-w-0">
-          {egreso.emitido_a?.split(' ')[0] || `Ch.${egreso.nro_cheque?.slice(-4)}`}
-        </span>
-      </div>
-    );
-  }
-  return (
-    <div className="flex items-center gap-1 text-xs">
-      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-500" />
-      <span className="truncate text-stone-600 flex-1 min-w-0">{egreso.concepto}</span>
     </div>
   );
 }

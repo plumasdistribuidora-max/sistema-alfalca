@@ -48,6 +48,12 @@ function todayStr() {
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
 }
 
+function addDay(yyyymmdd) {
+  const [y, m, d] = yyyymmdd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
 const CUENTAS = ['santander', 'mp', 'galicia', 'efectivo'];
 
 function categorizarEstado(estado) {
@@ -282,6 +288,7 @@ router.get('/calendario', requireAuth, async (req, res) => {
       daily[d] = (daily[d] || 0) + n(g.monto);
     }
 
+    // alcanza_hasta: sparse loop (may extend beyond viewed month)
     let saldo = saldoTotal;
     let alcanza_hasta = null;
     for (const d of Object.keys(daily).sort()) {
@@ -289,9 +296,19 @@ router.get('/calendario', requireAuth, async (req, res) => {
       if (saldo < 0 && !alcanza_hasta) { alcanza_hasta = d; break; }
     }
 
+    // saldo_por_dia: day-by-day from today to finMes
+    const saldo_por_dia = {};
+    let runSaldo = saldoTotal;
+    let cur = today;
+    while (cur <= finMes) {
+      runSaldo -= (daily[cur] || 0);
+      saldo_por_dia[cur] = Math.round(runSaldo);
+      cur = addDay(cur);
+    }
+
     res.json({
       ok: true,
-      data: { mes, saldo_total: saldoTotal, alcanza_hasta, egresos },
+      data: { mes, saldo_total: saldoTotal, alcanza_hasta, egresos, saldo_por_dia },
     });
   } catch (err) {
     console.error('[cashflow/calendario]', err);
@@ -340,6 +357,37 @@ router.delete('/gastos/:id', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[cashflow/gastos DELETE]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+router.get('/config', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT valor FROM cashflow_config WHERE clave = 'piso_seguridad'"
+    );
+    const piso = rows.length ? Number(rows[0].valor) : 3_000_000;
+    res.json({ ok: true, data: { piso_seguridad: piso } });
+  } catch (err) {
+    console.error('[cashflow/config GET]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/config', requireAuth, async (req, res) => {
+  try {
+    const { piso_seguridad } = req.body;
+    if (piso_seguridad == null) return res.status(400).json({ ok: false, error: 'piso_seguridad requerido' });
+    await pool.query(`
+      INSERT INTO cashflow_config (clave, valor, updated_at)
+      VALUES ('piso_seguridad', $1, NOW())
+      ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = NOW()
+    `, [String(parseFloat(piso_seguridad))]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[cashflow/config POST]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

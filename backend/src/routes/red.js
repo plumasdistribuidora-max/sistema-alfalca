@@ -291,6 +291,60 @@ function computeKpisFromAgg(agg, mes, cajaTotal) {
   return { mb_pct, ebitda_pct, be_pct, sueldos_pct, dias_caja };
 }
 
+function buildDesgloseRow(kpiCod, aggRow) {
+  const { sumVN, sumCmv, sumMB, sumGastos, sumEbitda, sumSueldos } = aggRow;
+
+  if (kpiCod === 'margen_bruto') {
+    const val = sumVN > 0 ? Math.round(sumMB / sumVN * 1000) / 10 : null;
+    return {
+      valor_kpi:   val,
+      componentes: [
+        { label: 'Venta Neta', valor: Math.round(sumVN),  formato: 'ars', signo:  1 },
+        { label: '−CMV',       valor: Math.round(sumCmv), formato: 'ars', signo: -1 },
+        { label: 'M. Bruto %', valor: val,                formato: 'pct', signo:  1, es_resultado: true },
+      ],
+    };
+  }
+  if (kpiCod === 'margen_ebitda') {
+    const val = sumVN > 0 ? Math.round(sumEbitda / sumVN * 1000) / 10 : null;
+    return {
+      valor_kpi:   val,
+      componentes: [
+        { label: 'Venta Neta',  valor: Math.round(sumVN),     formato: 'ars', signo:  1 },
+        { label: 'M. Bruto',    valor: Math.round(sumMB),     formato: 'ars', signo:  1 },
+        { label: '−Gastos Op.', valor: Math.round(sumGastos), formato: 'ars', signo: -1 },
+        { label: 'EBITDA %',    valor: val,                   formato: 'pct', signo:  1, es_resultado: true },
+      ],
+    };
+  }
+  if (kpiCod === 'breakeven') {
+    const cmv_pct = sumVN > 0 ? sumCmv / sumVN : 0;
+    const contrib = 1 - cmv_pct;
+    const be_rev  = contrib > 0 ? sumGastos / contrib : null;
+    const val     = (be_rev != null && be_rev > 0) ? Math.round(sumVN / be_rev * 1000) / 10 : null;
+    return {
+      valor_kpi:   val,
+      componentes: [
+        { label: 'Venta acum.', valor: Math.round(sumVN),                         formato: 'ars', signo: 1 },
+        { label: 'Venta BE',    valor: be_rev != null ? Math.round(be_rev) : null, formato: 'ars', signo: 0 },
+        { label: '% cubierto',  valor: val,                                        formato: 'pct', signo: 1, es_resultado: true },
+      ],
+    };
+  }
+  if (kpiCod === 'sueldos_venta') {
+    const val = sumVN > 0 ? Math.round(sumSueldos / sumVN * 1000) / 10 : null;
+    return {
+      valor_kpi:   val,
+      componentes: [
+        { label: 'Sueldos',    valor: Math.round(sumSueldos), formato: 'ars', signo: 1 },
+        { label: 'Venta Neta', valor: Math.round(sumVN),      formato: 'ars', signo: 1 },
+        { label: '%',          valor: val,                    formato: 'pct', signo: 1, es_resultado: true },
+      ],
+    };
+  }
+  return { valor_kpi: null, componentes: [] };
+}
+
 function semaforoKpi(valor, umbral) {
   if (valor == null || umbral == null) return 'sin_datos';
   const v  = Number(valor);
@@ -1474,6 +1528,42 @@ router.get('/finanzas/kpi/detalle', requireAuth, async (req, res) => {
     });
     const agg = aggregateEerrs(eerrs);
 
+    // Desglose por local (solo para vista grupo, no para días de caja)
+    let desglose_locales;
+    if (esGrupo && kpi !== 'dias_caja') {
+      const localRows = locales.map((loc, i) => {
+        const e      = eerrs[i];
+        const aggRow = {
+          sumVN:      n(e.venta_neta),
+          sumCmv:     n(e.cmv),
+          sumMB:      n(e.margen_bruto),
+          sumGastos:  n(e.total_gastos),
+          sumEbitda:  n(e.ebitda),
+          sumSueldos: extractSueldos({ bloques: e.gastos_bloques }),
+        };
+        const { valor_kpi, componentes } = buildDesgloseRow(kpi, aggRow);
+        return {
+          local_id:     loc.id,
+          local_nombre: loc.nombre,
+          componentes,
+          valor_kpi,
+          semaforo:     semaforoKpi(valor_kpi, umbrales[kpi]),
+        };
+      });
+      const { valor_kpi: totValor, componentes: totComp } = buildDesgloseRow(kpi, agg);
+      desglose_locales = [
+        ...localRows,
+        {
+          local_id:     null,
+          local_nombre: 'TOTAL',
+          componentes:  totComp,
+          valor_kpi:    totValor,
+          semaforo:     semaforoKpi(totValor, umbrales[kpi]),
+          es_total:     true,
+        },
+      ];
+    }
+
     let detalle;
 
     if (kpi === 'margen_bruto') {
@@ -1631,6 +1721,7 @@ router.get('/finanzas/kpi/detalle', requireAuth, async (req, res) => {
         ...detalle,
         kpi_codigo: kpi,
         contexto:   `${mes} · ${localNombre}`,
+        ...(desglose_locales ? { desglose_locales } : {}),
       },
     });
   } catch (err) {

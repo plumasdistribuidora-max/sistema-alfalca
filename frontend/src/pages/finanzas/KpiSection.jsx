@@ -398,25 +398,180 @@ function UmbralesModal({ kpis, onClose, onSaved }) {
   );
 }
 
+// ── Helpers de formato para tablas ───────────────────────────────────────────
+
+function fmtCompVal(c) {
+  if (c.valor == null) return '—';
+  if (c.formato === 'ars') {
+    const neg = c.signo === -1;
+    const abs = Math.abs(Math.round(c.valor));
+    let s;
+    if (abs >= 1_000_000) s = '$' + (abs / 1_000_000).toFixed(1).replace('.', ',') + 'M';
+    else if (abs >= 1_000) s = '$' + Math.round(abs / 1_000) + 'k';
+    else                   s = '$' + abs.toLocaleString('es-AR');
+    return (neg ? '−' : '') + s;
+  }
+  if (c.formato === 'pct') return Number(c.valor).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%';
+  return c.valor != null ? String(Math.round(c.valor)) : '—';
+}
+
+// ── DesgloseTable ─────────────────────────────────────────────────────────────
+
+function DesgloseTable({ desgloseLocales, onDrillDown }) {
+  if (!desgloseLocales?.length) return null;
+  const cols = desgloseLocales[0]?.componentes || [];
+  const gridCols = `1fr ${cols.map(() => 'auto').join(' ')} 18px`;
+
+  return (
+    <div className="rounded-xl border border-stone-100 overflow-hidden text-xs">
+      {/* Cabecera */}
+      <div
+        className="grid bg-stone-50 border-b border-stone-100 px-3 py-2 gap-x-3"
+        style={{ gridTemplateColumns: gridCols }}
+      >
+        <span className="text-stone-400 font-semibold">Local</span>
+        {cols.map((c, i) => (
+          <span key={i} className="text-stone-400 font-semibold text-right whitespace-nowrap">{c.label}</span>
+        ))}
+        <span />
+      </div>
+
+      {/* Filas */}
+      {desgloseLocales.map(row => {
+        const isTotal = row.es_total;
+        const sem     = SEM[row.semaforo || 'sin_datos'] || SEM.sin_datos;
+        return (
+          <div
+            key={row.local_id ?? 'total'}
+            onClick={() => !isTotal && onDrillDown(row.local_id, row.local_nombre)}
+            className={`grid items-center px-3 py-2.5 border-b border-stone-50 last:border-0 gap-x-3 transition-colors ${
+              isTotal ? 'bg-violet-50/60' : 'cursor-pointer hover:bg-violet-50'
+            }`}
+            style={{ gridTemplateColumns: gridCols }}
+          >
+            <span className={`truncate ${isTotal ? 'font-bold text-stone-800' : 'text-stone-600'}`}>
+              {isTotal ? row.local_nombre : shortName(row.local_nombre)}
+            </span>
+            {row.componentes.map((c, i) => {
+              const neg = c.signo === -1;
+              const res = c.es_resultado;
+              return (
+                <span
+                  key={i}
+                  className={`text-right whitespace-nowrap ${
+                    neg ? 'text-red-500 font-medium' :
+                    res ? (isTotal ? 'font-bold' : 'font-semibold') :
+                    isTotal ? 'font-semibold text-stone-700' : 'text-stone-600'
+                  }`}
+                  style={res ? { color: sem.dot } : {}}
+                >
+                  {fmtCompVal(c)}
+                </span>
+              );
+            })}
+            <span className={`text-stone-300 text-right ${isTotal ? 'invisible' : ''}`}>→</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── ComponentesTable ──────────────────────────────────────────────────────────
+
+function ComponentesTable({ componentes, onGotoModulo }) {
+  return (
+    <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
+      <div
+        className="grid px-4 py-2 bg-stone-50 text-xs font-semibold text-stone-400 border-b border-stone-100"
+        style={{ gridTemplateColumns: '1fr auto auto' }}
+      >
+        <span>Componente</span>
+        <span className="text-right pr-4">Valor</span>
+        <span className="text-center w-20">Fuente</span>
+      </div>
+
+      {componentes.map((c, i) => {
+        const neg = c.signo === -1;
+        const tot = c.es_total;
+        const sub = c.es_sub;
+        const res = c.es_resultado;
+
+        let valStr;
+        if (c.valor == null) {
+          valStr = '—';
+        } else if (c.formato === 'ars') {
+          const abs = Math.round(Math.abs(c.valor));
+          valStr = (neg ? '−' : '') + '$' + abs.toLocaleString('es-AR');
+        } else if (c.formato === 'pct') {
+          valStr = Number(c.valor).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%';
+        } else {
+          valStr = c.valor != null ? String(Math.round(c.valor)) : '—';
+        }
+
+        return (
+          <div
+            key={i}
+            className={`grid items-center px-4 py-2.5 border-b border-stone-50 last:border-0 ${tot ? 'bg-stone-50' : 'bg-white'}`}
+            style={{ gridTemplateColumns: '1fr auto auto' }}
+          >
+            <span className={`truncate pr-2 ${res ? 'font-bold text-stone-900' : tot ? 'font-semibold text-stone-700' : sub ? 'text-stone-400 text-xs pl-4' : 'text-stone-600'}`}>
+              {sub && <span className="mr-1 text-stone-300">↳</span>}
+              {c.label}
+            </span>
+            <span className={`text-right text-sm whitespace-nowrap pr-4 ${neg ? 'text-red-500 font-medium' : res ? 'font-bold text-stone-900' : tot ? 'font-semibold text-stone-700' : 'text-stone-600'}`}>
+              {valStr}
+            </span>
+            <span className="text-center w-20 flex-shrink-0">
+              {c.link_modulo ? (
+                <button
+                  type="button"
+                  onClick={() => onGotoModulo(c.link_modulo)}
+                  className="text-xs font-semibold text-violet-600 hover:text-violet-800 hover:underline whitespace-nowrap"
+                >
+                  {c.link_modulo === 'cashflow' ? 'Cash Flow →' : 'EERR →'}
+                </button>
+              ) : (
+                <span className="text-xs text-stone-200">—</span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── DetailModal ───────────────────────────────────────────────────────────────
 
 function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [visible, setVisible] = useState(false);
-  const timerRef              = useRef(null);
+  const [data,         setData]        = useState(null);
+  const [loading,      setLoading]     = useState(true);
+  const [visible,      setVisible]     = useState(false);
+  const [currentLocal, setCurrentLocal] = useState(local);
+  const [parentLocal,  setParentLocal]  = useState(null);
+  const timerRef = useRef(null);
 
+  // Animación de entrada (solo en mount)
   useEffect(() => {
     timerRef.current = setTimeout(() => setVisible(true), 10);
-    api.get('/red/finanzas/kpi/detalle', { params: { kpi, local, mes } })
+    return () => clearTimeout(timerRef.current);
+  }, []);
+
+  // Re-fetch cuando cambia el local navegado
+  useEffect(() => {
+    setLoading(true);
+    setData(null);
+    api.get('/red/finanzas/kpi/detalle', { params: { kpi, local: currentLocal, mes } })
       .then(r => setData(r.data.data))
       .catch(console.error)
       .finally(() => setLoading(false));
-    return () => clearTimeout(timerRef.current);
-  }, [kpi, local, mes]);
+  }, [kpi, currentLocal, mes]);
 
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') close(); };
+    const onKey = e => {
+      if (e.key === 'Escape') { if (parentLocal) goBack(); else close(); }
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   });
@@ -424,6 +579,16 @@ function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
   function close() {
     setVisible(false);
     setTimeout(onClose, 200);
+  }
+
+  function drillDown(localId) {
+    setParentLocal(currentLocal);
+    setCurrentLocal(String(localId));
+  }
+
+  function goBack() {
+    setCurrentLocal(parentLocal);
+    setParentLocal(null);
   }
 
   function gotoModulo(linkModulo) {
@@ -434,9 +599,11 @@ function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
     }
   }
 
-  const meta     = KPI_META[kpi] || {};
-  const sem      = data?.semaforo || 'sin_datos';
-  const semStyle = SEM[sem] || SEM.sin_datos;
+  const meta        = KPI_META[kpi] || {};
+  const sem         = data?.semaforo || 'sin_datos';
+  const semStyle    = SEM[sem] || SEM.sin_datos;
+  const isDrilled   = parentLocal !== null;
+  const showDesglose = !isDrilled && data?.desglose_locales?.length > 0;
 
   return (
     <div
@@ -445,7 +612,7 @@ function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
       onClick={close}
     >
       <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-[560px] max-h-[90vh] flex flex-col"
+        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-[600px] max-h-[90vh] flex flex-col"
         style={{
           transform:  visible ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.97)',
           opacity:    visible ? 1 : 0,
@@ -454,7 +621,16 @@ function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-stone-100 flex-shrink-0">
+        <div className="px-6 pt-4 pb-4 border-b border-stone-100 flex-shrink-0">
+          {isDrilled && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="flex items-center gap-1 text-xs font-semibold text-violet-500 hover:text-violet-700 mb-2 transition-colors"
+            >
+              ← Volver al grupo
+            </button>
+          )}
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               {data && (
@@ -498,66 +674,25 @@ function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
                 </div>
               </section>
 
-              {/* Componentes */}
-              <section>
-                <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-1.5">De dónde salen los datos</p>
-                <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
-                  <div className="grid px-4 py-2 bg-stone-50 text-xs font-semibold text-stone-400 border-b border-stone-100"
-                    style={{ gridTemplateColumns: '1fr auto auto' }}>
-                    <span>Componente</span>
-                    <span className="text-right pr-4">Valor</span>
-                    <span className="text-center w-20">Fuente</span>
-                  </div>
-
-                  {data.componentes.map((c, i) => {
-                    const neg = c.signo === -1;
-                    const tot = c.es_total;
-                    const sub = c.es_sub;
-                    const res = c.es_resultado;
-
-                    let valStr;
-                    if (c.valor == null) {
-                      valStr = '—';
-                    } else if (c.formato === 'ars') {
-                      const abs = Math.round(Math.abs(c.valor));
-                      valStr = (neg ? '−' : '') + '$' + abs.toLocaleString('es-AR');
-                    } else if (c.formato === 'pct') {
-                      valStr = Number(c.valor).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%';
-                    } else {
-                      valStr = c.valor != null ? String(Math.round(c.valor)) : '—';
-                    }
-
-                    return (
-                      <div
-                        key={i}
-                        className={`grid items-center px-4 py-2.5 border-b border-stone-50 last:border-0 ${tot ? 'bg-stone-50' : 'bg-white'}`}
-                        style={{ gridTemplateColumns: '1fr auto auto' }}
-                      >
-                        <span className={`truncate pr-2 ${res ? 'font-bold text-stone-900' : tot ? 'font-semibold text-stone-700' : sub ? 'text-stone-400 text-xs pl-4' : 'text-stone-600'}`}>
-                          {sub && <span className="mr-1 text-stone-300">↳</span>}
-                          {c.label}
-                        </span>
-                        <span className={`text-right text-sm whitespace-nowrap pr-4 ${neg ? 'text-red-500 font-medium' : res ? 'font-bold text-stone-900' : tot ? 'font-semibold text-stone-700' : 'text-stone-600'}`}>
-                          {valStr}
-                        </span>
-                        <span className="text-center w-20 flex-shrink-0">
-                          {c.link_modulo ? (
-                            <button
-                              type="button"
-                              onClick={() => gotoModulo(c.link_modulo)}
-                              className="text-xs font-semibold text-violet-600 hover:text-violet-800 hover:underline whitespace-nowrap"
-                            >
-                              {c.link_modulo === 'cashflow' ? 'Cash Flow →' : 'EERR →'}
-                            </button>
-                          ) : (
-                            <span className="text-xs text-stone-200">—</span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+              {/* Desglose por local (vista grupo) o Componentes (vista local) */}
+              {showDesglose ? (
+                <section>
+                  <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-1.5">
+                    Desglose por local — {shortMes(mes)}
+                  </p>
+                  <DesgloseTable
+                    desgloseLocales={data.desglose_locales}
+                    onDrillDown={drillDown}
+                  />
+                </section>
+              ) : (
+                <section>
+                  <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-1.5">
+                    De dónde salen los datos
+                  </p>
+                  <ComponentesTable componentes={data.componentes} onGotoModulo={gotoModulo} />
+                </section>
+              )}
             </>
           )}
         </div>
@@ -574,9 +709,20 @@ function DetailModal({ kpi, local, mes, onClose, onSwitchTab }) {
                 meta {data.invert ? '≤' : '≥'} {data.verde_min}{kpi === 'dias_caja' ? ' d' : '%'}
               </p>
             </div>
-            <p className="text-3xl font-bold" style={{ color: semStyle.text }}>
-              {fmtKpi(kpi, data.valor)}
-            </p>
+            <div className="flex flex-col items-end gap-1">
+              <p className="text-3xl font-bold" style={{ color: semStyle.text }}>
+                {fmtKpi(kpi, data.valor)}
+              </p>
+              {isDrilled && kpi !== 'dias_caja' && (
+                <button
+                  type="button"
+                  onClick={() => gotoModulo('eerr')}
+                  className="text-xs font-semibold text-violet-500 hover:text-violet-700 hover:underline transition-colors"
+                >
+                  ↗ Ver en EERR
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

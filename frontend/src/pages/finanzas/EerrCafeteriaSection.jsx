@@ -97,6 +97,60 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
 
 // ── Popup: Venta Neta por categoría ───────────────────────────────────────────
 
+function FiscalDesglose({ df }) {
+  if (!df) return null;
+  const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, iva_descontado, tipo_iva,
+          pct_fiscal_sobre_total, tiene_fiscal, tiene_datos_fiscales } = df;
+  return (
+    <div className="mt-4 pt-4 border-t border-stone-100">
+      <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-3">Composición fiscal</p>
+      <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
+        <div className="grid grid-cols-3 px-4 py-2 bg-stone-50 text-xs text-stone-400 font-semibold">
+          <span>Tipo</span>
+          <span className="text-right">Bruto</span>
+          <span className="text-right">Neto</span>
+        </div>
+        <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
+          <div>
+            <span className="font-medium text-stone-700">No fiscal</span>
+            <span className="ml-1.5 text-xs text-stone-400">entra completo</span>
+          </div>
+          <span className="text-right text-stone-600">{fmt$(bruto_no_fiscal)}</span>
+          <span className="text-right font-semibold text-stone-900">{fmt$(bruto_no_fiscal)}</span>
+        </div>
+        {tiene_fiscal ? (
+          <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
+            <div>
+              <span className="font-medium text-stone-700">Fiscal</span>
+              {tipo_iva && <span className="ml-1.5 text-xs text-stone-400">{tipo_iva}</span>}
+            </div>
+            <span className="text-right text-stone-400 line-through">{fmt$(bruto_fiscal)}</span>
+            <span className="text-right font-semibold text-stone-900">
+              {tiene_datos_fiscales ? fmt$(neto_fiscal) : '—'}
+            </span>
+          </div>
+        ) : (
+          <div className="px-4 py-3 text-xs text-stone-400 italic border-b border-stone-50">
+            Sin facturación fiscal en este período
+          </div>
+        )}
+      </div>
+      {tiene_fiscal && tiene_datos_fiscales && (
+        <div className="mt-2.5 space-y-1.5 px-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-stone-500">% fiscal sobre el total</span>
+            <span className="font-semibold text-stone-700">{pct_fiscal_sobre_total}%</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-stone-500">IVA descontado</span>
+            <span className="font-semibold text-red-500">−{fmt$(iva_descontado)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VentaModal({ data, onClose }) {
   const vn = data.venta_neta;
   const top = data.venta_categorias
@@ -138,6 +192,7 @@ function VentaModal({ data, onClose }) {
             Categoría dominante: <strong className="text-stone-600">{CATS.find(c => c.key === top.categoria)?.label}</strong> ({fmtP(top.pct_venta)})
           </p>
         )}
+        <FiscalDesglose df={data.desglose_fiscal} />
       </div>
     </ModalShell>
   );
@@ -590,6 +645,8 @@ export default function EerrCafeteriaSection({ localId, mes }) {
   const ventaSubtitle = (() => {
     const parts = data.venta_categorias.filter(c => c.venta > 0).slice(0, 2).map(c => `${CATS.find(x => x.key === c.categoria)?.label} ${Math.round(c.pct_venta)}%`);
     if (data.sin_categoria > 0) parts.push('⚠ sin categoría');
+    const df = data.desglose_fiscal;
+    if (df?.tiene_fiscal) parts.push('IVA descontado');
     return parts.join(' · ') || '6 categorías';
   })();
 

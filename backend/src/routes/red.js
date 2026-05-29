@@ -1783,7 +1783,7 @@ const DEFAULT_GASTOS_CAFETERIA = {
   }],
 };
 
-function calcEerrCafeteria({ ventaRows, cmvMap, gastosRecord, impuestosRecord, dolarRecord }) {
+function calcEerrCafeteria({ ventaRows, cmvMap, gastosRecord, impuestosRecord, dolarRecord, fiscalData = null }) {
   // Ventas por categoría
   const ventaMap = {};
   let venta_neta = 0, sin_categoria = 0;
@@ -1831,6 +1831,29 @@ function calcEerrCafeteria({ ventaRows, cmvMap, gastosRecord, impuestosRecord, d
 
   const p = v => venta_neta > 0 ? Math.round(v / venta_neta * 1000) / 10 : 0;
 
+  // Desglose fiscal (si se proveyó fiscalData desde el handler)
+  let desglose_fiscal = null;
+  if (fiscalData) {
+    const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, total_iva_21, total_iva_105 } = fiscalData;
+    const iva_descontado = Math.round(bruto_fiscal - neto_fiscal);
+    let tipo_iva = null;
+    if (total_iva_21 > 0 && total_iva_105 > 0) tipo_iva = 'IVA mixto';
+    else if (total_iva_21 > 0)                  tipo_iva = 'IVA 21%';
+    else if (total_iva_105 > 0)                 tipo_iva = 'IVA 10,5%';
+    const pct_fiscal_sobre_total = venta_neta > 0
+      ? Math.round(neto_fiscal / venta_neta * 1000) / 10 : 0;
+    desglose_fiscal = {
+      bruto_no_fiscal:       Math.round(bruto_no_fiscal),
+      bruto_fiscal:          Math.round(bruto_fiscal),
+      neto_fiscal:           Math.round(neto_fiscal),
+      iva_descontado,
+      tipo_iva,
+      pct_fiscal_sobre_total,
+      tiene_fiscal:          bruto_fiscal > 0,
+      tiene_datos_fiscales:  neto_fiscal  > 0,
+    };
+  }
+
   return {
     venta_neta:       Math.round(venta_neta),
     sin_categoria:    Math.round(sin_categoria),
@@ -1865,6 +1888,7 @@ function calcEerrCafeteria({ ventaRows, cmvMap, gastosRecord, impuestosRecord, d
       impuestos:     p(total_imp),
       resultado_neto: p(resultado_neto),
     },
+    ...(desglose_fiscal ? { desglose_fiscal } : {}),
   };
 }
 
@@ -1876,17 +1900,13 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
 
     const { ini, fin } = mesRange(mes);
 
-    const [localR, ticketVentaR, itemsByCatR, cmvR, gastosR, impR, dolarR, sinCatR] = await Promise.all([
+    const [localR, fiscalR, itemsByCatR, cmvR, gastosR, impR, dolarR, sinCatR] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
 
-      // VN autoritativa desde ventas_tickets (funciona aunque los items tengan precio_total=0)
-      pool.query(`
-        SELECT COALESCE(SUM(vt.total), 0) AS venta_neta
-        FROM ventas_tickets vt
-        WHERE vt.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
-      `, [local_id, ini, fin]),
+      // VN fiscal correcta: no-fiscal entra completo, fiscal sin IVA (igual que otros locales)
+      pool.query(QUERY_FISCAL, [local_id, ini, fin]),
 
-      // Desglose por categoría desde ventas_items (cuando el precio_total está disponible)
+      // Desglose bruto por categoría desde ventas_items (se escala por factor fiscal después)
       pool.query(`
         SELECT COALESCE(pcc.categoria, 'sin_categoria') AS categoria,
                COALESCE(SUM(vi.precio_total), 0)        AS venta
@@ -1915,18 +1935,32 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
 
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    // VN real desde tickets
-    const ticketVN  = n(ticketVentaR.rows[0]?.venta_neta);
+    // VN fiscal correcta: no-fiscal completo + fiscal sin IVA
+    const fiscalData   = toFiscalData(fiscalR.rows[0] || {});
+    const { bruto_no_fiscal, bruto_fiscal, neto_fiscal } = fiscalData;
+    const ticketBruto  = bruto_no_fiscal + bruto_fiscal;  // total bruto (suma de todos los tickets)
+    const venta_neta   = bruto_no_fiscal + neto_fiscal;   // VN corregida (sin IVA en fiscales)
+    // Factor para escalar items brutos al neto fiscal correcto (distribución proporcional por categoría)
+    const corrFactor   = ticketBruto > 0 ? venta_neta / ticketBruto : 1;
 
-    // Sumar categorías desde items
-    const itemsByCat = {};
+    // Acumular items brutos y aplicar factor fiscal
+    const itemsByCatBruto = {};
+    let itemsBrutoTotal = 0;
     for (const r of itemsByCatR.rows) {
-      itemsByCat[r.categoria] = (itemsByCat[r.categoria] || 0) + n(r.venta);
+      const v = n(r.venta);
+      itemsByCatBruto[r.categoria] = (itemsByCatBruto[r.categoria] || 0) + v;
+      itemsBrutoTotal += v;
     }
-    const itemsTotal = Object.values(itemsByCat).reduce((s, v) => s + v, 0);
+    const itemsTotal = itemsBrutoTotal; // bruto — para tiene_detalle_items
 
-    // Residual (tickets sin cobertura en items) → sin_categoria
-    const residual = Math.max(0, ticketVN - itemsTotal);
+    const itemsByCat = {};
+    for (const [cat, v] of Object.entries(itemsByCatBruto)) {
+      itemsByCat[cat] = v * corrFactor;
+    }
+    const itemsNetTotal = Object.values(itemsByCat).reduce((s, v) => s + v, 0);
+
+    // Residual hacia sin_categoria para que el total cuadre con venta_neta
+    const residual = Math.max(0, venta_neta - itemsNetTotal);
     if (residual > 0) {
       itemsByCat['sin_categoria'] = (itemsByCat['sin_categoria'] || 0) + residual;
     }
@@ -1944,6 +1978,7 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
       gastosRecord:    gastosR.rows[0] || null,
       impuestosRecord: impR.rows[0]    || null,
       dolarRecord:     dolarR.rows[0]  || null,
+      fiscalData,
     });
 
     res.json({

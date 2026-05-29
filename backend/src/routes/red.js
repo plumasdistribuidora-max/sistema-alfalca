@@ -2089,7 +2089,28 @@ router.post('/eerr/cafeteria/init', requireAuth, requireAdmin, async (req, res) 
                                'menu_almuerzos','principales','bebidas'))
       )
     `);
-    res.json({ ok: true });
+
+    // Contar productos de cafetería todavía sin categoría asignada
+    const sinCat = await pool.query(`
+      SELECT COUNT(DISTINCT LOWER(TRIM(vi.producto_nombre_raw))) AS cnt
+      FROM ventas_items vi
+      JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = false AND l.activo = true
+      LEFT JOIN productos_categoria_cafeteria pcc
+             ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
+      WHERE COALESCE(vi.cancelada, false) = false
+        AND pcc.producto_nombre_norm IS NULL
+    `);
+
+    res.json({
+      ok: true,
+      tablas_creadas: [
+        'eerr_cafeteria_cmv',
+        'eerr_cafeteria_impuestos',
+        'eerr_cafeteria_dolar',
+        'productos_categoria_cafeteria',
+      ],
+      productos_sin_categoria: Number(sinCat.rows[0]?.cnt || 0),
+    });
   } catch (err) {
     console.error('[red/eerr/cafeteria/init]', err);
     res.status(500).json({ ok: false, error: err.message });

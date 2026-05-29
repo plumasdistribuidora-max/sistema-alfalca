@@ -2,10 +2,12 @@ import { useState } from 'react';
 import logo from '../../assets/logo.svg';
 import EerrSection     from '../red/secciones/EerrSection';
 import CashFlowSection from './CashFlowSection';
+import KpiSection      from './KpiSection';
 
 const TABS = [
   { id: 'eerr',      label: 'EERR'      },
   { id: 'cashflow',  label: 'Cash Flow' },
+  { id: 'kpi',       label: 'KPI'       },
 ];
 
 export default function FinanzasPage() {
@@ -32,7 +34,7 @@ export default function FinanzasPage() {
                 className="text-white/50 uppercase tracking-widest leading-tight"
                 style={{ fontSize: '10px', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
               >
-                Estado de Resultados · Cash Flow
+                Estado de Resultados · Cash Flow · KPI
               </p>
             </div>
           </div>
@@ -59,6 +61,7 @@ export default function FinanzasPage() {
       {/* Contenido */}
       {activeTab === 'eerr'     && <EerrSection />}
       {activeTab === 'cashflow' && <CashFlowSection />}
+      {activeTab === 'kpi'      && <KpiSection />}
     </div>
   );
 }

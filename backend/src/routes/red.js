@@ -2,7 +2,7 @@
 
 const express = require('express');
 const pool    = require('../config/db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { generarConclusiones } = require('../utils/conclusiones');
 
 const router = express.Router();
@@ -215,6 +215,106 @@ function formatQuincenalRows(qRows) {
       };
     }),
   };
+}
+
+// ── Fiscal queries (module-scope, reutilizadas en /eerr y /finanzas/kpi) ─────
+
+const QUERY_FISCAL = `
+  SELECT
+    COALESCE(SUM(CASE WHEN vt.fiscal = false THEN vt.total ELSE 0 END), 0) AS bruto_no_fiscal,
+    COALESCE(SUM(CASE WHEN vt.fiscal = true  THEN vt.total ELSE 0 END), 0) AS bruto_fiscal,
+    COALESCE(SUM(vf.total_sin_impuestos), 0)                                AS neto_fiscal,
+    COALESCE(SUM(vf.iva_21),  0)                                            AS total_iva_21,
+    COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
+  FROM ventas_tickets vt
+  LEFT JOIN ventas_fiscales vf
+         ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
+  WHERE vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
+`;
+
+const QUERY_FISCAL_MULTI = `
+  SELECT
+    vt.local_id,
+    TO_CHAR(DATE_TRUNC('month', vt.fecha), 'YYYY-MM') AS mes,
+    COALESCE(SUM(CASE WHEN vt.fiscal = false THEN vt.total ELSE 0 END), 0) AS bruto_no_fiscal,
+    COALESCE(SUM(CASE WHEN vt.fiscal = true  THEN vt.total ELSE 0 END), 0) AS bruto_fiscal,
+    COALESCE(SUM(vf.total_sin_impuestos), 0)                                AS neto_fiscal,
+    COALESCE(SUM(vf.iva_21),  0)                                            AS total_iva_21,
+    COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
+  FROM ventas_tickets vt
+  LEFT JOIN ventas_fiscales vf ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
+  WHERE vt.local_id = ANY($1::int[]) AND vt.fecha BETWEEN $2 AND $3
+  GROUP BY vt.local_id, mes
+  ORDER BY mes
+`;
+
+// ── KPI helpers ───────────────────────────────────────────────────────────────
+
+function extractSueldos(gastos) {
+  if (!gastos?.bloques) return 0;
+  return gastos.bloques.reduce((s, b) =>
+    s + (b.conceptos || []).reduce((ss, c) =>
+      ss + (c.nombre?.toLowerCase().includes('sueldo') ? n(c.monto) : 0), 0), 0);
+}
+
+function aggregateEerrs(eerrs) {
+  return {
+    sumVN:      eerrs.reduce((s, e) => s + e.venta_neta,   0),
+    sumCmv:     eerrs.reduce((s, e) => s + e.cmv,          0),
+    sumMB:      eerrs.reduce((s, e) => s + e.margen_bruto, 0),
+    sumGastos:  eerrs.reduce((s, e) => s + e.total_gastos, 0),
+    sumEbitda:  eerrs.reduce((s, e) => s + e.ebitda,       0),
+    sumSueldos: eerrs.reduce((s, e) => s + extractSueldos({ bloques: e.gastos_bloques }), 0),
+  };
+}
+
+function computeKpisFromAgg(agg, mes, cajaTotal) {
+  const { sumVN, sumCmv, sumMB, sumGastos, sumEbitda, sumSueldos } = agg;
+
+  const mb_pct     = sumVN > 0 ? Math.round(sumMB     / sumVN * 1000) / 10 : null;
+  const ebitda_pct = sumVN > 0 ? Math.round(sumEbitda / sumVN * 1000) / 10 : null;
+
+  const cmv_pct = sumVN > 0 ? sumCmv / sumVN : 0;
+  const be_rev  = cmv_pct < 1 ? sumGastos / (1 - cmv_pct) : null;
+  const be_pct  = (be_rev != null && be_rev > 0) ? Math.round(sumVN / be_rev * 1000) / 10 : null;
+
+  const sueldos_pct = sumVN > 0 ? Math.round(sumSueldos / sumVN * 1000) / 10 : null;
+
+  let dias_caja = null;
+  if (cajaTotal != null && sumGastos > 0 && mes) {
+    const [y, m]  = mes.split('-').map(Number);
+    const days    = new Date(y, m, 0).getDate();
+    const burn    = sumGastos / days;
+    if (burn > 0) dias_caja = Math.round(cajaTotal / burn * 10) / 10;
+  }
+
+  return { mb_pct, ebitda_pct, be_pct, sueldos_pct, dias_caja };
+}
+
+function semaforoKpi(valor, umbral) {
+  if (valor == null || umbral == null) return 'sin_datos';
+  const v  = Number(valor);
+  const gm = Number(umbral.verde_min);
+  const am = Number(umbral.ambar_min);
+  if (!umbral.invert) {
+    if (v >= gm) return 'verde';
+    if (v >= am) return 'ambar';
+    return 'rojo';
+  } else {
+    if (v <= gm) return 'verde';
+    if (v <= am) return 'ambar';
+    return 'rojo';
+  }
+}
+
+function prevNMeses(mes, n) {
+  const [y, m] = mes.split('-').map(Number);
+  const result = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    result.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return result;
 }
 
 // ── A) GET /resumen ──────────────────────────────────────────────────────────
@@ -1018,19 +1118,6 @@ router.get('/eerr', requireAuth, async (req, res) => {
     const { ini, fin }         = mesRange(mes);
     const { ini: ini_ant, fin: fin_ant } = mesRange(mes_ant);
 
-    const QUERY_FISCAL = `
-      SELECT
-        COALESCE(SUM(CASE WHEN vt.fiscal = false THEN vt.total ELSE 0 END), 0) AS bruto_no_fiscal,
-        COALESCE(SUM(CASE WHEN vt.fiscal = true  THEN vt.total ELSE 0 END), 0) AS bruto_fiscal,
-        COALESCE(SUM(vf.total_sin_impuestos), 0)                                AS neto_fiscal,
-        COALESCE(SUM(vf.iva_21),  0)                                            AS total_iva_21,
-        COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
-      FROM ventas_tickets vt
-      LEFT JOIN ventas_fiscales vf
-             ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
-      WHERE vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
-    `;
-
     const [localR, vnR, vnAntR, recR, recAntR] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
       pool.query(QUERY_FISCAL, [local_id, ini,     fin    ]),
@@ -1082,6 +1169,246 @@ router.post('/eerr', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[red/eerr POST]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── I) KPI Financieros ───────────────────────────────────────────────────────
+
+const KPI_CODIGOS = ['margen_bruto', 'margen_ebitda', 'breakeven', 'sueldos_venta', 'dias_caja'];
+const KPI_DEFAULTS = {
+  margen_bruto:  { verde_min: 50, ambar_min: 40, invert: false },
+  margen_ebitda: { verde_min: 15, ambar_min:  5, invert: false },
+  breakeven:     { verde_min: 100, ambar_min: 80, invert: false },
+  sueldos_venta: { verde_min:  30, ambar_min: 35, invert: true  },
+  dias_caja:     { verde_min:  14, ambar_min:  7, invert: false },
+};
+const KPI_ALERTAS_LABELS = {
+  margen_bruto:  'Margen Bruto',
+  margen_ebitda: 'Margen EBITDA',
+  breakeven:     'Cobertura Breakeven',
+  sueldos_venta: 'Sueldos / Venta',
+  dias_caja:     'Días de Caja',
+};
+
+router.get('/finanzas/kpi/umbrales', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM kpi_umbrales ORDER BY kpi_codigo');
+    // Completar con defaults para KPIs que no tengan fila aún
+    const map = Object.fromEntries(rows.map(r => [r.kpi_codigo, r]));
+    const data = KPI_CODIGOS.map(cod => map[cod] || { kpi_codigo: cod, ...KPI_DEFAULTS[cod] });
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('[red/finanzas/kpi/umbrales GET]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/finanzas/kpi/umbrales', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { umbrales } = req.body;
+    if (!umbrales || typeof umbrales !== 'object')
+      return res.status(400).json({ ok: false, error: 'umbrales requerido' });
+    await Promise.all(
+      Object.entries(umbrales).map(([cod, u]) =>
+        pool.query(`
+          INSERT INTO kpi_umbrales (kpi_codigo, verde_min, ambar_min, invert, updated_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          ON CONFLICT (kpi_codigo) DO UPDATE SET
+            verde_min  = EXCLUDED.verde_min,
+            ambar_min  = EXCLUDED.ambar_min,
+            invert     = EXCLUDED.invert,
+            updated_at = NOW()
+        `, [cod, Number(u.verde_min), Number(u.ambar_min), Boolean(u.invert)])
+      )
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/finanzas/kpi/umbrales POST]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.get('/finanzas/kpi', requireAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const mes = req.query.mes || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (!/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'mes inválido (YYYY-MM)' });
+
+    const locRes = await pool.query(
+      'SELECT id, nombre FROM locales WHERE es_alfajorera = true AND activo = true ORDER BY nombre'
+    );
+    const locales   = locRes.rows;
+    const local_ids = locales.map(l => l.id);
+
+    if (!local_ids.length)
+      return res.json({ ok: true, data: { mes, kpis: {}, sparklines: {}, alertas: [] } });
+
+    const { ini, fin } = mesRange(mes);
+    const spark_meses  = prevNMeses(mes, 6);
+    const spark_ini    = spark_meses[0] + '-01';
+
+    const [sparkVnRows, sparkEerrRows, cajaRows, umbralesRows] = await Promise.all([
+      pool.query(QUERY_FISCAL_MULTI, [local_ids, spark_ini, fin]),
+      pool.query(
+        'SELECT * FROM eerr_local WHERE local_id = ANY($1::int[]) AND mes >= $2 AND mes <= $3',
+        [local_ids, spark_meses[0], mes]
+      ),
+      pool.query(
+        'SELECT DISTINCT ON (cuenta) cuenta, monto FROM cuentas_saldos ORDER BY cuenta, fecha_actualizacion DESC'
+      ),
+      pool.query('SELECT * FROM kpi_umbrales'),
+    ]);
+
+    // Umbrales con fallback a defaults
+    const umbralesMap = Object.fromEntries(umbralesRows.rows.map(r => [r.kpi_codigo, r]));
+    const umbrales    = Object.fromEntries(
+      KPI_CODIGOS.map(cod => [cod, umbralesMap[cod] || KPI_DEFAULTS[cod]])
+    );
+
+    const cajaTotal = cajaRows.rows.reduce((s, r) => s + n(r.monto), 0);
+
+    // Calcular EERR por local para cada mes del rango sparkline
+    const sparkAgg = {};
+    for (const sm of spark_meses) {
+      const smEerrs = locales.map(loc => {
+        const fnRow  = sparkVnRows.rows.find(r => r.local_id === loc.id && r.mes === sm) || {};
+        const recRow = sparkEerrRows.rows.find(r => r.local_id === loc.id && r.mes === sm);
+        return calcEerr(toFiscalData(fnRow), recRow || null);
+      });
+      sparkAgg[sm] = aggregateEerrs(smEerrs);
+    }
+
+    // KPIs del mes actual (con caja)
+    const currKv    = computeKpisFromAgg(sparkAgg[mes], mes, cajaTotal);
+    const kpiValues = {
+      margen_bruto:  currKv.mb_pct,
+      margen_ebitda: currKv.ebitda_pct,
+      breakeven:     currKv.be_pct,
+      sueldos_venta: currKv.sueldos_pct,
+      dias_caja:     currKv.dias_caja,
+    };
+
+    const kpis = {};
+    for (const cod of KPI_CODIGOS) {
+      const u = umbrales[cod];
+      kpis[cod] = {
+        valor:     kpiValues[cod],
+        semaforo:  semaforoKpi(kpiValues[cod], u),
+        verde_min: Number(u.verde_min),
+        ambar_min: Number(u.ambar_min),
+        invert:    u.invert,
+      };
+    }
+
+    // Sparklines (sin dias_caja — no hay histórico de caja)
+    const sparklines = {};
+    for (const cod of KPI_CODIGOS) sparklines[cod] = [];
+    for (const sm of spark_meses) {
+      const kv = computeKpisFromAgg(sparkAgg[sm], sm, null);
+      sparklines.margen_bruto.push(  { mes: sm, valor: kv.mb_pct      });
+      sparklines.margen_ebitda.push( { mes: sm, valor: kv.ebitda_pct  });
+      sparklines.breakeven.push(     { mes: sm, valor: kv.be_pct      });
+      sparklines.sueldos_venta.push( { mes: sm, valor: kv.sueldos_pct });
+    }
+
+    // Alertas
+    const alertas = KPI_CODIGOS
+      .filter(cod => ['rojo', 'ambar'].includes(kpis[cod].semaforo))
+      .map(cod => ({
+        kpi:      cod,
+        label:    KPI_ALERTAS_LABELS[cod],
+        semaforo: kpis[cod].semaforo,
+        valor:    kpis[cod].valor,
+      }));
+
+    res.json({ ok: true, data: { mes, kpis, sparklines, alertas } });
+  } catch (err) {
+    console.error('[red/finanzas/kpi]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.get('/finanzas/kpi/comparativa', requireAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const mes = req.query.mes || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (!/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'mes inválido (YYYY-MM)' });
+
+    const locRes = await pool.query(
+      'SELECT id, nombre FROM locales WHERE es_alfajorera = true AND activo = true ORDER BY nombre'
+    );
+    const locales   = locRes.rows;
+    const local_ids = locales.map(l => l.id);
+
+    if (!local_ids.length)
+      return res.json({ ok: true, data: { mes, locales: [], tabla: [] } });
+
+    const { ini, fin } = mesRange(mes);
+    const [vnRows, eerrRows, umbralesRows] = await Promise.all([
+      pool.query(QUERY_FISCAL_MULTI, [local_ids, ini, fin]),
+      pool.query('SELECT * FROM eerr_local WHERE local_id = ANY($1::int[]) AND mes = $2', [local_ids, mes]),
+      pool.query('SELECT * FROM kpi_umbrales'),
+    ]);
+
+    const umbralesMap = Object.fromEntries(umbralesRows.rows.map(r => [r.kpi_codigo, r]));
+    const umbrales    = Object.fromEntries(
+      KPI_CODIGOS.map(cod => [cod, umbralesMap[cod] || KPI_DEFAULTS[cod]])
+    );
+
+    const eerrByLocal = {};
+    for (const loc of locales) {
+      const fnRow  = vnRows.rows.find(r => r.local_id === loc.id && r.mes === mes) || {};
+      const recRow = eerrRows.rows.find(r => r.local_id === loc.id);
+      eerrByLocal[loc.id] = calcEerr(toFiscalData(fnRow), recRow || null);
+    }
+
+    const KPI_COMP = ['margen_bruto', 'margen_ebitda', 'breakeven', 'sueldos_venta'];
+    const KPI_COMP_LABELS = {
+      margen_bruto:  'Margen Bruto',
+      margen_ebitda: 'EBITDA %',
+      breakeven:     'BE Cobertura',
+      sueldos_venta: 'Sueldos/Vta',
+    };
+
+    const por_local = {};
+    for (const loc of locales) {
+      const kv = computeKpisFromAgg(aggregateEerrs([eerrByLocal[loc.id]]), mes, null);
+      por_local[loc.id] = {
+        margen_bruto:  kv.mb_pct,
+        margen_ebitda: kv.ebitda_pct,
+        breakeven:     kv.be_pct,
+        sueldos_venta: kv.sueldos_pct,
+      };
+    }
+
+    const groupKv = computeKpisFromAgg(aggregateEerrs(Object.values(eerrByLocal)), mes, null);
+    const grupo   = {
+      margen_bruto:  groupKv.mb_pct,
+      margen_ebitda: groupKv.ebitda_pct,
+      breakeven:     groupKv.be_pct,
+      sueldos_venta: groupKv.sueldos_pct,
+    };
+
+    const tabla = KPI_COMP.map(cod => ({
+      kpi:    cod,
+      label:  KPI_COMP_LABELS[cod],
+      invert: umbrales[cod].invert,
+      por_local: Object.fromEntries(locales.map(loc => [loc.nombre, {
+        valor:    por_local[loc.id][cod],
+        semaforo: semaforoKpi(por_local[loc.id][cod], umbrales[cod]),
+      }])),
+      grupo: {
+        valor:    grupo[cod],
+        semaforo: semaforoKpi(grupo[cod], umbrales[cod]),
+      },
+    }));
+
+    res.json({ ok: true, data: { mes, locales: locales.map(l => l.nombre), tabla } });
+  } catch (err) {
+    console.error('[red/finanzas/kpi/comparativa]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

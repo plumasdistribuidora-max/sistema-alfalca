@@ -2048,6 +2048,29 @@ router.post('/eerr/cafeteria/productos-categorias', requireAuth, async (req, res
   }
 });
 
+// ── TEMP: diagnóstico de locales + ventas de cafetería ───────────────────────
+router.get('/eerr/cafeteria/diagnostico', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    // Todos los locales con sus ventas (sin filtro es_alfajorera para ver todo)
+    const localesR = await pool.query(`
+      SELECT l.id, l.nombre, l.activo, l.es_alfajorera,
+             COUNT(DISTINCT vt.id)  AS tickets,
+             COUNT(DISTINCT vi.id)  AS items,
+             MIN(vt.fecha)          AS primera_venta,
+             MAX(vt.fecha)          AS ultima_venta
+      FROM locales l
+      LEFT JOIN ventas_tickets vt ON vt.local_id = l.id
+      LEFT JOIN ventas_items   vi ON vi.local_id = l.id
+      GROUP BY l.id, l.nombre, l.activo, l.es_alfajorera
+      ORDER BY l.es_alfajorera DESC, tickets DESC
+    `);
+    res.json({ ok: true, locales: localesR.rows });
+  } catch (err) {
+    console.error('[eerr/cafeteria/diagnostico]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── TEMP: init migración 025 cafetería en prod ────────────────────────────────
 router.post('/eerr/cafeteria/init', requireAuth, requireAdmin, async (req, res) => {
   try {

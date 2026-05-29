@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { fmtARS, fmtPct, shortName } from '../redUtils';
+import EerrCafeteriaSection from '../../finanzas/EerrCafeteriaSection';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -401,9 +402,11 @@ function ImpuestosContent({ ventaNeta, editImp, setEditImp }) {
 // ── Componente principal ───────────────────────────────────────────────────────
 
 export default function EerrSection() {
-  const [locales,   setLocales]   = useState([]);
-  const [selLocal,  setSelLocal]  = useState('');
-  const [selMes,    setSelMes]    = useState(MONTH_OPTIONS[0]?.value || '');
+  const [locales,     setLocales]     = useState([]);
+  const [selLocal,    setSelLocal]    = useState('');
+  const [selMes,      setSelMes]      = useState(MONTH_OPTIONS[0]?.value || '');
+  const selLocalObj = locales.find(l => String(l.id) === selLocal);
+  const esCafeteria = selLocalObj ? !selLocalObj.es_alfajorera : false;
   const [data,      setData]      = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [openModal, setOpenModal] = useState(null);
@@ -427,16 +430,16 @@ export default function EerrSection() {
       .catch(console.error);
   }, []);
 
-  // Recarga EERR cuando cambia local o mes
+  // Recarga EERR cuando cambia local o mes (solo para locales alfajoreros)
   useEffect(() => {
-    if (!selLocal || !selMes) return;
+    if (!selLocal || !selMes || esCafeteria) return;
     setLoading(true);
     setData(null);
     api.get('/red/eerr', { params: { local_id: selLocal, mes: selMes } })
       .then(r => setData(r.data.data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [selLocal, selMes]);
+  }, [selLocal, selMes, esCafeteria]);
 
   function openFor(name) {
     if (!data?.actual) return;
@@ -521,8 +524,8 @@ export default function EerrSection() {
   return (
     <div className="space-y-4">
 
-      {/* ── Alerta migración cálculo fiscal ── */}
-      {!alertaDismissed && (
+      {/* ── Alerta migración cálculo fiscal (solo alfajoreras) ── */}
+      {!esCafeteria && !alertaDismissed && (
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
           <span className="flex-shrink-0 mt-0.5">⚠</span>
           <span className="flex-1">
@@ -557,20 +560,25 @@ export default function EerrSection() {
         </select>
       </div>
 
-      {/* ── Loading ── */}
-      {loading && (
+      {/* ── Cafetería ── */}
+      {esCafeteria && selLocal && selMes && (
+        <EerrCafeteriaSection localId={selLocal} mes={selMes} />
+      )}
+
+      {/* ── Loading (alfajoreras) ── */}
+      {!esCafeteria && loading && (
         <div className="space-y-3">
           {[1,2,3,4].map(i => <div key={i} className="h-20 bg-stone-100 rounded-2xl animate-pulse" />)}
         </div>
       )}
 
-      {/* ── Sin datos ── */}
-      {!loading && !a && (
+      {/* ── Sin datos (alfajoreras) ── */}
+      {!esCafeteria && !loading && !a && (
         <div className="card p-8 text-center text-stone-400">Sin datos para el período seleccionado.</div>
       )}
 
-      {/* ── Contenido ── */}
-      {!loading && a && (
+      {/* ── Contenido alfajoreras ── */}
+      {!esCafeteria && !loading && a && (
         <>
           {/* KPIs */}
           <div className="flex gap-2 overflow-x-auto pb-1">

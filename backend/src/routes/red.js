@@ -1150,9 +1150,9 @@ function calcEerr(fiscalData, record) {
 router.get('/eerr/locales', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, nombre FROM locales
-       WHERE es_alfajorera = true AND activo = true
-       ORDER BY nombre`
+      `SELECT id, nombre, es_alfajorera FROM locales
+       WHERE activo = true
+       ORDER BY es_alfajorera DESC, nombre`
     );
     res.json({ ok: true, data: rows });
   } catch (err) {
@@ -1756,6 +1756,342 @@ router.post('/finanzas/kpi/init', requireAuth, requireAdmin, async (req, res) =>
     res.json({ ok: true, creada: true, defaults_cargados: ins.rowCount });
   } catch (err) {
     console.error('[red/finanzas/kpi/init]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── K) EERR Cafetería ────────────────────────────────────────────────────────
+
+const CATS_CAFETERIA = ['cafeteria', 'panificados', 'promociones', 'menu_almuerzos', 'principales', 'bebidas'];
+const CMV_DEFAULTS_CAFETERIA = { cafeteria: 28, panificados: 40, promociones: 33, menu_almuerzos: 50, principales: 50, bebidas: 27 };
+
+const DEFAULT_GASTOS_CAFETERIA = {
+  bloques: [{
+    nombre: 'Gastos',
+    conceptos: [
+      { nombre: 'Sueldos',        monto: 0 },
+      { nombre: 'Alquiler',       monto: 0 },
+      { nombre: 'Luz',            monto: 0 },
+      { nombre: 'Agua',           monto: 0 },
+      { nombre: 'Internet',       monto: 0 },
+      { nombre: 'Fudo',           monto: 0 },
+      { nombre: 'Contador',       monto: 0 },
+      { nombre: 'Municipalidad',  monto: 0 },
+      { nombre: 'Seguros',        monto: 0 },
+      { nombre: 'Gastos Oficina', monto: 0 },
+    ],
+  }],
+};
+
+function calcEerrCafeteria({ ventaRows, cmvMap, gastosRecord, impuestosRecord, dolarRecord }) {
+  // Ventas por categoría
+  const ventaMap = {};
+  let venta_neta = 0, sin_categoria = 0;
+  for (const row of (ventaRows || [])) {
+    const venta = n(row.venta);
+    if (CATS_CAFETERIA.includes(row.categoria)) {
+      ventaMap[row.categoria] = (ventaMap[row.categoria] || 0) + venta;
+    } else {
+      sin_categoria += venta;
+    }
+    venta_neta += venta;
+  }
+
+  // CMV desglose
+  const cmvDesglose = CATS_CAFETERIA.map(cat => {
+    const pct   = n(cmvMap[cat] ?? CMV_DEFAULTS_CAFETERIA[cat]);
+    const venta = n(ventaMap[cat] || 0);
+    return { categoria: cat, cmv_pct: pct, venta: Math.round(venta), costo: Math.round(venta * pct / 100) };
+  });
+  const cmv_total = cmvDesglose.reduce((s, r) => s + r.costo, 0);
+  const cmv_ponderado_pct = venta_neta > 0 ? Math.round(cmv_total / venta_neta * 1000) / 10 : 0;
+
+  const margen_bruto = venta_neta - cmv_total;
+
+  // Gastos (reutiliza eerr_local)
+  const gastosRaw = gastosRecord?.gastos;
+  const gastos    = gastosRaw?.bloques?.length > 0 ? gastosRaw : DEFAULT_GASTOS_CAFETERIA;
+  const total_gastos = calcTotalGastos(gastos);
+
+  const ebitda      = margen_bruto - total_gastos;
+  const ebitda_base = Math.max(ebitda, 0);
+
+  // Impuestos (% de EBITDA)
+  const iibb_pct      = impuestosRecord ? n(impuestosRecord.iibb_pct)      : 3;
+  const imp_gen_pct   = impuestosRecord ? n(impuestosRecord.imp_gen_pct)   : 30;
+  const fee_marca_pct = impuestosRecord ? n(impuestosRecord.fee_marca_pct) : 4;
+  const iibb          = Math.round(ebitda_base * iibb_pct      / 100);
+  const imp_gen       = Math.round(ebitda_base * imp_gen_pct   / 100);
+  const fee_marca     = Math.round(ebitda_base * fee_marca_pct / 100);
+  const total_imp     = iibb + imp_gen + fee_marca;
+  const total_imp_pct = ebitda_base > 0 ? Math.round(total_imp / ebitda_base * 1000) / 10 : 0;
+
+  const resultado_neto  = ebitda - total_imp;
+  const dolar_fin_mes   = dolarRecord ? n(dolarRecord.dolar_fin_mes) || null : null;
+
+  const p = v => venta_neta > 0 ? Math.round(v / venta_neta * 1000) / 10 : 0;
+
+  return {
+    venta_neta:       Math.round(venta_neta),
+    sin_categoria:    Math.round(sin_categoria),
+    venta_categorias: cmvDesglose.map(r => ({ categoria: r.categoria, venta: r.venta, pct_venta: p(r.venta) })),
+    cmv_desglose:     cmvDesglose,
+    cmv_total:        Math.round(cmv_total),
+    cmv_ponderado_pct,
+    margen_bruto:     Math.round(margen_bruto),
+    gastos_bloques:   gastos.bloques,
+    total_gastos:     Math.round(total_gastos),
+    ebitda:           Math.round(ebitda),
+    impuestos: {
+      iibb_pct, imp_gen_pct, fee_marca_pct,
+      iibb, imp_gen, fee_marca,
+      total: total_imp, total_pct: total_imp_pct,
+    },
+    resultado_neto: Math.round(resultado_neto),
+    dolar_fin_mes,
+    distribucion: {
+      agus_pct:   50,
+      agus_ars:   Math.round(resultado_neto / 2),
+      agus_usd:   dolar_fin_mes ? Math.round(resultado_neto / 2 / dolar_fin_mes * 100) / 100 : null,
+      plumas_pct: 50,
+      plumas_ars: Math.round(resultado_neto / 2),
+      plumas_usd: dolar_fin_mes ? Math.round(resultado_neto / 2 / dolar_fin_mes * 100) / 100 : null,
+    },
+    pcts: {
+      cmv:           p(cmv_total),
+      margen_bruto:  p(margen_bruto),
+      gastos:        p(total_gastos),
+      ebitda:        p(ebitda),
+      impuestos:     p(total_imp),
+      resultado_neto: p(resultado_neto),
+    },
+  };
+}
+
+router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
+  try {
+    const { local_id, mes } = req.query;
+    if (!local_id || !mes || !/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
+
+    const { ini, fin } = mesRange(mes);
+
+    const [localR, ventaR, cmvR, gastosR, impR, dolarR, sinCatR] = await Promise.all([
+      pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
+      pool.query(`
+        SELECT COALESCE(pcc.categoria, 'sin_categoria') AS categoria,
+               COALESCE(SUM(vi.precio_total), 0)        AS venta
+        FROM ventas_items vi
+        JOIN ventas_tickets vt ON vt.id = vi.ticket_id
+        LEFT JOIN productos_categoria_cafeteria pcc
+               ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
+        WHERE vi.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
+          AND COALESCE(vi.cancelada, false) = false
+        GROUP BY categoria ORDER BY venta DESC
+      `, [local_id, ini, fin]),
+      pool.query('SELECT categoria, cmv_pct FROM eerr_cafeteria_cmv WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+      pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+      pool.query('SELECT * FROM eerr_cafeteria_impuestos WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+      pool.query('SELECT * FROM eerr_cafeteria_dolar WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+      pool.query(`
+        SELECT COUNT(DISTINCT LOWER(TRIM(vi.producto_nombre_raw))) AS cnt
+        FROM ventas_items vi
+        JOIN ventas_tickets vt ON vt.id = vi.ticket_id
+        LEFT JOIN productos_categoria_cafeteria pcc
+               ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
+        WHERE vi.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
+          AND COALESCE(vi.cancelada, false) = false AND pcc.producto_nombre_norm IS NULL
+      `, [local_id, ini, fin]),
+    ]);
+
+    if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+
+    const cmvMap = Object.fromEntries(cmvR.rows.map(r => [r.categoria, n(r.cmv_pct)]));
+
+    const eerr = calcEerrCafeteria({
+      ventaRows:       ventaR.rows,
+      cmvMap,
+      gastosRecord:    gastosR.rows[0] || null,
+      impuestosRecord: impR.rows[0]    || null,
+      dolarRecord:     dolarR.rows[0]  || null,
+    });
+
+    res.json({
+      ok: true,
+      data: {
+        local: localR.rows[0],
+        mes,
+        ...eerr,
+        cmv_categorias_config: Object.fromEntries(
+          CATS_CAFETERIA.map(cat => [cat, cmvMap[cat] ?? CMV_DEFAULTS_CAFETERIA[cat]])
+        ),
+        productos_sin_categoria: Number(sinCatR.rows[0]?.cnt || 0),
+      },
+    });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria GET]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/eerr/cafeteria/cmv', requireAuth, async (req, res) => {
+  try {
+    const { local_id, mes, categorias } = req.body;
+    if (!local_id || !mes || !categorias) return res.status(400).json({ ok: false, error: 'local_id, mes, categorias requeridos' });
+    for (const [cat, pct] of Object.entries(categorias)) {
+      if (!CATS_CAFETERIA.includes(cat)) continue;
+      await pool.query(`
+        INSERT INTO eerr_cafeteria_cmv (local_id, mes, categoria, cmv_pct, updated_at)
+        VALUES ($1,$2,$3,$4,NOW())
+        ON CONFLICT (local_id, mes, categoria) DO UPDATE SET cmv_pct=EXCLUDED.cmv_pct, updated_at=NOW()
+      `, [local_id, mes, cat, parseFloat(pct) || 0]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/cmv]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/eerr/cafeteria/gastos', requireAuth, async (req, res) => {
+  try {
+    const { local_id, mes, gastos } = req.body;
+    if (!local_id || !mes) return res.status(400).json({ ok: false, error: 'local_id y mes requeridos' });
+    await pool.query(`
+      INSERT INTO eerr_local (local_id, mes, gastos, updated_at)
+      VALUES ($1,$2,$3::jsonb,NOW())
+      ON CONFLICT (local_id, mes) DO UPDATE SET gastos=EXCLUDED.gastos, updated_at=NOW()
+    `, [local_id, mes, JSON.stringify(gastos || DEFAULT_GASTOS_CAFETERIA)]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/gastos]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/eerr/cafeteria/impuestos', requireAuth, async (req, res) => {
+  try {
+    const { local_id, mes, iibb_pct, imp_gen_pct, fee_marca_pct } = req.body;
+    if (!local_id || !mes) return res.status(400).json({ ok: false, error: 'local_id y mes requeridos' });
+    await pool.query(`
+      INSERT INTO eerr_cafeteria_impuestos (local_id, mes, iibb_pct, imp_gen_pct, fee_marca_pct, updated_at)
+      VALUES ($1,$2,$3,$4,$5,NOW())
+      ON CONFLICT (local_id, mes) DO UPDATE
+        SET iibb_pct=EXCLUDED.iibb_pct, imp_gen_pct=EXCLUDED.imp_gen_pct,
+            fee_marca_pct=EXCLUDED.fee_marca_pct, updated_at=NOW()
+    `, [local_id, mes, parseFloat(iibb_pct) ?? 3, parseFloat(imp_gen_pct) ?? 30, parseFloat(fee_marca_pct) ?? 4]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/impuestos]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/eerr/cafeteria/dolar', requireAuth, async (req, res) => {
+  try {
+    const { local_id, mes, dolar_fin_mes } = req.body;
+    if (!local_id || !mes) return res.status(400).json({ ok: false, error: 'local_id y mes requeridos' });
+    await pool.query(`
+      INSERT INTO eerr_cafeteria_dolar (local_id, mes, dolar_fin_mes, updated_at)
+      VALUES ($1,$2,$3,NOW())
+      ON CONFLICT (local_id, mes) DO UPDATE SET dolar_fin_mes=EXCLUDED.dolar_fin_mes, updated_at=NOW()
+    `, [local_id, mes, parseFloat(dolar_fin_mes) || null]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/dolar]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.get('/eerr/cafeteria/productos-categorias', requireAuth, async (req, res) => {
+  try {
+    const { local_id } = req.query;
+    const lid = parseInt(local_id);
+    if (!lid) return res.status(400).json({ ok: false, error: 'local_id requerido' });
+    const { rows } = await pool.query(`
+      SELECT LOWER(TRIM(vi.producto_nombre_raw)) AS nombre_norm,
+             vi.producto_nombre_raw              AS nombre_raw,
+             pcc.categoria,
+             SUM(vi.precio_total)                AS venta_total,
+             COUNT(*)                            AS apariciones
+      FROM ventas_items vi
+      LEFT JOIN productos_categoria_cafeteria pcc
+             ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
+      WHERE vi.local_id = $1 AND COALESCE(vi.cancelada, false) = false
+      GROUP BY 1, 2, 3
+      ORDER BY pcc.categoria NULLS FIRST, venta_total DESC
+    `, [lid]);
+    res.json({ ok: true, data: rows });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/productos-categorias GET]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/eerr/cafeteria/productos-categorias', requireAuth, async (req, res) => {
+  try {
+    const { asignaciones } = req.body;
+    if (!Array.isArray(asignaciones) || !asignaciones.length)
+      return res.status(400).json({ ok: false, error: 'asignaciones[] requerido' });
+    for (const { producto_nombre_norm, categoria } of asignaciones) {
+      if (!producto_nombre_norm || !CATS_CAFETERIA.includes(categoria)) continue;
+      await pool.query(`
+        INSERT INTO productos_categoria_cafeteria (producto_nombre_norm, categoria)
+        VALUES ($1,$2)
+        ON CONFLICT (producto_nombre_norm) DO UPDATE SET categoria=EXCLUDED.categoria
+      `, [producto_nombre_norm.toLowerCase().trim(), categoria]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/productos-categorias POST]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── TEMP: init migración 025 cafetería en prod ────────────────────────────────
+router.post('/eerr/cafeteria/init', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS eerr_cafeteria_cmv (
+        local_id INT NOT NULL REFERENCES locales(id),
+        mes CHAR(7) NOT NULL,
+        categoria TEXT NOT NULL,
+        cmv_pct NUMERIC(5,2) NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (local_id, mes, categoria)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS eerr_cafeteria_impuestos (
+        local_id INT NOT NULL REFERENCES locales(id),
+        mes CHAR(7) NOT NULL,
+        iibb_pct NUMERIC(5,2) NOT NULL DEFAULT 3,
+        imp_gen_pct NUMERIC(5,2) NOT NULL DEFAULT 30,
+        fee_marca_pct NUMERIC(5,2) NOT NULL DEFAULT 4,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (local_id, mes)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS eerr_cafeteria_dolar (
+        local_id INT NOT NULL REFERENCES locales(id),
+        mes CHAR(7) NOT NULL,
+        dolar_fin_mes NUMERIC(10,2),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (local_id, mes)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS productos_categoria_cafeteria (
+        producto_nombre_norm TEXT PRIMARY KEY,
+        categoria TEXT NOT NULL
+          CHECK (categoria IN ('cafeteria','panificados','promociones',
+                               'menu_almuerzos','principales','bebidas'))
+      )
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/cafeteria/init]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

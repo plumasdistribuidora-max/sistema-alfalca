@@ -918,24 +918,48 @@ function calcTotalGastos(gastos) {
   );
 }
 
-function calcEerr(venta_neta, record) {
+function toFiscalData(row) {
+  return {
+    bruto_no_fiscal: n(row.bruto_no_fiscal),
+    bruto_fiscal:    n(row.bruto_fiscal),
+    neto_fiscal:     n(row.neto_fiscal),
+    total_iva_21:    n(row.total_iva_21),
+    total_iva_105:   n(row.total_iva_105),
+  };
+}
+
+function calcEerr(fiscalData, record) {
+  const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, total_iva_21, total_iva_105 } = fiscalData;
+
+  const venta_neta     = bruto_no_fiscal + neto_fiscal;
+  const iva_descontado = Math.round(bruto_fiscal - neto_fiscal);
+
+  let tipo_iva = null;
+  if (total_iva_21 > 0 && total_iva_105 > 0) tipo_iva = 'IVA mixto';
+  else if (total_iva_21 > 0)                  tipo_iva = 'IVA 21%';
+  else if (total_iva_105 > 0)                 tipo_iva = 'IVA 10,5%';
+
+  const pct_fiscal_sobre_total = venta_neta > 0
+    ? Math.round(neto_fiscal / venta_neta * 1000) / 10
+    : 0;
+
   const cmv_e2_pct   = record != null ? n(record.cmv_e2_pct)   : 45;
   const cmv_alim_pct = record != null ? n(record.cmv_alim_pct) : 70;
   const gastos_raw   = record?.gastos;
   const gastos       = (gastos_raw?.bloques?.length > 0) ? gastos_raw : DEFAULT_GASTOS;
   const imp          = record?.impuestos || { iibb: 0, novecientos31: 0, ganancias: 0 };
 
-  const venta_e2         = venta_neta * 0.90;
-  const venta_alim       = venta_neta * 0.10;
-  const cmv              = (venta_e2 * cmv_e2_pct / 100) + (venta_alim * cmv_alim_pct / 100);
-  const margen_bruto     = venta_neta - cmv;
-  const total_gastos     = calcTotalGastos(gastos);
-  const ebitda           = margen_bruto - total_gastos;
-  const iibb             = n(imp.iibb);
-  const novecientos31    = n(imp.novecientos31);
-  const ganancias        = n(imp.ganancias);
-  const total_impuestos  = iibb + novecientos31 + ganancias;
-  const resultado_neto   = ebitda - total_impuestos;
+  const venta_e2        = venta_neta * 0.90;
+  const venta_alim      = venta_neta * 0.10;
+  const cmv             = (venta_e2 * cmv_e2_pct / 100) + (venta_alim * cmv_alim_pct / 100);
+  const margen_bruto    = venta_neta - cmv;
+  const total_gastos    = calcTotalGastos(gastos);
+  const ebitda          = margen_bruto - total_gastos;
+  const iibb            = n(imp.iibb);
+  const novecientos31   = n(imp.novecientos31);
+  const ganancias       = n(imp.ganancias);
+  const total_impuestos = iibb + novecientos31 + ganancias;
+  const resultado_neto  = ebitda - total_impuestos;
 
   const p = (v) => venta_neta > 0 ? Math.round(v / venta_neta * 1000) / 10 : 0;
 
@@ -955,6 +979,16 @@ function calcEerr(venta_neta, record) {
       ebitda:          p(ebitda),
       total_impuestos: p(total_impuestos),
       resultado_neto:  p(resultado_neto),
+    },
+    desglose_fiscal: {
+      bruto_no_fiscal,
+      bruto_fiscal,
+      neto_fiscal:              Math.round(neto_fiscal),
+      iva_descontado,
+      tipo_iva,
+      pct_fiscal_sobre_total,
+      tiene_fiscal:             bruto_fiscal > 0,
+      tiene_datos_fiscales:     neto_fiscal  > 0,
     },
   };
 }
@@ -984,16 +1018,23 @@ router.get('/eerr', requireAuth, async (req, res) => {
     const { ini, fin }         = mesRange(mes);
     const { ini: ini_ant, fin: fin_ant } = mesRange(mes_ant);
 
+    const QUERY_FISCAL = `
+      SELECT
+        COALESCE(SUM(CASE WHEN vt.fiscal = false THEN vt.total ELSE 0 END), 0) AS bruto_no_fiscal,
+        COALESCE(SUM(CASE WHEN vt.fiscal = true  THEN vt.total ELSE 0 END), 0) AS bruto_fiscal,
+        COALESCE(SUM(vf.total_sin_impuestos), 0)                                AS neto_fiscal,
+        COALESCE(SUM(vf.iva_21),  0)                                            AS total_iva_21,
+        COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
+      FROM ventas_tickets vt
+      LEFT JOIN ventas_fiscales vf
+             ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
+      WHERE vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
+    `;
+
     const [localR, vnR, vnAntR, recR, recAntR] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
-      pool.query(
-        'SELECT COALESCE(SUM(vt.total),0) AS venta_neta FROM ventas_tickets vt WHERE vt.local_id=$1 AND vt.fecha BETWEEN $2 AND $3',
-        [local_id, ini, fin]
-      ),
-      pool.query(
-        'SELECT COALESCE(SUM(vt.total),0) AS venta_neta FROM ventas_tickets vt WHERE vt.local_id=$1 AND vt.fecha BETWEEN $2 AND $3',
-        [local_id, ini_ant, fin_ant]
-      ),
+      pool.query(QUERY_FISCAL, [local_id, ini,     fin    ]),
+      pool.query(QUERY_FISCAL, [local_id, ini_ant, fin_ant]),
       pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
       pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes_ant]),
     ]);
@@ -1006,8 +1047,8 @@ router.get('/eerr', requireAuth, async (req, res) => {
         local:        localR.rows[0],
         mes,
         mes_anterior: mes_ant,
-        actual:       calcEerr(n(vnR.rows[0].venta_neta),    recR.rows[0]),
-        anterior:     calcEerr(n(vnAntR.rows[0].venta_neta), recAntR.rows[0]),
+        actual:       calcEerr(toFiscalData(vnR.rows[0]),    recR.rows[0]),
+        anterior:     calcEerr(toFiscalData(vnAntR.rows[0]), recAntR.rows[0]),
       },
     });
   } catch (err) {

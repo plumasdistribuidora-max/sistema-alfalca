@@ -136,6 +136,62 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
   );
 }
 
+function FiscalDesglose({ df }) {
+  if (!df) return null;
+  const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, iva_descontado, tipo_iva,
+          pct_fiscal_sobre_total, tiene_fiscal, tiene_datos_fiscales } = df;
+  return (
+    <div className="mt-4 pt-4 border-t border-stone-100">
+      <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-3">Composición fiscal</p>
+      <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
+        <div className="grid grid-cols-3 px-4 py-2 bg-stone-50 text-xs text-stone-400 font-semibold">
+          <span>Tipo</span>
+          <span className="text-right">Bruto</span>
+          <span className="text-right">Neto</span>
+        </div>
+        {/* No fiscal */}
+        <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
+          <div>
+            <span className="font-medium text-stone-700">No fiscal</span>
+            <span className="ml-1.5 text-xs text-stone-400">entra completo</span>
+          </div>
+          <span className="text-right text-stone-600">{fmt$(bruto_no_fiscal)}</span>
+          <span className="text-right font-semibold text-stone-900">{fmt$(bruto_no_fiscal)}</span>
+        </div>
+        {/* Fiscal */}
+        {tiene_fiscal ? (
+          <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
+            <div>
+              <span className="font-medium text-stone-700">Fiscal</span>
+              {tipo_iva && <span className="ml-1.5 text-xs text-stone-400">{tipo_iva}</span>}
+            </div>
+            <span className="text-right text-stone-400 line-through">{fmt$(bruto_fiscal)}</span>
+            <span className="text-right font-semibold text-stone-900">
+              {tiene_datos_fiscales ? fmt$(neto_fiscal) : '—'}
+            </span>
+          </div>
+        ) : (
+          <div className="px-4 py-3 text-xs text-stone-400 italic border-b border-stone-50">
+            Sin facturación fiscal en este período
+          </div>
+        )}
+      </div>
+      {tiene_fiscal && tiene_datos_fiscales && (
+        <div className="mt-2.5 space-y-1.5 px-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-stone-500">% fiscal sobre el total</span>
+            <span className="font-semibold text-stone-700">{pct_fiscal_sobre_total}%</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-stone-500">IVA descontado</span>
+            <span className="font-semibold text-red-500">−{fmt$(iva_descontado)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FormulaRows({ rows }) {
   return (
     <div className="rounded-xl overflow-hidden border border-stone-100 text-sm">
@@ -352,6 +408,9 @@ export default function EerrSection() {
   const [loading,   setLoading]   = useState(false);
   const [openModal, setOpenModal] = useState(null);
   const [saving,    setSaving]    = useState(false);
+  const [alertaDismissed, setAlertaDismissed] = useState(
+    () => localStorage.getItem('eerr_fiscal_alert_v1') === '1'
+  );
 
   const [editCmv, setEditCmv] = useState({ e2: '45', alim: '70' });
   const [editGastos, setEditGastos] = useState({ bloques: [] });
@@ -454,8 +513,27 @@ export default function EerrSection() {
   const b = data?.anterior;
   const ml = mesLabel(selMes);
 
+  function dismissAlerta() {
+    localStorage.setItem('eerr_fiscal_alert_v1', '1');
+    setAlertaDismissed(true);
+  }
+
   return (
     <div className="space-y-4">
+
+      {/* ── Alerta migración cálculo fiscal ── */}
+      {!alertaDismissed && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <span className="flex-shrink-0 mt-0.5">⚠</span>
+          <span className="flex-1">
+            <strong>Cambió el cálculo de Venta Neta:</strong> ahora descuenta el IVA de las ventas fiscales correctamente (usando la columna "Total sin impuestos" del POS). Los números pueden bajar respecto a antes.
+          </span>
+          <button
+            onClick={dismissAlerta}
+            className="flex-shrink-0 font-bold text-amber-600 hover:text-amber-900 leading-none"
+          >✕</button>
+        </div>
+      )}
 
       {/* ── Selectors ── */}
       <div className="flex gap-3">
@@ -505,7 +583,8 @@ export default function EerrSection() {
           {/* Cascada */}
           <div className="card p-4">
             <CascadeCard
-              title="Venta Neta" subtitle="Entre Dos 90% · Alimendos 10%"
+              title="Venta Neta"
+              subtitle={`Entre Dos 90% · Alimendos 10%${a.desglose_fiscal?.tiene_fiscal ? ' · IVA descontado' : ''}`}
               value={a.venta_neta} pct={100}
               varA={a.venta_neta} varB={b?.venta_neta}
               onClick={() => openFor('venta')} sk="venta"
@@ -567,6 +646,7 @@ export default function EerrSection() {
               { label: 'Alimendos (10%)',  value: a.venta_alim, pct: 10  },
               { label: 'Total Venta Neta', value: a.venta_neta, pct: 100, highlight: true },
             ]} />
+            <FiscalDesglose df={a.desglose_fiscal} />
           </div>
         </ModalShell>
       )}

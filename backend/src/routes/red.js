@@ -1935,15 +1935,13 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
 
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    // VN fiscal correcta: no-fiscal completo + fiscal sin IVA
-    const fiscalData   = toFiscalData(fiscalR.rows[0] || {});
+    // VN fiscal correcta: no-fiscal completo + fiscal sin IVA (única fuente de verdad)
+    const fiscalData = toFiscalData(fiscalR.rows[0] || {});
     const { bruto_no_fiscal, bruto_fiscal, neto_fiscal } = fiscalData;
-    const ticketBruto  = bruto_no_fiscal + bruto_fiscal;  // total bruto (suma de todos los tickets)
-    const venta_neta   = bruto_no_fiscal + neto_fiscal;   // VN corregida (sin IVA en fiscales)
-    // Factor para escalar items brutos al neto fiscal correcto (distribución proporcional por categoría)
-    const corrFactor   = ticketBruto > 0 ? venta_neta / ticketBruto : 1;
+    const venta_neta = bruto_no_fiscal + neto_fiscal;
 
-    // Acumular items brutos y aplicar factor fiscal
+    // Items: solo como pesos proporcionales por categoría.
+    // NO se usan como montos absolutos — pueden estar duplicados si hubo re-imports.
     const itemsByCatBruto = {};
     let itemsBrutoTotal = 0;
     for (const r of itemsByCatR.rows) {
@@ -1951,18 +1949,17 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
       itemsByCatBruto[r.categoria] = (itemsByCatBruto[r.categoria] || 0) + v;
       itemsBrutoTotal += v;
     }
-    const itemsTotal = itemsBrutoTotal; // bruto — para tiene_detalle_items
+    const itemsTotal = itemsBrutoTotal; // para tiene_detalle_items
 
+    // Distribuir venta_neta proporcionalmente según peso de cada categoría en items
     const itemsByCat = {};
-    for (const [cat, v] of Object.entries(itemsByCatBruto)) {
-      itemsByCat[cat] = v * corrFactor;
-    }
-    const itemsNetTotal = Object.values(itemsByCat).reduce((s, v) => s + v, 0);
-
-    // Residual hacia sin_categoria para que el total cuadre con venta_neta
-    const residual = Math.max(0, venta_neta - itemsNetTotal);
-    if (residual > 0) {
-      itemsByCat['sin_categoria'] = (itemsByCat['sin_categoria'] || 0) + residual;
+    if (itemsBrutoTotal > 0) {
+      for (const [cat, brutoV] of Object.entries(itemsByCatBruto)) {
+        itemsByCat[cat] = (brutoV / itemsBrutoTotal) * venta_neta;
+      }
+    } else {
+      // Sin datos de items: todo sin_categoria, el usuario asigna manualmente
+      itemsByCat['sin_categoria'] = venta_neta;
     }
 
     // Construir ventaRows para calcEerrCafeteria

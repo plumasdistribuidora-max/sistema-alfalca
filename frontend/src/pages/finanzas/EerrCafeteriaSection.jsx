@@ -80,7 +80,7 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
           <h3 className="font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>{title}</h3>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-400 hover:text-stone-600">✕</button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">{children}</div>
         {onSave && (
           <div className="px-6 py-4 border-t border-stone-100 flex-shrink-0">
             <button onClick={onSave} disabled={saving}
@@ -492,6 +492,25 @@ function DolarModal({ mes, dolarActual, resultadoNeto, onClose, onSaved, localId
 
 // ── Popup: Gestión de categorías de productos ─────────────────────────────────
 
+// Reglas de sugerencia automática por nombre de producto
+const REGLAS_SUGERENCIA = [
+  { cat: 'promociones',    test: n => n.startsWith('promo') || n.includes('combo') || n.includes('mediatareando') || n.includes('mendo') },
+  { cat: 'cafeteria',      words: ['cafe','café','espresso','capuchino','cappuccino','latte','americano','cortado','lagrima','lágrima','submarino','macchiato','chai','té ','te ','infusion','infusión','mocaccino','mocca'] },
+  { cat: 'panificados',    words: ['medialuna','tortita','factura','chipa','budin','budín','torta','scon','scone','muffin','criollo','palmera','palmerita','cuernito','vigilante','croissant','medialunas','baguette','pan ','pancito'] },
+  { cat: 'menu_almuerzos', words: ['menu','menú','almuerzo','ejecutivo'] },
+  { cat: 'principales',    words: ['milanesa','tarta','pizza','empanada','sandwich','sándwich','wrap','ensalada','omelette','tostado','tostada','striploin','bife','pollo ','pesca','focaccia'] },
+  { cat: 'bebidas',        words: ['agua ','agua$','gaseosa','jugo','limonada','cerveza','vino','soda','saborizada','yogurt','yogur','fernet','aperol','coke','pepsi','sprite'] },
+];
+
+function sugerirCategoria(nombreNorm) {
+  const n = nombreNorm.toLowerCase();
+  for (const regla of REGLAS_SUGERENCIA) {
+    if (regla.test && regla.test(n)) return regla.cat;
+    if (regla.words && regla.words.some(w => n.includes(w.replace('$', '')))) return regla.cat;
+  }
+  return null;
+}
+
 function ProductosModal({ localId, onClose }) {
   const [productos, setProductos]   = useState([]);
   const [asignados, setAsignados]   = useState({});
@@ -506,16 +525,27 @@ function ProductosModal({ localId, onClose }) {
       .finally(() => setLoading(false));
   }, [localId]);
 
+  function aplicarSugerencias() {
+    const nuevas = {};
+    for (const p of productos) {
+      if (!p.categoria && !asignados[p.nombre_norm]) {
+        const sug = sugerirCategoria(p.nombre_norm);
+        if (sug) nuevas[p.nombre_norm] = sug;
+      }
+    }
+    setAsignados(prev => ({ ...prev, ...nuevas }));
+  }
+
   function setCategoria(norm, cat) {
-    setAsignados(p => ({ ...p, [norm]: cat }));
+    setAsignados(p => ({ ...p, [norm]: cat || undefined }));
   }
 
   async function save() {
     setSaving(true);
     try {
-      const asignaciones = Object.entries(asignados).map(([producto_nombre_norm, categoria]) => ({
-        producto_nombre_norm, categoria,
-      }));
+      const asignaciones = Object.entries(asignados)
+        .filter(([, cat]) => cat)
+        .map(([producto_nombre_norm, categoria]) => ({ producto_nombre_norm, categoria }));
       await api.post('/red/eerr/cafeteria/productos-categorias', { asignaciones });
       const r = await api.get('/red/eerr/cafeteria/productos-categorias', { params: { local_id: localId } });
       setProductos(r.data.data || []);
@@ -532,6 +562,7 @@ function ProductosModal({ localId, onClose }) {
     ? productos.filter(p => !p.categoria && !asignados[p.nombre_norm])
     : productos;
   const pendientes = productos.filter(p => !p.categoria).length;
+  const sugerencias_pendientes = productos.filter(p => !p.categoria && !asignados[p.nombre_norm] && sugerirCategoria(p.nombre_norm)).length;
 
   return (
     <ModalShell title="Mapeo producto → categoría" onClose={onClose} onSave={Object.keys(asignados).length ? save : null} saving={saving}>
@@ -545,21 +576,35 @@ function ProductosModal({ localId, onClose }) {
             {filtroSin ? 'Ver todos' : 'Solo sin categoría'}
           </button>
         </div>
+
+        {/* Botón sugerencias automáticas */}
+        {!loading && sugerencias_pendientes > 0 && (
+          <button
+            onClick={aplicarSugerencias}
+            className="w-full py-2 rounded-xl border border-violet-200 bg-violet-50 text-violet-700 text-xs font-semibold hover:bg-violet-100 transition-colors"
+          >
+            Aplicar sugerencias automáticas ({sugerencias_pendientes} producto{sugerencias_pendientes !== 1 ? 's' : ''})
+          </button>
+        )}
+
         {loading && <div className="h-32 bg-stone-100 rounded-xl animate-pulse" />}
         {!loading && (
-          <div className="rounded-xl border border-stone-100 overflow-hidden text-sm max-h-80 overflow-y-auto">
+          <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
             {display.map(p => {
-              const catActual = asignados[p.nombre_norm] ?? p.categoria;
+              const catActual = asignados[p.nombre_norm] ?? p.categoria ?? '';
+              const sug = (!p.categoria && !asignados[p.nombre_norm]) ? sugerirCategoria(p.nombre_norm) : null;
               return (
                 <div key={p.nombre_norm} className="flex items-center gap-3 px-4 py-2.5 border-b border-stone-50 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <p className="truncate text-stone-700 font-medium">{p.nombre_raw}</p>
-                    <p className="text-stone-400 text-xs">{fmt$(p.venta_total)} · {p.apariciones} veces</p>
+                    <p className="truncate text-stone-700 font-medium text-xs">{p.nombre_raw}</p>
+                    <p className="text-stone-400 text-xs">{fmt$(p.venta_total)} · {p.apariciones}×
+                      {sug && <span className="ml-1 text-violet-500">→ {CATS.find(c => c.key === sug)?.label}</span>}
+                    </p>
                   </div>
                   <select
-                    value={catActual || ''}
+                    value={catActual}
                     onChange={e => setCategoria(p.nombre_norm, e.target.value)}
-                    className={`rounded-lg border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 ${
+                    className={`rounded-lg border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 flex-shrink-0 ${
                       !catActual ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-stone-200 text-stone-700'
                     }`}
                   >

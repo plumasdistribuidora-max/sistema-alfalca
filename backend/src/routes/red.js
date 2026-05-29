@@ -1413,4 +1413,34 @@ router.get('/finanzas/kpi/comparativa', requireAuth, async (req, res) => {
   }
 });
 
+// ── TEMP: init migración 024 en prod ─────────────────────────────────────────
+router.post('/finanzas/kpi/init', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kpi_umbrales (
+        kpi_codigo   VARCHAR(50)   PRIMARY KEY,
+        verde_min    NUMERIC(8,2)  NOT NULL,
+        ambar_min    NUMERIC(8,2)  NOT NULL,
+        invert       BOOLEAN       NOT NULL DEFAULT false,
+        updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    const ins = await pool.query(`
+      INSERT INTO kpi_umbrales (kpi_codigo, verde_min, ambar_min, invert) VALUES
+        ('margen_bruto',   50, 40, false),
+        ('margen_ebitda',  15,  5, false),
+        ('breakeven',     100, 80, false),
+        ('sueldos_venta',  30, 35, true),
+        ('dias_caja',      14,  7, false)
+      ON CONFLICT (kpi_codigo) DO NOTHING
+    `);
+
+    res.json({ ok: true, creada: true, defaults_cargados: ins.rowCount });
+  } catch (err) {
+    console.error('[red/finanzas/kpi/init]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;

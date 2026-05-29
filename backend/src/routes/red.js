@@ -1876,8 +1876,17 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
 
     const { ini, fin } = mesRange(mes);
 
-    const [localR, ventaR, cmvR, gastosR, impR, dolarR, sinCatR] = await Promise.all([
+    const [localR, ticketVentaR, itemsByCatR, cmvR, gastosR, impR, dolarR, sinCatR] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
+
+      // VN autoritativa desde ventas_tickets (funciona aunque los items tengan precio_total=0)
+      pool.query(`
+        SELECT COALESCE(SUM(vt.total), 0) AS venta_neta
+        FROM ventas_tickets vt
+        WHERE vt.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
+      `, [local_id, ini, fin]),
+
+      // Desglose por categoría desde ventas_items (cuando el precio_total está disponible)
       pool.query(`
         SELECT COALESCE(pcc.categoria, 'sin_categoria') AS categoria,
                COALESCE(SUM(vi.precio_total), 0)        AS venta
@@ -1889,6 +1898,7 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
           AND COALESCE(vi.cancelada, false) = false
         GROUP BY categoria ORDER BY venta DESC
       `, [local_id, ini, fin]),
+
       pool.query('SELECT categoria, cmv_pct FROM eerr_cafeteria_cmv WHERE local_id=$1 AND mes=$2', [local_id, mes]),
       pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
       pool.query('SELECT * FROM eerr_cafeteria_impuestos WHERE local_id=$1 AND mes=$2', [local_id, mes]),
@@ -1896,20 +1906,40 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
       pool.query(`
         SELECT COUNT(DISTINCT LOWER(TRIM(vi.producto_nombre_raw))) AS cnt
         FROM ventas_items vi
-        JOIN ventas_tickets vt ON vt.id = vi.ticket_id
         LEFT JOIN productos_categoria_cafeteria pcc
                ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
-        WHERE vi.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
-          AND COALESCE(vi.cancelada, false) = false AND pcc.producto_nombre_norm IS NULL
-      `, [local_id, ini, fin]),
+        WHERE vi.local_id = $1 AND pcc.producto_nombre_norm IS NULL
+          AND COALESCE(vi.cancelada, false) = false
+      `, [local_id]),
     ]);
 
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
+    // VN real desde tickets
+    const ticketVN  = n(ticketVentaR.rows[0]?.venta_neta);
+
+    // Sumar categorías desde items
+    const itemsByCat = {};
+    for (const r of itemsByCatR.rows) {
+      itemsByCat[r.categoria] = (itemsByCat[r.categoria] || 0) + n(r.venta);
+    }
+    const itemsTotal = Object.values(itemsByCat).reduce((s, v) => s + v, 0);
+
+    // Residual (tickets sin cobertura en items) → sin_categoria
+    const residual = Math.max(0, ticketVN - itemsTotal);
+    if (residual > 0) {
+      itemsByCat['sin_categoria'] = (itemsByCat['sin_categoria'] || 0) + residual;
+    }
+
+    // Construir ventaRows para calcEerrCafeteria
+    const ventaRows = Object.entries(itemsByCat)
+      .map(([categoria, venta]) => ({ categoria, venta }))
+      .filter(r => r.venta > 0);
+
     const cmvMap = Object.fromEntries(cmvR.rows.map(r => [r.categoria, n(r.cmv_pct)]));
 
     const eerr = calcEerrCafeteria({
-      ventaRows:       ventaR.rows,
+      ventaRows,
       cmvMap,
       gastosRecord:    gastosR.rows[0] || null,
       impuestosRecord: impR.rows[0]    || null,
@@ -1926,6 +1956,7 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
           CATS_CAFETERIA.map(cat => [cat, cmvMap[cat] ?? CMV_DEFAULTS_CAFETERIA[cat]])
         ),
         productos_sin_categoria: Number(sinCatR.rows[0]?.cnt || 0),
+        tiene_detalle_items: itemsTotal > 0,
       },
     });
   } catch (err) {
@@ -2048,25 +2079,13 @@ router.post('/eerr/cafeteria/productos-categorias', requireAuth, async (req, res
   }
 });
 
-// ── TEMP: diagnóstico de locales + ventas de cafetería ───────────────────────
-router.get('/eerr/cafeteria/diagnostico', requireAuth, requireAdmin, async (req, res) => {
+// ── Locales disponibles para EERR cafetería ──────────────────────────────────
+router.get('/eerr/cafeteria/locales', requireAuth, async (req, res) => {
   try {
-    // Todos los locales con sus ventas (sin filtro es_alfajorera para ver todo)
-    const localesR = await pool.query(`
-      SELECT l.id, l.nombre, l.activo, l.es_alfajorera,
-             COUNT(DISTINCT vt.id)  AS tickets,
-             COUNT(DISTINCT vi.id)  AS items,
-             MIN(vt.fecha)          AS primera_venta,
-             MAX(vt.fecha)          AS ultima_venta
-      FROM locales l
-      LEFT JOIN ventas_tickets vt ON vt.local_id = l.id
-      LEFT JOIN ventas_items   vi ON vi.local_id = l.id
-      GROUP BY l.id, l.nombre, l.activo, l.es_alfajorera
-      ORDER BY l.es_alfajorera DESC, tickets DESC
-    `);
-    res.json({ ok: true, locales: localesR.rows });
+    const r = await pool.query(`SELECT id, nombre, es_alfajorera FROM locales ORDER BY nombre`);
+    res.json({ ok: true, locales: r.rows });
   } catch (err) {
-    console.error('[eerr/cafeteria/diagnostico]', err);
+    console.error('[eerr/cafeteria/locales]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -1406,9 +1406,235 @@ router.get('/finanzas/kpi/comparativa', requireAuth, async (req, res) => {
       },
     }));
 
-    res.json({ ok: true, data: { mes, locales: locales.map(l => l.nombre), tabla } });
+    res.json({ ok: true, data: { mes, locales: locales.map(l => ({ id: l.id, nombre: l.nombre })), tabla } });
   } catch (err) {
     console.error('[red/finanzas/kpi/comparativa]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── J) GET /finanzas/kpi/detalle ────────────────────────────────────────────
+
+router.get('/finanzas/kpi/detalle', requireAuth, async (req, res) => {
+  try {
+    const { kpi, local, mes } = req.query;
+    if (!kpi || !local || !mes || !/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'kpi, local y mes requeridos' });
+    if (!KPI_CODIGOS.includes(kpi))
+      return res.status(400).json({ ok: false, error: `kpi inválido: ${kpi}` });
+
+    // Helpers de formato para formula_aplicada
+    const fmtM_ = v => {
+      if (v == null) return '—';
+      const abs = Math.abs(Math.round(v));
+      const s   = Number(v) < 0 ? '−' : '';
+      if (abs >= 1_000_000) return `${s}$${(abs / 1_000_000).toFixed(1).replace('.', ',')}M`;
+      if (abs >= 1_000)     return `${s}$${Math.round(abs / 1_000)}k`;
+      return `${s}$${abs.toLocaleString('es-AR')}`;
+    };
+    const fmtP_ = v => v != null
+      ? `${Number(v).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`
+      : '—';
+
+    const esGrupo = local === 'grupo';
+    let locales;
+    if (esGrupo) {
+      const r = await pool.query(
+        'SELECT id, nombre FROM locales WHERE es_alfajorera = true AND activo = true ORDER BY nombre'
+      );
+      locales = r.rows;
+    } else {
+      const lid = parseInt(local);
+      if (!lid) return res.status(400).json({ ok: false, error: 'local inválido' });
+      const r   = await pool.query('SELECT id, nombre FROM locales WHERE id = $1', [lid]);
+      if (!r.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+      locales = r.rows;
+    }
+
+    const local_ids   = locales.map(l => l.id);
+    const localNombre = esGrupo ? 'Grupo' : locales[0].nombre;
+    const linkParams  = esGrupo ? null : { local_id: locales[0].id, mes };
+
+    const { ini, fin } = mesRange(mes);
+    const [vnRows, eerrRows, umbralesRows] = await Promise.all([
+      pool.query(QUERY_FISCAL_MULTI, [local_ids, ini, fin]),
+      pool.query('SELECT * FROM eerr_local WHERE local_id = ANY($1::int[]) AND mes = $2', [local_ids, mes]),
+      pool.query('SELECT * FROM kpi_umbrales'),
+    ]);
+
+    const umbralesMap = Object.fromEntries(umbralesRows.rows.map(r => [r.kpi_codigo, r]));
+    const umbrales    = Object.fromEntries(
+      KPI_CODIGOS.map(cod => [cod, umbralesMap[cod] || KPI_DEFAULTS[cod]])
+    );
+
+    const eerrs = locales.map(loc => {
+      const fnRow  = vnRows.rows.find(r => r.local_id === loc.id && r.mes === mes) || {};
+      const recRow = eerrRows.rows.find(r => r.local_id === loc.id);
+      return calcEerr(toFiscalData(fnRow), recRow || null);
+    });
+    const agg = aggregateEerrs(eerrs);
+
+    let detalle;
+
+    if (kpi === 'margen_bruto') {
+      const u     = umbrales.margen_bruto;
+      const valor = agg.sumVN > 0 ? Math.round(agg.sumMB / agg.sumVN * 1000) / 10 : null;
+      detalle = {
+        kpi_label:        'Margen Bruto',
+        descripcion:      'Rentabilidad después de descontar el costo del producto (CMV).',
+        formula_template: '(Venta Neta − CMV) / Venta Neta × 100',
+        formula_aplicada: `(${fmtM_(agg.sumVN)} − ${fmtM_(agg.sumCmv)}) / ${fmtM_(agg.sumVN)} × 100 = ${fmtP_(valor)}`,
+        valor,
+        semaforo:  semaforoKpi(valor, u),
+        verde_min: Number(u.verde_min),
+        ambar_min: Number(u.ambar_min),
+        invert:    u.invert,
+        componentes: [
+          { label: 'Venta Neta',   valor: Math.round(agg.sumVN),  formato: 'ars', signo:  1, link_modulo: 'eerr', link_params: linkParams },
+          { label: 'CMV',          valor: Math.round(agg.sumCmv), formato: 'ars', signo: -1 },
+          { label: 'Margen Bruto', valor: Math.round(agg.sumMB),  formato: 'ars', signo:  1, es_total: true, es_resultado: true },
+        ],
+      };
+    }
+
+    else if (kpi === 'margen_ebitda') {
+      const u     = umbrales.margen_ebitda;
+      const valor = agg.sumVN > 0 ? Math.round(agg.sumEbitda / agg.sumVN * 1000) / 10 : null;
+      detalle = {
+        kpi_label:        'Margen EBITDA',
+        descripcion:      'Rentabilidad operativa antes de impuestos.',
+        formula_template: 'EBITDA / Venta Neta × 100',
+        formula_aplicada: `${fmtM_(agg.sumEbitda)} / ${fmtM_(agg.sumVN)} × 100 = ${fmtP_(valor)}`,
+        valor,
+        semaforo:  semaforoKpi(valor, u),
+        verde_min: Number(u.verde_min),
+        ambar_min: Number(u.ambar_min),
+        invert:    u.invert,
+        componentes: [
+          { label: 'Venta Neta',        valor: Math.round(agg.sumVN),     formato: 'ars', signo:  1, link_modulo: 'eerr', link_params: linkParams },
+          { label: 'CMV',               valor: Math.round(agg.sumCmv),    formato: 'ars', signo: -1 },
+          { label: 'Margen Bruto',      valor: Math.round(agg.sumMB),     formato: 'ars', signo:  1, es_total: true },
+          { label: 'Gastos Operativos', valor: Math.round(agg.sumGastos), formato: 'ars', signo: -1, link_modulo: 'eerr', link_params: linkParams },
+          { label: 'EBITDA',            valor: Math.round(agg.sumEbitda), formato: 'ars', signo:  1, es_total: true, es_resultado: true },
+        ],
+      };
+    }
+
+    else if (kpi === 'breakeven') {
+      const u           = umbrales.breakeven;
+      const cmv_pct     = agg.sumVN > 0 ? agg.sumCmv / agg.sumVN : 0;
+      const contrib_pct = 1 - cmv_pct;
+      const be_rev      = contrib_pct > 0 ? agg.sumGastos / contrib_pct : null;
+      const valor       = (be_rev != null && be_rev > 0) ? Math.round(agg.sumVN / be_rev * 1000) / 10 : null;
+      detalle = {
+        kpi_label:        'Cobertura Breakeven',
+        descripcion:      'Porcentaje de los gastos del mes ya cubiertos por las ventas. 100% = punto de equilibrio alcanzado.',
+        formula_template: 'Venta Neta / (Gastos / Margen de contribución) × 100',
+        formula_aplicada: be_rev != null
+          ? `${fmtM_(agg.sumVN)} / ${fmtM_(be_rev)} × 100 = ${fmtP_(valor)}`
+          : '— (sin datos)',
+        valor,
+        semaforo:  semaforoKpi(valor, u),
+        verde_min: Number(u.verde_min),
+        ambar_min: Number(u.ambar_min),
+        invert:    u.invert,
+        componentes: [
+          { label: 'Gastos del mes',           valor: Math.round(agg.sumGastos),                        formato: 'ars', signo: 1, link_modulo: 'eerr', link_params: linkParams },
+          { label: '% CMV',                    valor: Math.round(cmv_pct    * 1000) / 10,               formato: 'pct', signo: 0 },
+          { label: 'Margen de contribución',   valor: Math.round(contrib_pct * 1000) / 10,              formato: 'pct', signo: 0, es_total: true },
+          { label: 'Venta necesaria para BE',  valor: be_rev != null ? Math.round(be_rev) : null,       formato: 'ars', signo: 0 },
+          { label: 'Venta Neta acumulada',     valor: Math.round(agg.sumVN),                            formato: 'ars', signo: 1 },
+          { label: 'Cobertura',                valor,                                                    formato: 'pct', signo: 1, es_total: true, es_resultado: true },
+        ],
+      };
+    }
+
+    else if (kpi === 'sueldos_venta') {
+      const u     = umbrales.sueldos_venta;
+      const valor = agg.sumVN > 0 ? Math.round(agg.sumSueldos / agg.sumVN * 1000) / 10 : null;
+
+      // Detalle de conceptos de sueldo
+      const conceptosMap = {};
+      for (const e of eerrs) {
+        for (const b of (e.gastos_bloques || [])) {
+          for (const c of (b.conceptos || [])) {
+            if (c.nombre?.toLowerCase().includes('sueldo')) {
+              conceptosMap[c.nombre] = (conceptosMap[c.nombre] || 0) + n(c.monto);
+            }
+          }
+        }
+      }
+      const subItems = Object.entries(conceptosMap).map(([label, val]) => ({
+        label, valor: Math.round(val), formato: 'ars', signo: 1, es_sub: true,
+      }));
+
+      detalle = {
+        kpi_label:        'Sueldos / Venta',
+        descripcion:      'Cuánto pesan los sueldos sobre la venta neta del período.',
+        formula_template: 'Total Sueldos / Venta Neta × 100',
+        formula_aplicada: `${fmtM_(agg.sumSueldos)} / ${fmtM_(agg.sumVN)} × 100 = ${fmtP_(valor)}`,
+        valor,
+        semaforo:  semaforoKpi(valor, u),
+        verde_min: Number(u.verde_min),
+        ambar_min: Number(u.ambar_min),
+        invert:    u.invert,
+        componentes: [
+          ...(subItems.length ? subItems : [{ label: 'Sin conceptos de sueldo cargados', valor: 0, formato: 'ars', signo: 0, es_sub: true }]),
+          { label: 'Total Sueldos', valor: Math.round(agg.sumSueldos), formato: 'ars', signo:  1, es_total: true, link_modulo: 'eerr', link_params: linkParams },
+          { label: 'Venta Neta',   valor: Math.round(agg.sumVN),      formato: 'ars', signo:  1, link_modulo: 'eerr', link_params: linkParams },
+          { label: 'Sueldos / Venta', valor,                           formato: 'pct', signo:  1, es_total: true, es_resultado: true },
+        ],
+      };
+    }
+
+    else if (kpi === 'dias_caja') {
+      const u        = umbrales.dias_caja;
+      const cajaRows = await pool.query(
+        'SELECT DISTINCT ON (cuenta) cuenta, monto FROM cuentas_saldos ORDER BY cuenta, fecha_actualizacion DESC'
+      );
+      const cajaTotal   = cajaRows.rows.reduce((s, r) => s + n(r.monto), 0);
+      const [y, m_]     = mes.split('-').map(Number);
+      const days_in_m   = new Date(y, m_, 0).getDate();
+      const burn_diario = agg.sumGastos > 0 ? agg.sumGastos / days_in_m : 0;
+      const valor       = burn_diario > 0 ? Math.round(cajaTotal / burn_diario * 10) / 10 : null;
+
+      const cajaSubs = cajaRows.rows.map(r => ({
+        label: r.cuenta, valor: Math.round(n(r.monto)), formato: 'ars', signo: 1, es_sub: true,
+      }));
+
+      detalle = {
+        kpi_label:        'Días de Caja',
+        descripcion:      'Cuántos días podría operar el negocio si dejara de vender hoy, con la caja actual.',
+        formula_template: 'Caja disponible / Burn diario promedio',
+        formula_aplicada: burn_diario > 0
+          ? `${fmtM_(cajaTotal)} / ${fmtM_(Math.round(burn_diario))} por día = ${valor != null ? valor.toLocaleString('es-AR', { maximumFractionDigits: 1 }) + ' días' : '—'}`
+          : '— (sin gastos registrados)',
+        valor,
+        semaforo:  semaforoKpi(valor, u),
+        verde_min: Number(u.verde_min),
+        ambar_min: Number(u.ambar_min),
+        invert:    u.invert,
+        componentes: [
+          ...(cajaSubs.length ? cajaSubs : [{ label: 'Sin saldos registrados', valor: 0, formato: 'ars', signo: 0, es_sub: true }]),
+          { label: 'Caja disponible',  valor: Math.round(cajaTotal),            formato: 'ars', signo:  1, es_total: true, link_modulo: 'cashflow' },
+          { label: `Gastos (${mes})`,  valor: Math.round(agg.sumGastos),        formato: 'ars', signo: -1, link_modulo: 'eerr', link_params: linkParams },
+          { label: `Días en el mes`,   valor: days_in_m,                        formato: 'num', signo:  0 },
+          { label: 'Burn diario',      valor: Math.round(burn_diario),          formato: 'ars', signo:  0, es_total: true },
+          { label: 'Días de caja',     valor,                                   formato: 'num', signo:  0, es_total: true, es_resultado: true },
+        ],
+      };
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        ...detalle,
+        kpi_codigo: kpi,
+        contexto:   `${mes} · ${localNombre}`,
+      },
+    });
+  } catch (err) {
+    console.error('[red/finanzas/kpi/detalle]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -61,7 +61,7 @@ export default function FinanzasPage() {
       {/* Contenido */}
       {activeTab === 'eerr'     && <EerrSection />}
       {activeTab === 'cashflow' && <CashFlowSection />}
-      {activeTab === 'kpi'      && <KpiSection />}
+      {activeTab === 'kpi'      && <KpiSection onSwitchTab={setActiveTab} />}
     </div>
   );
 }

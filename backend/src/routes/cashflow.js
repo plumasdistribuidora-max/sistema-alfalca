@@ -54,27 +54,6 @@ function addDay(yyyymmdd) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
-function parseGetNetDate(val) {
-  if (!val) return null;
-  if (val instanceof Date) return isNaN(val.getTime()) ? null : toDateStr(val);
-  if (typeof val === 'number') { const d = parseExcelDate(val); return d ? toDateStr(d) : null; }
-  if (typeof val === 'string') {
-    const s = val.trim();
-    const hit = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (hit) return `${hit[3]}-${hit[2].padStart(2,'0')}-${hit[1].padStart(2,'0')}`;
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? null : toDateStr(d);
-  }
-  return null;
-}
-
-function parseMontoAR(val) {
-  if (val == null) return null;
-  if (typeof val === 'number') return val;
-  const num = parseFloat(String(val).trim().replace(/\./g, '').replace(',', '.'));
-  return isNaN(num) ? null : num;
-}
-
 const CUENTAS = ['santander', 'mp', 'galicia', 'efectivo'];
 
 function categorizarEstado(estado) {
@@ -263,18 +242,15 @@ router.get('/calendario', requireAuth, async (req, res) => {
       if (cat === 'pagado') {
         displayDate = fechaPagoStr;
       } else {
-        // pendiente
         if (fechaPagoStr <= today) {
           displayDate = today;
           arrastrado = fechaPagoStr < today;
         } else {
           displayDate = fechaPagoStr;
         }
-        // Acumular para alcanza_hasta (solo pendientes)
         daily[displayDate] = (daily[displayDate] || 0) + n(c.importe);
       }
 
-      // Solo agregar al mes visible si display_date cae en ese mes
       if (displayDate >= iniMes && displayDate <= finMes) {
         egresos.push({
           tipo: 'cheque',
@@ -302,14 +278,13 @@ router.get('/calendario', requireAuth, async (req, res) => {
       });
     }
 
-    // Gastos futuros → alcanza_hasta
     for (const g of gastosAllRes.rows) {
       const d = toDateStr(g.fecha);
       if (!d || d < today) continue;
       daily[d] = (daily[d] || 0) + n(g.monto);
     }
 
-    // alcanza_hasta: sparse loop (may extend beyond viewed month)
+    // alcanza_hasta
     let saldo = saldoTotal;
     let alcanza_hasta = null;
     for (const d of Object.keys(daily).sort()) {
@@ -317,7 +292,7 @@ router.get('/calendario', requireAuth, async (req, res) => {
       if (saldo < 0 && !alcanza_hasta) { alcanza_hasta = d; break; }
     }
 
-    // saldo_por_dia: day-by-day from today to finMes
+    // saldo_por_dia
     const saldo_por_dia = {};
     let runSaldo = saldoTotal;
     let cur = today;
@@ -327,27 +302,37 @@ router.get('/calendario', requireAuth, async (req, res) => {
       cur = addDay(cur);
     }
 
-    // ── GetNet proyección ─────────────────────────────────────────────────────
-    const getnetRes = await pool.query(`
-      SELECT fecha_estimada_pago::text AS fecha, tipo,
-        SUM(monto_neto) AS total, COUNT(*) AS cantidad
-      FROM getnet_transacciones
-      WHERE fecha_estimada_pago > $1
-        AND LOWER(estado) != 'rechazado'
-      GROUP BY fecha_estimada_pago, tipo
-      ORDER BY fecha_estimada_pago, tipo
+    // ── GetNet desde calendario manual ───────────────────────────────────────
+    const getnetCalRes = await pool.query(`
+      SELECT fecha::text, monto, estado
+      FROM getnet_calendario
+      WHERE fecha > $1 AND estado != 'feriado'
+      ORDER BY fecha
     `, [today]);
 
-    const ingresoDia   = {};  // date → total sum
-    const getnetDetalle = {}; // date → [{tipo, total, cantidad}]
-    for (const row of getnetRes.rows) {
+    const ingresoDia      = {};
+    const ingresoDiaPago  = {};
+    const ingresoDiaEst   = {};
+    const getnetDetalle   = {};
+
+    for (const row of getnetCalRes.rows) {
       const d = row.fecha;
-      ingresoDia[d] = (ingresoDia[d] || 0) + n(row.total);
-      if (!getnetDetalle[d]) getnetDetalle[d] = [];
-      getnetDetalle[d].push({ tipo: row.tipo, total: n(row.total), cantidad: Number(row.cantidad) });
+      const m = n(row.monto);
+      ingresoDia[d] = (ingresoDia[d] || 0) + m;
+      if (row.estado === 'pago') {
+        ingresoDiaPago[d] = (ingresoDiaPago[d] || 0) + m;
+      } else {
+        ingresoDiaEst[d] = (ingresoDiaEst[d] || 0) + m;
+      }
+      getnetDetalle[d] = [{
+        tipo:     row.estado === 'pago' ? 'Liquidado' : 'Estimado',
+        estado:   row.estado,
+        total:    m,
+        cantidad: null,
+      }];
     }
 
-    // saldo_proyectado_por_dia: acumula egresos Y ingresos GetNet
+    // saldo_proyectado_por_dia
     const saldo_proyectado_por_dia = {};
     let runProy = saldoTotal;
     cur = today;
@@ -357,7 +342,7 @@ router.get('/calendario', requireAuth, async (req, res) => {
       cur = addDay(cur);
     }
 
-    // alcanza_hasta_proyectado: sparse, puede extenderse más allá de finMes
+    // alcanza_hasta_proyectado
     const allFutureDates = [...new Set([...Object.keys(daily), ...Object.keys(ingresoDia)])].sort();
     let runProyAlc = saldoTotal;
     let alcanza_hasta_proyectado = null;
@@ -366,18 +351,22 @@ router.get('/calendario', requireAuth, async (req, res) => {
       if (runProyAlc < 0 && !alcanza_hasta_proyectado) { alcanza_hasta_proyectado = d; break; }
     }
 
-    // ingresos_semana: suma GetNet mañana + 6 (hoy ya entró a caja)
-    let ingresos_semana = 0;
+    // ingresos_semana: próximos 7 días (mañana + 6)
+    let ingresos_semana        = 0;
+    let ingresos_semana_pago   = 0;
+    let ingresos_semana_est    = 0;
     let curSem = addDay(today);
     for (let i = 0; i < 7; i++) {
-      ingresos_semana += (ingresoDia[curSem] || 0);
+      ingresos_semana      += (ingresoDia[curSem]     || 0);
+      ingresos_semana_pago += (ingresoDiaPago[curSem] || 0);
+      ingresos_semana_est  += (ingresoDiaEst[curSem]  || 0);
       curSem = addDay(curSem);
     }
 
-    // ingresos_total_futuro: suma GetNet de todos los días desde hoy en adelante
-    const ingresos_total_futuro = Math.round(
-      Object.values(ingresoDia).reduce((s, v) => s + v, 0)
-    );
+    // ingresos_total_futuro: todos los días futuros
+    const ingresos_total_futuro = Math.round(Object.values(ingresoDia).reduce((s, v) => s + v, 0));
+    const ingresos_total_pago   = Math.round(Object.values(ingresoDiaPago).reduce((s, v) => s + v, 0));
+    const ingresos_total_est    = Math.round(Object.values(ingresoDiaEst).reduce((s, v) => s + v, 0));
 
     res.json({
       ok: true,
@@ -387,8 +376,12 @@ router.get('/calendario', requireAuth, async (req, res) => {
         egresos, saldo_por_dia, saldo_proyectado_por_dia,
         ingreso_getnet_por_dia: ingresoDia,
         getnet_detalle_por_dia: getnetDetalle,
-        ingresos_semana: Math.round(ingresos_semana),
+        ingresos_semana:      Math.round(ingresos_semana),
+        ingresos_semana_pago: Math.round(ingresos_semana_pago),
+        ingresos_semana_est:  Math.round(ingresos_semana_est),
         ingresos_total_futuro,
+        ingresos_total_pago,
+        ingresos_total_est,
       },
     });
   } catch (err) {
@@ -442,66 +435,7 @@ router.delete('/gastos/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ── POST /getnet/import ───────────────────────────────────────────────────────
-
-router.post('/getnet/import', requireAuth, upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ ok: false, error: 'No se recibió archivo' });
-
-  try {
-    const wb  = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
-    const ws  = wb.Sheets[wb.SheetNames[0]];
-    const raw = xlsx.utils.sheet_to_json(ws, { defval: null }); // header en fila 1 (idx 0)
-
-    let importados = 0, actualizados = 0, errores = 0;
-
-    for (const row of raw) {
-      const norm = {};
-      for (const [k, v] of Object.entries(row)) norm[normalizeKey(k)] = v;
-
-      // Código único (tolera variantes de nombre de columna)
-      const codRaw = norm['cod de transaccion'] ?? norm['codigo de transaccion'] ?? norm['n de transaccion'];
-      if (!codRaw || String(codRaw).trim() === '') { errores++; continue; }
-      const codStr = String(codRaw).trim();
-
-      // Posnet desde la columna "Nombre Establecimiento" del propio Excel
-      const posnet    = norm['nombre establecimiento'] ? String(norm['nombre establecimiento']).trim() : null;
-      const fechaOp   = parseGetNetDate(norm['fecha de operacion'] ?? norm['fecha operacion']);
-      const fechaPago = parseGetNetDate(norm['fecha estimada de pago'] ?? norm['fecha est de pago'] ?? norm['fecha estimada pago']);
-      const tipo      = norm['tipo de transaccion'] ?? norm['tipo'];
-      const tipoStr   = tipo ? String(tipo).trim() : null;
-      const monto     = parseMontoAR(norm['monto neto transaccion'] ?? norm['monto neto'] ?? norm['importe neto']);
-      const estado    = norm['estado'] ? String(norm['estado']).trim() : null;
-
-      try {
-        const r = await pool.query(`
-          INSERT INTO getnet_transacciones
-            (cod_transaccion, posnet, fecha_operacion, fecha_estimada_pago, tipo, monto_neto, estado, raw, updated_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NOW())
-          ON CONFLICT (cod_transaccion) DO UPDATE SET
-            posnet              = EXCLUDED.posnet,
-            fecha_operacion     = EXCLUDED.fecha_operacion,
-            fecha_estimada_pago = EXCLUDED.fecha_estimada_pago,
-            tipo                = EXCLUDED.tipo,
-            monto_neto          = EXCLUDED.monto_neto,
-            estado              = EXCLUDED.estado,
-            raw                 = EXCLUDED.raw,
-            updated_at          = NOW()
-          RETURNING (xmax = 0) AS inserted
-        `, [codStr, posnet, fechaOp, fechaPago, tipoStr, monto, estado, JSON.stringify(norm)]);
-        if (r.rows[0]?.inserted) importados++; else actualizados++;
-      } catch {
-        errores++;
-      }
-    }
-
-    res.json({ ok: true, data: { importados, actualizados, errores, total: raw.length } });
-  } catch (err) {
-    console.error('[cashflow/getnet/import]', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ── GET /getnet ───────────────────────────────────────────────────────────────
+// ── GET /getnet — calendario manual por mes ───────────────────────────────────
 
 router.get('/getnet', requireAuth, async (req, res) => {
   try {
@@ -514,26 +448,47 @@ router.get('/getnet', requireAuth, async (req, res) => {
     const finMes = `${mes}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
 
     const { rows } = await pool.query(`
-      SELECT fecha_estimada_pago::text AS fecha, tipo,
-        SUM(monto_neto) AS total, COUNT(*) AS cantidad,
-        estado
-      FROM getnet_transacciones
-      WHERE fecha_estimada_pago BETWEEN $1 AND $2
-        AND LOWER(estado) != 'rechazado'
-      GROUP BY fecha_estimada_pago, tipo, estado
-      ORDER BY fecha_estimada_pago, tipo
+      SELECT fecha::text, monto, estado
+      FROM getnet_calendario
+      WHERE fecha BETWEEN $1 AND $2
+      ORDER BY fecha
     `, [iniMes, finMes]);
 
-    const porDia = {};
+    const por_dia = {};
     for (const r of rows) {
-      if (!porDia[r.fecha]) porDia[r.fecha] = { total: 0, detalle: [] };
-      porDia[r.fecha].total += n(r.total);
-      porDia[r.fecha].detalle.push({ tipo: r.tipo, estado: r.estado, total: n(r.total), cantidad: Number(r.cantidad) });
+      por_dia[r.fecha] = { monto: n(r.monto), estado: r.estado };
     }
 
-    res.json({ ok: true, data: { mes, por_dia: porDia } });
+    res.json({ ok: true, data: { mes, por_dia } });
   } catch (err) {
     console.error('[cashflow/getnet GET]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── POST /getnet/calendario — upsert día ──────────────────────────────────────
+
+router.post('/getnet/calendario', requireAuth, async (req, res) => {
+  try {
+    const { fecha, monto, estado } = req.body;
+    if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      return res.status(400).json({ ok: false, error: 'fecha (YYYY-MM-DD) requerida' });
+    }
+    const estadoVal = ['pago', 'estimado', 'feriado'].includes(estado) ? estado : 'estimado';
+    const montoVal  = estadoVal === 'feriado' ? 0 : (parseFloat(monto) || 0);
+
+    await pool.query(`
+      INSERT INTO getnet_calendario (fecha, monto, estado, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (fecha) DO UPDATE SET
+        monto      = EXCLUDED.monto,
+        estado     = EXCLUDED.estado,
+        updated_at = NOW()
+    `, [fecha, montoVal, estadoVal]);
+
+    res.json({ ok: true, data: { fecha, monto: montoVal, estado: estadoVal } });
+  } catch (err) {
+    console.error('[cashflow/getnet/calendario POST]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

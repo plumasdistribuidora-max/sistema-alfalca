@@ -18,6 +18,11 @@ const CUENTA_META = {
   efectivo:  { label: 'Efectivo',     icon: '💵' },
 };
 
+const GN_ESTADO = {
+  pago:     { bg: '#E8F5E9', border: '#A5D6A7', text: '#1B5E20', dot: '#43A047', label: 'Pago' },
+  estimado: { bg: '#FFF3E0', border: '#FFCC80', text: '#BF360C', dot: '#FB8C00', label: 'Estimado' },
+  feriado:  { bg: '#F5F5F5', border: '#E0E0E0', text: '#9E9E9E', dot: '#BDBDBD', label: 'Feriado' },
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,9 +61,9 @@ function fmtFechaCorta(yyyymmdd) {
 
 function fmtRango7Dias() {
   const ini = new Date();
-  ini.setDate(ini.getDate() + 1); // mañana
+  ini.setDate(ini.getDate() + 1);
   const fin = new Date();
-  fin.setDate(fin.getDate() + 7); // hoy + 7
+  fin.setDate(fin.getDate() + 7);
   const f = (d) => `${d.getDate()}/${d.getMonth() + 1}`;
   return `${f(ini)} al ${f(fin)}`;
 }
@@ -94,6 +99,49 @@ function getCalDays(yyyymm) {
   for (let d = 1; d <= lastDate; d++) days.push(`${yyyymm}-${String(d).padStart(2, '0')}`);
   while (days.length % 7 !== 0) days.push(null);
   return days;
+}
+
+// Genera semanas Lun-Vie para el calendario GetNet
+function getGNWeeks(yyyymm) {
+  const [y, m] = yyyymm.split('-').map(Number);
+  const firstDate = new Date(y, m - 1, 1);
+  const lastDate  = new Date(y, m, 0);
+
+  // Lunes de la semana que contiene el primer día del mes
+  const firstDow   = (firstDate.getDay() + 6) % 7; // 0=Lun … 6=Dom
+  const startMonday = new Date(y, m - 1, 1 - firstDow);
+
+  const weeks = [];
+  const cur   = new Date(startMonday);
+
+  while (cur <= lastDate) {
+    const week = [];
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(cur);
+      d.setDate(cur.getDate() + i);
+      if (d.getMonth() === m - 1) {
+        week.push(`${y}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      } else {
+        week.push(null);
+      }
+    }
+    if (week.some(d => d !== null)) weeks.push(week);
+    cur.setDate(cur.getDate() + 7);
+  }
+  return weeks;
+}
+
+// Convierte string ingresado en formato ARS ("797.558,66") a número
+function parseARSInput(str) {
+  if (!str) return 0;
+  const clean = String(str).replace(/\./g, '').replace(',', '.');
+  return parseFloat(clean) || 0;
+}
+
+// Formatea número a string ARS sin signo $ ("797.558,66")
+function formatARSNum(num) {
+  if (!num) return '';
+  return Number(num).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getSemaforo(saldo, piso) {
@@ -181,11 +229,11 @@ export default function CashFlowSection() {
   const [importMsg,    setImportMsg]    = useState(null);
   const fileRef = useRef();
 
-  // Import GetNet
-  const [getnetModal,  setGetnetModal]  = useState(false);
-  const [importandoGN, setImportandoGN] = useState(false);
-  const [importMsgGN,  setImportMsgGN]  = useState(null);
-  const getnetFileRef = useRef();
+  // Calendario GetNet manual
+  const [gnMes,     setGnMes]     = useState(currentMesStr);
+  const [gnData,    setGnData]    = useState({});   // { fecha: { monto, estado } }
+  const [gnInputs,  setGnInputs]  = useState({});   // { fecha: string raw }
+  const [gnLoading, setGnLoading] = useState(false);
 
   const todayDateStr = todayIso();
   const piso = configData.piso_seguridad;
@@ -216,8 +264,25 @@ export default function CashFlowSection() {
       .catch(console.error);
   };
 
+  const loadGnCalendario = (mes) => {
+    setGnLoading(true);
+    api.get('/cashflow/getnet', { params: { mes } })
+      .then(r => {
+        const por_dia = r.data.data?.por_dia || {};
+        setGnData(por_dia);
+        const inputs = {};
+        for (const [fecha, v] of Object.entries(por_dia)) {
+          if (v.monto) inputs[fecha] = formatARSNum(v.monto);
+        }
+        setGnInputs(inputs);
+      })
+      .catch(console.error)
+      .finally(() => setGnLoading(false));
+  };
+
   useEffect(() => { loadSaldos(); loadConfig(); }, []);
   useEffect(() => { loadCalendario(viewMes); }, [viewMes]);
+  useEffect(() => { loadGnCalendario(gnMes); }, [gnMes]);
 
   // ── Handlers ──
 
@@ -261,21 +326,6 @@ export default function CashFlowSection() {
     finally { setImportando(false); e.target.value = ''; }
   }
 
-  async function handleImportGetnet(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportandoGN(true); setImportMsgGN(null);
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const r = await api.post('/cashflow/getnet/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const d = r.data.data;
-      setImportMsgGN(`✓ ${d.importados} importadas · ${d.actualizados} actualizadas${d.errores ? ` · ${d.errores} errores` : ''}`);
-      loadCalendario(viewMes);
-    } catch (err) { setImportMsgGN('Error: ' + (err.response?.data?.error || err.message)); }
-    finally { setImportandoGN(false); e.target.value = ''; }
-  }
-
   function openAddGasto(fecha) {
     setGastoForm({ concepto: '', monto: '', fecha: fecha || todayDateStr });
     setGastoModal({ mode: 'add' });
@@ -302,6 +352,35 @@ export default function CashFlowSection() {
     } catch { alert('Error al eliminar'); }
   }
 
+  // ── Handlers GetNet calendario ──
+
+  async function handleGnSave(fecha, monto, estado) {
+    try {
+      await api.post('/cashflow/getnet/calendario', { fecha, monto, estado });
+      setGnData(prev => ({ ...prev, [fecha]: { monto, estado } }));
+      // Refrescar proyecciones si el día es futuro
+      if (fecha > todayDateStr) loadCalendario(viewMes);
+    } catch (err) { console.error(err); }
+  }
+
+  function handleGnEstado(fecha, nuevoEstado) {
+    const current = gnData[fecha] || { monto: 0, estado: 'estimado' };
+    const monto   = nuevoEstado === 'feriado' ? 0 : (current.monto || 0);
+    if (nuevoEstado === 'feriado') {
+      setGnInputs(prev => ({ ...prev, [fecha]: '' }));
+    }
+    handleGnSave(fecha, monto, nuevoEstado);
+  }
+
+  function handleGnBlur(fecha, rawVal) {
+    const estado = gnData[fecha]?.estado || 'estimado';
+    if (estado === 'feriado') return;
+    const monto = parseARSInput(rawVal);
+    const formatted = monto > 0 ? formatARSNum(monto) : '';
+    setGnInputs(prev => ({ ...prev, [fecha]: formatted }));
+    handleGnSave(fecha, monto, estado);
+  }
+
   // ── Datos calendario ──
   const calDays    = getCalDays(viewMes);
   const egresoMap  = {};
@@ -315,10 +394,10 @@ export default function CashFlowSection() {
   const diaEgresos     = diaModal ? (egresoMap[diaModal] || []) : [];
   const getnetDetDia   = diaModal ? (calData?.getnet_detalle_por_dia?.[diaModal] || []) : [];
   const diaProySaldo   = diaModal ? calData?.saldo_proyectado_por_dia?.[diaModal] : undefined;
-  const isGetnetConf   = diaModal ? diaModal <= todayDateStr : false;
 
   const totalEgresos = calData?.egresos?.reduce((s, e) => s + e.importe, 0) ?? 0;
   const [viewY, viewM] = viewMes.split('-');
+  const [gnY, gnMM]   = gnMes.split('-');
 
   const saldoMax = (() => {
     if (!calData?.saldo_por_dia) return 1;
@@ -327,6 +406,11 @@ export default function CashFlowSection() {
       .map(d => calData.saldo_por_dia[d]);
     return vals.length > 0 ? Math.max(...vals) : 1;
   })();
+
+  // Total del mes GetNet (todos los días no-feriado del mes visible en el GN calendar)
+  const gnTotalMes = Object.entries(gnData)
+    .filter(([, v]) => v.estado !== 'feriado')
+    .reduce((s, [, v]) => s + (v.monto || 0), 0);
 
   return (
     <div className="space-y-4">
@@ -354,6 +438,20 @@ export default function CashFlowSection() {
             <p className="text-lg font-bold leading-none" style={{ color: '#0D3B6E' }}>
               {loadingCal ? '…' : fmt$(calData?.ingresos_semana ?? 0)}
             </p>
+            {!loadingCal && (calData?.ingresos_semana_pago > 0 || calData?.ingresos_semana_est > 0) && (
+              <div className="flex gap-2 mt-0.5">
+                {calData.ingresos_semana_pago > 0 && (
+                  <span style={{ fontSize: 9, color: '#43A047', fontWeight: 600 }}>
+                    ✓ {fmtAbrev(calData.ingresos_semana_pago)}
+                  </span>
+                )}
+                {calData.ingresos_semana_est > 0 && (
+                  <span style={{ fontSize: 9, color: '#FB8C00', fontWeight: 600 }}>
+                    ~ {fmtAbrev(calData.ingresos_semana_est)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Separador */}
@@ -367,10 +465,24 @@ export default function CashFlowSection() {
             <p className="text-lg font-bold leading-none" style={{ color: '#0D3B6E' }}>
               {loadingCal ? '…' : fmt$(calData?.ingresos_total_futuro ?? 0)}
             </p>
+            {!loadingCal && (calData?.ingresos_total_pago > 0 || calData?.ingresos_total_est > 0) && (
+              <div className="flex gap-2 mt-0.5">
+                {calData.ingresos_total_pago > 0 && (
+                  <span style={{ fontSize: 9, color: '#43A047', fontWeight: 600 }}>
+                    ✓ {fmtAbrev(calData.ingresos_total_pago)}
+                  </span>
+                )}
+                {calData.ingresos_total_est > 0 && (
+                  <span style={{ fontSize: 9, color: '#FB8C00', fontWeight: 600 }}>
+                    ~ {fmtAbrev(calData.ingresos_total_est)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Alcanza hasta — dos fechas */}
+        {/* Alcanza hasta */}
         <div className="rounded-2xl px-4 py-3 flex flex-col" style={{ background: '#FAEEDA' }}>
           <p className="text-xs font-semibold" style={{ color: '#854F0B' }}>Alcanza hasta</p>
           {loadingCal ? (
@@ -435,12 +547,6 @@ export default function CashFlowSection() {
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
           style={{ background: '#b91c1c' }}>
           <span>↑</span> {importando ? 'Importando…' : 'Importar cheques Galicia'}
-        </button>
-
-        <button onClick={() => { setGetnetModal(true); setImportMsgGN(null); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ background: '#185FA5' }}>
-          <span>↑</span> Importar GetNet
         </button>
 
         <button onClick={() => openAddGasto()}
@@ -509,7 +615,7 @@ export default function CashFlowSection() {
         )}
       </div>
 
-      {/* ── Calendario ── */}
+      {/* ── Calendario de egresos ── */}
       <div className="card p-4">
         {/* Cabecera del mes */}
         <div className="flex items-center justify-between mb-4">
@@ -567,7 +673,6 @@ export default function CashFlowSection() {
                     ...(isToday ? { boxShadow: 'inset 0 0 0 1.5px #1D9E75', zIndex: 1 } : {}),
                   }}
                 >
-                  {/* Número del día */}
                   <p style={{ fontSize: 11, fontWeight: 700, color: sem?.headColor || '#78716C', lineHeight: 1, marginBottom: 4 }}>
                     {dd}{isToday ? ' · hoy' : ''}
                   </p>
@@ -584,13 +689,12 @@ export default function CashFlowSection() {
                       <p style={{ fontSize: 11, fontWeight: 700, color: sem.saldoColor, lineHeight: 1 }}>{fmtAbrev(saldoDia)}</p>
                     </div>
                   ) : (
-                    // Día pasado: solo mostrar total de egresos si hay
                     dayTotal > 0 && (
                       <p style={{ fontSize: 10, fontWeight: 600, color: '#A32D2D', lineHeight: 1 }}>−{fmtAbrev(dayTotal)}</p>
                     )
                   )}
 
-                  {/* SEPARADOR + ZONA PROYECTADA (solo días activos) */}
+                  {/* ZONA PROYECTADA */}
                   {sem && (
                     <>
                       <div style={{ borderTop: '0.5px solid rgba(0,0,0,0.13)', margin: '4px 0' }} />
@@ -648,6 +752,144 @@ export default function CashFlowSection() {
           <span className="flex items-center gap-1.5 text-xs text-stone-500">
             <span className="w-2.5 h-2.5 rounded flex-shrink-0" style={{ background: '#FCEBEB', border: '1px solid #A32D2D' }} /> Negativo
           </span>
+        </div>
+      </div>
+
+      {/* ── Calendario GetNet ── */}
+      <div className="card p-4">
+        {/* Cabecera */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ background: '#185FA5' }} />
+            <h3 className="font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>Calendario GetNet</h3>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setGnMes(prevMes(gnMes))}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-600 font-bold">‹</button>
+            <span className="font-semibold text-stone-700 text-sm min-w-[120px] text-center">
+              {MESES_FULL[gnMM]} {gnY}
+            </span>
+            {gnMes !== currentMesStr() && (
+              <button onClick={() => setGnMes(currentMesStr())}
+                className="text-xs text-violet-600 hover:text-violet-800 font-semibold px-2 py-1 rounded-lg hover:bg-violet-50">
+                Hoy
+              </button>
+            )}
+            <button onClick={() => setGnMes(nextMes(gnMes))}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-600 font-bold">›</button>
+          </div>
+        </div>
+
+        {/* Encabezados Lun-Vie */}
+        <div className="grid grid-cols-5 gap-1 mb-1">
+          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie'].map(d => (
+            <div key={d} className="text-center text-xs font-semibold text-stone-400 py-1">{d}</div>
+          ))}
+        </div>
+
+        {/* Grid semanas */}
+        {gnLoading ? (
+          <div className="h-32 flex items-center justify-center text-stone-400 text-sm">Cargando…</div>
+        ) : (
+          <div className="space-y-1">
+            {getGNWeeks(gnMes).map((week, wi) => (
+              <div key={wi} className="grid grid-cols-5 gap-1">
+                {week.map((fecha, di) => {
+                  if (!fecha) {
+                    return <div key={`e-${wi}-${di}`} style={{ minHeight: 88 }} />;
+                  }
+
+                  const entry     = gnData[fecha] || { monto: 0, estado: 'estimado' };
+                  const estadoKey = GN_ESTADO[entry.estado] ? entry.estado : 'estimado';
+                  const cols      = GN_ESTADO[estadoKey];
+                  const isFeriado = estadoKey === 'feriado';
+                  const isPast    = fecha < todayDateStr;
+                  const isToday   = fecha === todayDateStr;
+                  const dd        = parseInt(fecha.slice(8), 10);
+                  const rawInput  = gnInputs[fecha] ?? (entry.monto ? formatARSNum(entry.monto) : '');
+
+                  return (
+                    <div key={fecha}
+                      className="rounded-xl flex flex-col gap-1 transition-all"
+                      style={{
+                        background: cols.bg,
+                        border: `1px solid ${isToday ? '#185FA5' : cols.border}`,
+                        padding: '6px 8px',
+                        minHeight: 88,
+                        opacity: isPast && !isToday ? 0.72 : 1,
+                        boxShadow: isToday ? '0 0 0 1.5px #185FA5' : undefined,
+                      }}
+                    >
+                      {/* Día + indicador */}
+                      <div className="flex items-center justify-between">
+                        <span style={{ fontSize: 12, fontWeight: 700, color: cols.text, lineHeight: 1 }}>
+                          {dd}{isToday ? ' · hoy' : ''}
+                        </span>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: cols.dot, display: 'inline-block', flexShrink: 0 }} />
+                      </div>
+
+                      {/* Input monto */}
+                      <input
+                        type="text"
+                        disabled={isFeriado}
+                        value={isFeriado ? '' : rawInput}
+                        onChange={e => setGnInputs(prev => ({ ...prev, [fecha]: e.target.value }))}
+                        onBlur={e => handleGnBlur(fecha, e.target.value)}
+                        placeholder={isFeriado ? '—' : '0,00'}
+                        className="w-full rounded-lg px-1.5 py-1 text-xs font-mono border border-transparent focus:outline-none focus:border-current"
+                        style={{
+                          background: isFeriado ? 'transparent' : 'rgba(255,255,255,0.65)',
+                          color: isFeriado ? cols.dot : cols.text,
+                          caretColor: cols.dot,
+                        }}
+                      />
+
+                      {/* Selector de estado */}
+                      <div className="flex gap-0.5 mt-auto">
+                        {['pago', 'estimado', 'feriado'].map(est => {
+                          const active = estadoKey === est;
+                          return (
+                            <button
+                              key={est}
+                              onClick={() => handleGnEstado(fecha, est)}
+                              title={GN_ESTADO[est].label}
+                              className="flex-1 rounded text-center transition-colors leading-none"
+                              style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                padding: '3px 0',
+                                background: active ? cols.dot : 'rgba(0,0,0,0.07)',
+                                color: active ? '#fff' : 'rgba(0,0,0,0.35)',
+                              }}
+                            >
+                              {est === 'pago' ? 'P' : est === 'estimado' ? 'E' : 'F'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Leyenda + Total mes */}
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            {Object.entries(GN_ESTADO).map(([key, c]) => (
+              <span key={key} className="flex items-center gap-1.5 text-xs text-stone-500">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.dot }} />
+                {c.label}
+              </span>
+            ))}
+            <span className="text-xs text-stone-400">· P=Pago  E=Estimado  F=Feriado</span>
+          </div>
+          <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: '#EBF3FD' }}>
+            <span className="text-xs font-semibold" style={{ color: '#185FA5' }}>Total mes</span>
+            <span className="text-base font-bold" style={{ color: '#0D3B6E' }}>{fmt$(gnTotalMes)}</span>
+          </div>
         </div>
       </div>
 
@@ -758,14 +1000,11 @@ export default function CashFlowSection() {
             {getnetDetDia.length > 0 && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#185FA5' }}>
-                  {isGetnetConf ? '✓ Ingresos GetNet' : '⟳ Ingresos GetNet proyectados'}
+                  {getnetDetDia[0]?.estado === 'pago' ? '✓ Ingreso GetNet confirmado' : '⟳ Ingreso GetNet estimado'}
                 </p>
                 {getnetDetDia.map((g, i) => (
                   <div key={i} className="flex items-center justify-between py-2 border-b border-blue-50">
-                    <div>
-                      <p className="text-sm font-medium text-stone-700">{g.tipo || '—'}</p>
-                      <p className="text-xs text-stone-400">{g.cantidad} transacciones</p>
-                    </div>
+                    <p className="text-sm font-medium text-stone-700">{g.tipo || '—'}</p>
                     <p className="font-bold text-sm" style={{ color: '#378ADD' }}>+{fmt$(g.total)}</p>
                   </div>
                 ))}
@@ -792,35 +1031,6 @@ export default function CashFlowSection() {
               className="w-full py-2.5 rounded-xl text-sm font-semibold border border-violet-200 text-violet-700 hover:bg-violet-50 transition-colors mt-1">
               + Agregar gasto para este día
             </button>
-          </div>
-        </ModalShell>
-      )}
-
-      {/* ── Modal: importar GetNet ── */}
-      {getnetModal && (
-        <ModalShell title="Importar informe GetNet" onClose={() => setGetnetModal(false)}>
-          <div className="space-y-4">
-            <p className="text-sm text-stone-600">
-              Subí el Excel con las transacciones de los 3 posnet. El sistema lee la columna <strong>"Nombre Establecimiento"</strong> para identificar cada terminal y <strong>"Fecha Estimada de Pago"</strong> para proyectar los ingresos.
-            </p>
-
-            <input ref={getnetFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportGetnet} />
-
-            <button onClick={() => getnetFileRef.current?.click()} disabled={importandoGN}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: '#185FA5' }}>
-              {importandoGN ? 'Importando…' : 'Seleccionar archivo...'}
-            </button>
-
-            {importMsgGN && (
-              <p className={`text-xs font-medium text-center px-3 py-2 rounded-lg ${importMsgGN.startsWith('✓') ? 'bg-blue-50 text-blue-800' : 'bg-red-50 text-red-800'}`}>
-                {importMsgGN}
-              </p>
-            )}
-
-            <p className="text-xs text-stone-400">
-              Podés re-subir el mismo rango de fechas sin duplicar — el sistema actualiza las transacciones existentes (por ejemplo, de Capturado a Liquidado). Las transacciones Rechazadas se guardan pero no se suman a la proyección.
-            </p>
           </div>
         </ModalShell>
       )}

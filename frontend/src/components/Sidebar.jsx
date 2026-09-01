@@ -111,8 +111,7 @@ export default function Sidebar({ open, onClose }) {
           {esDeRed(user) && (
             <>
               <SectionLabel label="El día" />
-              <NavItem to="/consolidado" icon={ICON.dashboard} label="Consolidado diario" />
-              <NavItem to="/reportes"    icon={ICON.listado}   label="Reportes del día" />
+              <NavItem to="/reportes" icon={ICON.listado} label="Reportes" />
 
               <SectionLabel label="Análisis" />
               <NavItem to="/kpi" icon={ICON.comparar} label="KPI" />

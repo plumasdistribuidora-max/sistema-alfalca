@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { AREAS, AREA_LABEL, esDeRed } from '../utils/roles';
+import { AREAS, AREA_LABEL, PUESTOS_POR_AREA, puestoReportaPorDefecto, esDeRed } from '../utils/roles';
 
 function Modal({ empleado, locales, onClose, onSaved }) {
   const isEdit   = !!empleado?.id;
-  const [form, setForm]     = useState({ nombre: '', nombre_pos: '', local_id_principal: locales[0]?.id || '', area: 'tienda', ...empleado });
+  const [form, setForm]     = useState({
+    nombre: '', nombre_pos: '', local_id_principal: locales[0]?.id || '',
+    area: 'tienda', puesto: '', carga_reporte: true, ...empleado,
+  });
+
+  // Al cambiar de área o de puesto, se propone si carga reporte. Se puede sobreescribir.
+  function cambiarPuesto(puesto) {
+    setForm(f => ({ ...f, puesto, carga_reporte: puestoReportaPorDefecto(puesto) }));
+  }
+  function cambiarArea(area) {
+    setForm(f => ({ ...f, area, puesto: '', carga_reporte: true }));
+  }
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
 
@@ -45,12 +56,41 @@ function Modal({ empleado, locales, onClose, onSaved }) {
               {locales.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
             </select>
           </div>
-          <div>
-            <label className="label">Área</label>
-            <select className="input" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))} required>
-              {AREAS.map(a => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}
-            </select>
-            <p className="text-xs text-stone-400 mt-1">Define qué reporte le toca cargar y qué rol se le propone al crearle el usuario.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Área</label>
+              <select className="input" value={form.area} onChange={e => cambiarArea(e.target.value)} required>
+                {AREAS.map(a => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Puesto</label>
+              <select className="input" value={form.puesto || ''} onChange={e => cambiarPuesto(e.target.value)}>
+                <option value="">Sin definir</option>
+                {(PUESTOS_POR_AREA[form.area] || []).map(p => (
+                  <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className={`rounded-lg border p-3 ${form.carga_reporte ? 'border-ahg-accent/50 bg-ahg-accent/10' : 'border-stone-200 bg-stone-50'}`}>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.carga_reporte}
+                onChange={e => setForm(f => ({ ...f, carga_reporte: e.target.checked }))}
+              />
+              <span>
+                <span className="block text-sm font-medium text-stone-800">Carga el reporte de su turno</span>
+                <span className="block text-xs text-stone-500 mt-0.5">
+                  {form.carga_reporte
+                    ? 'Va a necesitar un usuario para entrar y completar el formulario al cerrar el turno.'
+                    : 'No entra al sistema. Se le cargan horas y turnos igual, y sus horas cuentan para el reporte de su encargada.'}
+                </span>
+              </span>
+            </label>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
@@ -157,8 +197,8 @@ export default function Empleados() {
                 <th className="table-th">Nombre</th>
                 <th className="table-th">Nombre POS</th>
                 <th className="table-th">Local</th>
-                <th className="table-th">Área</th>
-                <th className="table-th">Usuario</th>
+                <th className="table-th">Área / Puesto</th>
+                <th className="table-th">Acceso</th>
                 <th className="table-th">Estado</th>
                 {puedeEditar && <th className="table-th">Acciones</th>}
               </tr>
@@ -169,11 +209,22 @@ export default function Empleados() {
                   <td className="table-td font-medium">{e.nombre}</td>
                   <td className="table-td font-mono text-xs text-stone-500">{e.nombre_pos}</td>
                   <td className="table-td text-stone-600">{e.local_nombre}</td>
-                  <td className="table-td text-stone-600">{AREA_LABEL[e.area] || e.area}</td>
+                  <td className="table-td text-stone-600">
+                    {AREA_LABEL[e.area] || e.area}
+                    {e.puesto && <span className="block text-xs text-stone-400 capitalize">{e.puesto}</span>}
+                  </td>
                   <td className="table-td text-xs">
-                    {e.usuario_email
-                      ? <span className="text-stone-600">{e.usuario_email}</span>
-                      : <span className="text-stone-400">sin acceso</span>}
+                    {!e.carga_reporte ? (
+                      <span className="inline-flex px-2 py-0.5 font-medium rounded-full bg-stone-100 text-stone-500">
+                        No reporta
+                      </span>
+                    ) : e.usuario_email ? (
+                      <span className="text-stone-600">{e.usuario_email}</span>
+                    ) : (
+                      <span className="inline-flex px-2 py-0.5 font-medium rounded-full bg-amber-100 text-amber-800">
+                        Falta usuario
+                      </span>
+                    )}
                   </td>
                   <td className="table-td">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${e.activo ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>

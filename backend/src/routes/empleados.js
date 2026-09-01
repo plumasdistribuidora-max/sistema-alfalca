@@ -51,15 +51,17 @@ router.get('/sin-matchear/:local_id', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, nombre_pos, local_id_principal, area } = req.body;
+    const { nombre, nombre_pos, local_id_principal, area, puesto, carga_reporte } = req.body;
     if (!nombre || !nombre_pos || !local_id_principal)
       return res.status(400).json({ ok: false, error: 'nombre, nombre_pos y local_id_principal son requeridos' });
 
     const posNorm = nombre_pos.toLowerCase().trim();
     const { rows } = await pool.query(
-      `INSERT INTO empleados (nombre, nombre_pos, local_id_principal, area)
-       VALUES ($1, $2, $3, COALESCE($4, 'tienda')) RETURNING *`,
-      [nombre.trim(), posNorm, local_id_principal, area || null]
+      `INSERT INTO empleados (nombre, nombre_pos, local_id_principal, area, puesto, carga_reporte)
+       VALUES ($1, $2, $3, COALESCE($4, 'tienda'), $5, COALESCE($6, true)) RETURNING *`,
+      [nombre.trim(), posNorm, local_id_principal, area || null,
+       puesto?.trim() || null,
+       typeof carga_reporte === 'boolean' ? carga_reporte : null]
     );
 
     // Retroactivo: asignar empleado_id a tickets existentes sin match
@@ -78,16 +80,23 @@ router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
 
 router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, nombre_pos, local_id_principal, area, activo } = req.body;
+    const { nombre, nombre_pos, local_id_principal, area, puesto, carga_reporte, activo } = req.body;
     const { rows } = await pool.query(`
       UPDATE empleados SET
         nombre             = COALESCE($1, nombre),
         nombre_pos         = COALESCE($2, nombre_pos),
         local_id_principal = COALESCE($3, local_id_principal),
         area               = COALESCE($4, area),
-        activo             = COALESCE($5, activo)
-      WHERE id = $6 RETURNING *
-    `, [nombre, nombre_pos, local_id_principal, area, activo, req.params.id]);
+        puesto             = COALESCE($5, puesto),
+        carga_reporte      = COALESCE($6, carga_reporte),
+        activo             = COALESCE($7, activo)
+      WHERE id = $8 RETURNING *
+    `, [
+      nombre, nombre_pos, local_id_principal, area,
+      puesto?.trim() || null,
+      typeof carga_reporte === 'boolean' ? carga_reporte : null,
+      activo, req.params.id,
+    ]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Empleado no encontrado' });
     res.json({ ok: true, data: rows[0] });
   } catch (err) {

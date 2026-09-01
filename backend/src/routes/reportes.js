@@ -467,12 +467,14 @@ router.get('/bandeja', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (
     const { rows } = await pool.query(`
       SELECT r.id, r.plantilla_codigo, r.fecha, r.turno, r.estado, r.enviado_at, r.respuestas,
              l.nombre AS local_nombre, u.nombre AS usuario_nombre,
+             e.puesto AS usuario_puesto,
              p.nombre AS plantilla_nombre,
              (SELECT COUNT(*)::int FROM reporte_adjuntos a WHERE a.reporte_id = r.id) AS fotos,
              (SELECT COUNT(*)::int FROM facturas f WHERE f.reporte_id = r.id)         AS facturas
       FROM reportes r
       JOIN locales l ON l.id = r.local_id
       JOIN usuarios u ON u.id = r.usuario_id
+      LEFT JOIN empleados e ON e.id = u.empleado_id
       JOIN reporte_plantillas p ON p.codigo = r.plantilla_codigo
       WHERE r.fecha = $1 AND r.estado <> 'borrador'
       ORDER BY l.nombre, r.turno, r.id
@@ -489,21 +491,31 @@ router.get('/bandeja', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT r.*, l.nombre AS local_nombre, u.nombre AS usuario_nombre
+      SELECT r.*, l.nombre AS local_nombre, u.nombre AS usuario_nombre,
+             e.puesto AS usuario_puesto
       FROM reportes r
       JOIN locales l ON l.id = r.local_id
       JOIN usuarios u ON u.id = r.usuario_id
+      LEFT JOIN empleados e ON e.id = u.empleado_id
       WHERE r.id = $1
     `, [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Reporte no encontrado' });
     if (!puedeVer(req.user, rows[0])) return res.status(403).json({ ok: false, error: 'Sin acceso' });
 
     const plantilla = await cargarPlantilla(rows[0].plantilla_codigo);
+
+    // El campo de horas guarda ids. Sin los nombres, quien revisa lee "Empleado #7".
+    const equipo = await pool.query(
+      'SELECT id, nombre, puesto FROM empleados WHERE local_id_principal = $1',
+      [rows[0].local_id]
+    );
+
     res.json({
       ok: true,
       data: {
         ...rows[0],
         plantilla,
+        equipo:   equipo.rows,
         adjuntos: await adjuntosDe(rows[0].id),
         facturas: await facturasDe(rows[0].id),
       },

@@ -52,12 +52,18 @@ function Respuesta({ campo, valor, equipo }) {
     cuerpo = (
       <>
         <ul className="space-y-0.5">
-          {filas.map((f, i) => (
-            <li key={i} className="flex justify-between max-w-xs">
-              <span>{equipo[f.empleado_id] || `Empleado #${f.empleado_id}`}</span>
-              <span className="tabular-nums font-medium">{Number(f.horas).toFixed(1)} h</span>
-            </li>
-          ))}
+          {filas.map((f, i) => {
+            const e = equipo[String(f.empleado_id)];
+            return (
+              <li key={i} className="flex justify-between gap-3 max-w-sm">
+                <span>
+                  {e ? e.nombre : `Empleado dado de baja (#${f.empleado_id})`}
+                  {e?.puesto && <span className="text-ahg-text/40 capitalize"> · {e.puesto}</span>}
+                </span>
+                <span className="tabular-nums font-medium flex-shrink-0">{Number(f.horas).toFixed(1)} h</span>
+              </li>
+            );
+          })}
         </ul>
         <p className="text-xs text-ahg-text/50 mt-1">Total del turno: {total.toFixed(1)} h</p>
       </>
@@ -117,7 +123,7 @@ function Detalle({ id, onCerrar, onRevisado }) {
     );
   }
 
-  const equipo = {};
+  const equipo = Object.fromEntries((r.equipo || []).map(e => [String(e.id), e]));
   const campos = r.plantilla?.campos || [];
   const fotos  = (r.adjuntos || []);
 
@@ -130,7 +136,7 @@ function Detalle({ id, onCerrar, onRevisado }) {
               {r.plantilla?.nombre}
             </h2>
             <p className="text-sm text-ahg-text/60">
-              {r.usuario_nombre} · {r.local_nombre} · turno {r.turno.toLowerCase()}
+              {r.usuario_nombre}{r.usuario_puesto && <span className="capitalize"> · {r.usuario_puesto}</span>} · {r.local_nombre} · turno {r.turno.toLowerCase()}
             </p>
           </div>
           <button onClick={onCerrar} className="text-ahg-text/40 text-2xl leading-none">×</button>
@@ -256,7 +262,7 @@ export default function Bandeja() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-ahg-text">{r.local_nombre}</p>
                 <p className="text-sm text-ahg-text/60">
-                  {r.plantilla_nombre} · {r.usuario_nombre} · turno {r.turno.toLowerCase()}
+                  {r.usuario_nombre}{r.usuario_puesto && <span className="capitalize"> · {r.usuario_puesto}</span>} · turno {r.turno.toLowerCase()}
                 </p>
                 <p className="text-xs text-ahg-text/40 mt-0.5">
                   {r.fotos} foto{r.fotos === 1 ? '' : 's'}

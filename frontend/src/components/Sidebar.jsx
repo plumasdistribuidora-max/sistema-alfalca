@@ -119,11 +119,7 @@ export default function Sidebar({ open, onClose }) {
 
           {/* Quien solo carga su reporte de turno no ve la red */}
           {esDeTurno(user) && (
-            <>
-              <NavItem to="/" icon={ICON.dashboard} label="Mi turno" />
-              <SectionLabel label="Próximamente" />
-              <DisabledItem icon={ICON.listado} label="Cargar mi reporte" badge="Etapa 2" />
-            </>
+            <NavItem to="/" icon={ICON.listado} label="Mi reporte de hoy" />
           )}
 
           {esDeRed(user) && (
@@ -148,6 +144,7 @@ export default function Sidebar({ open, onClose }) {
                 </div>
               )}
 
+              <NavItem to="/reportes" icon={ICON.listado}  label="Reportes del día" />
               <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
               <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
 
@@ -168,7 +165,6 @@ export default function Sidebar({ open, onClose }) {
           {esDeRed(user) && (
             <>
               <SectionLabel label="Próximamente" />
-              <DisabledItem icon={ICON.listado}   label="Reportes diarios"     badge="Etapa 2" />
               <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />
             </>
           )}

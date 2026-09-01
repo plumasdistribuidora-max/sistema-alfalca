@@ -18,7 +18,8 @@ import StockInteligente        from './pages/stock/StockInteligente';
 import FinanzasPage            from './pages/finanzas/FinanzasPage';
 import MaestroDocenasPage      from './pages/admin/MaestroDocenasPage';
 import UsuariosPage           from './pages/admin/UsuariosPage';
-import MiTurno                from './pages/MiTurno';
+import MiReporte              from './pages/reportes/MiReporte';
+import Bandeja                from './pages/reportes/Bandeja';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
@@ -40,10 +41,10 @@ function RolRoute({ permitido, children }) {
 const soloRed   = children => <RolRoute permitido={esDeRed}>{children}</RolRoute>;
 const soloDueno = children => <RolRoute permitido={esDueno}>{children}</RolRoute>;
 
-// Quien solo carga su reporte de turno ve su propia pantalla, no el dashboard de la red.
+// Quien solo carga su reporte de turno entra directo a su formulario del día.
 function Inicio() {
   const { user } = useAuth();
-  return esDeTurno(user) ? <MiTurno /> : <Home />;
+  return esDeTurno(user) ? <MiReporte /> : <Home />;
 }
 
 export default function App() {
@@ -56,6 +57,8 @@ export default function App() {
             <Route index element={<Inicio />} />
             <Route path="locales"              element={soloDueno(<Locales />)} />
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
+            <Route path="reportes"             element={soloRed(<Bandeja />)} />
+            <Route path="mi-reporte"           element={<MiReporte />} />
             <Route path="empleados"            element={soloRed(<Empleados />)} />
             <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />
             <Route path="ventas/listado"       element={soloRed(<VentasListado />)} />

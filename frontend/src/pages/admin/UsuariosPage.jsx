@@ -170,9 +170,6 @@ export default function UsuariosPage() {
     e => e.activo && e.carga_reporte && (!e.usuario_id || String(e.id) === String(form.empleado_id))
   );
 
-  // Los que sí deberían tener acceso y todavía no lo tienen.
-  const faltanUsuario = empleados.filter(e => e.activo && e.carga_reporte && !e.usuario_id);
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -200,27 +197,6 @@ export default function UsuariosPage() {
       )}
       {error && !abierto && !resetId && (
         <div className="card px-4 py-3 border-red-300 bg-red-50 text-red-700 text-sm">{error}</div>
-      )}
-
-      {faltanUsuario.length > 0 && (
-        <div className="card px-4 py-3 border-amber-300 bg-amber-50">
-          <p className="text-sm font-semibold text-amber-800 mb-2">
-            {faltanUsuario.length === 1
-              ? 'Hay 1 empleado que carga reporte y todavía no puede entrar'
-              : `Hay ${faltanUsuario.length} empleados que cargan reporte y todavía no pueden entrar`}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {faltanUsuario.map(e => (
-              <button
-                key={e.id}
-                onClick={() => { nuevo(); elegirEmpleado(String(e.id)); }}
-                className="inline-flex items-center gap-1 bg-white border border-amber-300 text-amber-800 text-xs px-2 py-1 rounded-full hover:bg-amber-100"
-              >
-                {e.nombre} <span className="text-amber-500">→ crear acceso</span>
-              </button>
-            ))}
-          </div>
-        </div>
       )}
 
       <label className="flex items-center gap-2 text-sm text-ahg-text/70">

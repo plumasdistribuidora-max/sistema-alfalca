@@ -16,10 +16,15 @@ router.get('/', requireAuth, async (req, res) => {
 
     const { rows } = await pool.query(`
       SELECT e.*, l.nombre AS local_nombre,
-             u.id AS usuario_id, u.email AS usuario_email, u.rol AS usuario_rol
+             u.id AS usuario_id, u.email AS usuario_email, u.rol AS usuario_rol,
+             v.valor_hora, v.vigente_desde::text AS valor_hora_desde
       FROM empleados e
       JOIN locales l ON l.id = e.local_id_principal
       LEFT JOIN usuarios u ON u.empleado_id = e.id AND u.activo = true
+      LEFT JOIN LATERAL (
+        SELECT valor_hora, vigente_desde FROM valor_hora_empleado
+        WHERE empleado_id = e.id ORDER BY vigente_desde DESC LIMIT 1
+      ) v ON true
       ${where}
       ORDER BY e.nombre
     `, params);
@@ -51,11 +56,13 @@ router.get('/sin-matchear/:local_id', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, nombre_pos, local_id_principal, area, puesto, carga_reporte } = req.body;
-    if (!nombre || !nombre_pos || !local_id_principal)
-      return res.status(400).json({ ok: false, error: 'nombre, nombre_pos y local_id_principal son requeridos' });
+    const { nombre, local_id_principal, area, puesto, carga_reporte } = req.body;
+    if (!nombre || !local_id_principal)
+      return res.status(400).json({ ok: false, error: 'Falta el nombre o el local' });
 
-    const posNorm = nombre_pos.toLowerCase().trim();
+    // El nombre del POS dejó de pedirse. Se deriva del nombre real, que es como
+    // suele figurar en Fudo, y solo sirve para enganchar tickets viejos sin dueño.
+    const posNorm = nombre.toLowerCase().trim();
     const { rows } = await pool.query(
       `INSERT INTO empleados (nombre, nombre_pos, local_id_principal, area, puesto, carga_reporte)
        VALUES ($1, $2, $3, COALESCE($4, 'tienda'), $5, COALESCE($6, true)) RETURNING *`,
@@ -80,19 +87,18 @@ router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
 
 router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, nombre_pos, local_id_principal, area, puesto, carga_reporte, activo } = req.body;
+    const { nombre, local_id_principal, area, puesto, carga_reporte, activo } = req.body;
     const { rows } = await pool.query(`
       UPDATE empleados SET
         nombre             = COALESCE($1, nombre),
-        nombre_pos         = COALESCE($2, nombre_pos),
-        local_id_principal = COALESCE($3, local_id_principal),
-        area               = COALESCE($4, area),
-        puesto             = COALESCE($5, puesto),
-        carga_reporte      = COALESCE($6, carga_reporte),
-        activo             = COALESCE($7, activo)
-      WHERE id = $8 RETURNING *
+        local_id_principal = COALESCE($2, local_id_principal),
+        area               = COALESCE($3, area),
+        puesto             = COALESCE($4, puesto),
+        carga_reporte      = COALESCE($5, carga_reporte),
+        activo             = COALESCE($6, activo)
+      WHERE id = $7 RETURNING *
     `, [
-      nombre, nombre_pos, local_id_principal, area,
+      nombre, local_id_principal, area,
       puesto?.trim() || null,
       typeof carga_reporte === 'boolean' ? carga_reporte : null,
       activo, req.params.id,
@@ -116,6 +122,35 @@ router.delete('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: 'Error al desactivar empleado' });
+  }
+});
+
+// ── PUT /:id/valor-hora ───────────────────────────────────────────────────────
+// Cada cambio queda con su fecha: subir un valor no cambia lo que costó un mes
+// que ya se cerró.
+
+router.put('/:id/valor-hora', requireAuth, puedeAdministrar, async (req, res) => {
+  try {
+    const { valor_hora, vigente_desde } = req.body;
+    if (!(Number(valor_hora) > 0)) {
+      return res.status(400).json({ ok: false, error: 'El valor hora tiene que ser mayor a cero' });
+    }
+    const existe = await pool.query('SELECT 1 FROM empleados WHERE id = $1', [req.params.id]);
+    if (!existe.rowCount) return res.status(404).json({ ok: false, error: 'Empleado no encontrado' });
+
+    const t = new Date();
+    const hoy = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+
+    await pool.query(`
+      INSERT INTO valor_hora_empleado (empleado_id, valor_hora, vigente_desde)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (empleado_id, vigente_desde) DO UPDATE SET valor_hora = EXCLUDED.valor_hora
+    `, [req.params.id, Number(valor_hora), vigente_desde || hoy]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[empleados/valor-hora]', err);
+    res.status(500).json({ ok: false, error: 'Error al guardar el valor hora' });
   }
 });
 

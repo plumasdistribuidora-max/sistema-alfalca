@@ -67,14 +67,14 @@ async function armarDia(fecha) {
     ORDER BY r.local_id, r.turno
   `, [fecha])).rows;
 
-  // Valor hora vigente a esa fecha, por local y puesto.
+  // Valor hora vigente a esa fecha, por persona.
   const valores = (await pool.query(`
-    SELECT DISTINCT ON (local_id, puesto) local_id, puesto, valor_hora
-    FROM valor_hora
+    SELECT DISTINCT ON (empleado_id) empleado_id, valor_hora
+    FROM valor_hora_empleado
     WHERE vigente_desde <= $1
-    ORDER BY local_id, puesto, vigente_desde DESC
+    ORDER BY empleado_id, vigente_desde DESC
   `, [fecha])).rows;
-  const valorDe = Object.fromEntries(valores.map(v => [`${v.local_id}|${v.puesto}`, n(v.valor_hora)]));
+  const valorDe = Object.fromEntries(valores.map(v => [v.empleado_id, n(v.valor_hora)]));
 
   const empleados = Object.fromEntries(
     (await pool.query('SELECT id, nombre, puesto, local_id_principal FROM empleados')).rows
@@ -114,8 +114,7 @@ async function armarDia(fecha) {
     acc.ventas_reportadas   += n(r.ventas);
 
     for (const fila of horasDe(rep)) {
-      const emp = empleados[fila.empleado_id];
-      const valor = emp?.puesto ? valorDe[`${rep.local_id}|${emp.puesto}`] : undefined;
+      const valor = valorDe[fila.empleado_id];
       acc.horas += fila.horas;
       if (valor) acc.gasto_personal += fila.horas * valor;
       else acc.horas_sin_valor += fila.horas;
@@ -344,57 +343,6 @@ router.post('/reabrir', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[consolidado/reabrir]', err);
     res.status(500).json({ ok: false, error: 'Error al reabrir el día' });
-  }
-});
-
-// ── Valor hora ────────────────────────────────────────────────────────────────
-
-router.get('/valor-hora', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (_req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT DISTINCT ON (v.local_id, v.puesto)
-             v.id, v.local_id, v.puesto, v.valor_hora, v.vigente_desde, l.nombre AS local_nombre
-      FROM valor_hora v JOIN locales l ON l.id = v.local_id
-      ORDER BY v.local_id, v.puesto, v.vigente_desde DESC
-    `);
-
-    // Puestos que existen en cada local, para saber cuáles faltan cargar.
-    const puestos = (await pool.query(`
-      SELECT DISTINCT e.local_id_principal AS local_id, e.puesto, l.nombre AS local_nombre
-      FROM empleados e JOIN locales l ON l.id = e.local_id_principal
-      WHERE e.activo = true AND e.puesto IS NOT NULL
-      ORDER BY e.local_id_principal, e.puesto
-    `)).rows;
-
-    res.json({ ok: true, data: { valores: rows, puestos } });
-  } catch (err) {
-    console.error('[consolidado/valor-hora GET]', err);
-    res.status(500).json({ ok: false, error: 'Error al obtener los valores hora' });
-  }
-});
-
-router.post('/valor-hora', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
-  try {
-    const { local_id, puesto, valor_hora, vigente_desde } = req.body;
-    if (!local_id || !puesto || valor_hora == null) {
-      return res.status(400).json({ ok: false, error: 'Faltan local, puesto o valor' });
-    }
-    if (!(Number(valor_hora) > 0)) {
-      return res.status(400).json({ ok: false, error: 'El valor hora tiene que ser mayor a cero' });
-    }
-
-    const desde = vigente_desde || hoyStr();
-    await pool.query(`
-      INSERT INTO valor_hora (local_id, puesto, valor_hora, vigente_desde)
-      VALUES ($1,$2,$3,$4)
-      ON CONFLICT (local_id, puesto, vigente_desde)
-      DO UPDATE SET valor_hora = EXCLUDED.valor_hora
-    `, [local_id, puesto, Number(valor_hora), desde]);
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[consolidado/valor-hora POST]', err);
-    res.status(500).json({ ok: false, error: 'Error al guardar el valor hora' });
   }
 });
 

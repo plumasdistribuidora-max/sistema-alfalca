@@ -76,12 +76,13 @@ router.get('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, re
     `, [desde, hastaFecha])).rows;
 
     const vigencias = (await pool.query(
-      'SELECT local_id, puesto, valor_hora, vigente_desde::text FROM valor_hora ORDER BY vigente_desde'
+      'SELECT empleado_id, valor_hora, vigente_desde::text FROM valor_hora_empleado ORDER BY vigente_desde'
     )).rows;
-    const valorEn = (localId, puesto, fecha) => {
+    // El valor de un día es el último que empezó a regir en o antes de ese día.
+    const valorEn = (empleadoId, fecha) => {
       let v = null;
       for (const x of vigencias) {
-        if (x.local_id === localId && x.puesto === puesto && x.vigente_desde <= fecha) v = n(x.valor_hora);
+        if (x.empleado_id === empleadoId && x.vigente_desde <= fecha) v = n(x.valor_hora);
       }
       return v;
     };
@@ -115,8 +116,7 @@ router.get('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, re
       if (!c) continue;
       c.dias_con_reporte.add(rep.fecha);
       for (const fila of horasDe(rep)) {
-        const puesto = empleados[fila.empleado_id]?.puesto;
-        const valor  = puesto ? valorEn(rep.local_id, puesto, rep.fecha) : null;
+        const valor = valorEn(fila.empleado_id, rep.fecha);
         c.horas += fila.horas;
         if (valor) c.gasto += fila.horas * valor;
         else c.horas_sin_valor += fila.horas;

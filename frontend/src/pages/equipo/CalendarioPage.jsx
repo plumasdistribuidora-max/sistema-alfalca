@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../../api';
+import { dibujarCalendario, bajarPng, textoDeEmpleado } from './exportarCalendario';
 
 const DIA_INICIAL = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const MES_LARGO = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' });
@@ -52,6 +53,8 @@ export default function CalendarioPage() {
   const [aviso, setAviso] = useState('');
   // El selector se abre como capa fija: dentro del scroll horizontal se cortaría.
   const [selector, setSelector] = useState(null);
+  const [exportar, setExportar] = useState(false);
+  const [copiado, setCopiado] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -92,6 +95,26 @@ export default function CalendarioPage() {
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo copiar la semana');
     }
+  }
+
+  function exportarImagen(soloSemana) {
+    const recorte = soloSemana != null ? dias.filter(x => x.semana === soloSemana) : dias;
+    const titulo = soloSemana != null
+      ? `Semana del ${recorte[0].n} al ${recorte[recorte.length - 1].n}`
+      : null;
+    const canvas = dibujarCalendario(d, recorte, titulo);
+    const nombre = soloSemana != null
+      ? `turnos-${d.local.nombre.split(' ')[0].toLowerCase()}-${mes}-semana-${soloSemana + 1}.png`
+      : `turnos-${d.local.nombre.split(' ')[0].toLowerCase()}-${mes}.png`;
+    bajarPng(canvas, nombre);
+    setExportar(false);
+  }
+
+  async function copiarTexto(empleadoId) {
+    const txt = textoDeEmpleado(d, dias, empleadoId);
+    try { await navigator.clipboard.writeText(txt); } catch { /* sin portapapeles */ }
+    setCopiado(empleadoId);
+    setTimeout(() => setCopiado(null), 1800);
   }
 
   const dias = diasDe(mes);
@@ -143,10 +166,16 @@ export default function CalendarioPage() {
                onChange={e => e.target.value && setMes(e.target.value)} />
         <button onClick={() => setMes(correrMes(mes, 1))} className="btn-secondary !px-3 !py-1.5 text-sm">▶</button>
         {d && (
-          <span className="text-sm text-ahg-text/50 ml-auto">
-            {d.celdas.length} cargados
-            {sinCubrir > 0 && <span className="text-ahg-text/40"> · {sinCubrir} sin cubrir</span>}
-          </span>
+          <>
+            <span className="text-sm text-ahg-text/50 ml-auto">
+              {d.celdas.length} cargados
+              {sinCubrir > 0 && <span className="text-ahg-text/40"> · {sinCubrir} sin cubrir</span>}
+            </span>
+            <button onClick={() => setExportar(true)} disabled={!d.celdas.length}
+                    className="btn-primary !py-1.5 text-sm disabled:opacity-40">
+              Exportar
+            </button>
+          </>
         )}
       </div>
 
@@ -292,6 +321,68 @@ export default function CalendarioPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Exportar para mandar al grupo o a cada uno */}
+      {exportar && d && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="card w-full max-w-md my-8 p-6 space-y-4">
+            <h2 className="text-lg font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+              Pasarle los turnos al equipo
+            </h2>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-ahg-text/40 mb-2">
+                Imagen para el grupo
+              </p>
+              <button onClick={() => exportarImagen(null)} className="btn-primary w-full mb-2">
+                Bajar el mes completo
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {semanas.map((s, i) => (
+                  <button key={i} onClick={() => exportarImagen(i)} className="btn-secondary text-sm !py-1.5">
+                    Semana {s.dias[0].n}–{s.dias[s.dias.length - 1].n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-ahg-text/50 mt-2">
+                El mes entero es una imagen ancha: se ve mejor en la computadora. Para mandar
+                por WhatsApp conviene una semana.
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-ahg-accent/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ahg-text/40 mb-2">
+                Texto para cada uno
+              </p>
+              <p className="text-xs text-ahg-text/50 mb-2">
+                Solo sus turnos del mes, listo para pegar en un privado.
+              </p>
+              <div className="max-h-52 overflow-y-auto space-y-1">
+                {d.empleados
+                  .filter(e => d.celdas.some(c => c.empleado_id === e.id))
+                  .map(e => (
+                    <button key={e.id} onClick={() => copiarTexto(e.id)}
+                            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg
+                                       border border-ahg-accent/40 hover:border-ahg-primary text-sm text-left">
+                      <span className="truncate">{e.nombre}</span>
+                      <span className={`text-xs font-semibold flex-shrink-0 ${
+                        copiado === e.id ? 'text-green-600' : 'text-ahg-primary'}`}>
+                        {copiado === e.id ? 'Copiado' : 'Copiar'}
+                      </span>
+                    </button>
+                  ))}
+                {!d.empleados.some(e => d.celdas.some(c => c.empleado_id === e.id)) && (
+                  <p className="text-sm text-ahg-text/40 py-3 text-center">
+                    Todavía no hay nadie asignado este mes.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <button onClick={() => setExportar(false)} className="btn-secondary w-full">Cerrar</button>
           </div>
         </div>
       )}

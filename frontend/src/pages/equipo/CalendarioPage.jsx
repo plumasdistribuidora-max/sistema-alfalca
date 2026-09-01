@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api';
 
-const DIA_CORTO = new Intl.DateTimeFormat('es-AR', { weekday: 'short' });
+const DIA_INICIAL = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const MES_LARGO = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' });
 
 function mesActual() {
@@ -17,95 +17,29 @@ function fechaStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// El mes se muestra partido en semanas de lunes a domingo, como la planilla que
-// ya usan: una grilla de 31 columnas no se lee.
-function semanasDe(mes) {
+// Todos los días del mes, con el dato de en qué semana cae cada uno: el corte de
+// semana es lo único que hace legible una fila de 31 columnas.
+function diasDe(mes) {
   const [y, m] = mes.split('-').map(Number);
   const ultimo = new Date(y, m, 0).getDate();
-  const semanas = [];
-  let actual = [];
-  for (let d = 1; d <= ultimo; d++) {
-    const fecha = new Date(y, m - 1, d);
-    const dow = (fecha.getDay() + 6) % 7;         // 0 = lunes
-    if (dow === 0 && actual.length) { semanas.push(actual); actual = []; }
-    actual.push(fecha);
-    if (d === ultimo) semanas.push(actual);
+  const dias = [];
+  let semana = 0;
+  for (let n = 1; n <= ultimo; n++) {
+    const fecha = new Date(y, m - 1, n);
+    const dow = (fecha.getDay() + 6) % 7;          // 0 = lunes
+    if (dow === 0 && n > 1) semana++;
+    dias.push({ n, fecha, fs: fechaStr(fecha), dow, semana, finde: dow >= 5 });
   }
-  return semanas;
+  return dias;
 }
 
-function Celda({ celda, posicion, fecha, empleados, onGuardar }) {
-  const [abierto, setAbierto] = useState(false);
-  const emp = celda?.empleado_id ? empleados.find(e => e.id === celda.empleado_id) : null;
-  const franco = celda?.estado === 'franco';
-
-  // Un empleado asignado a una posición que lleva reporte, pero que no puede
-  // cargarlo, es exactamente el caso que hay que ver antes de que llegue el día.
-  const problema = emp && posicion.requiere_reporte && (!emp.carga_reporte || !emp.tiene_usuario);
-
-  const fondo = franco ? 'bg-red-50 text-red-700 border-red-200'
-    : emp ? (problema ? 'bg-amber-50 text-amber-900 border-amber-300'
-                      : 'bg-green-50 text-green-800 border-green-200')
-    : 'bg-white border-ahg-accent/30 text-ahg-text/25';
-
-  function elegir(valor) {
-    setAbierto(false);
-    if (valor === 'franco')      onGuardar({ estado: 'franco', empleado_id: null });
-    else if (valor === 'vaciar') onGuardar({ estado: 'sin_cubrir', empleado_id: null });
-    else                         onGuardar({ estado: 'asignado', empleado_id: Number(valor) });
-  }
-
-  return (
-    <td className="p-0 relative border border-ahg-accent/20">
-      <button
-        onClick={() => setAbierto(a => !a)}
-        title={problema ? 'Esta persona no puede cargar el reporte de esta posición' : undefined}
-        className={`w-full h-full min-h-[34px] px-1.5 py-1 text-[11px] leading-tight text-left border-l-2 ${fondo}
-                    hover:brightness-95 transition-all`}
-      >
-        {franco ? 'Franco' : emp ? (
-          <>
-            {emp.nombre.split(' ')[0]}
-            {problema && <span className="ml-0.5">⚠</span>}
-            {emp.local_id_principal !== posicion.local_id && (
-              <span className="block text-[9px] opacity-70">cubre</span>
-            )}
-          </>
-        ) : '+'}
-      </button>
-
-      {abierto && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setAbierto(false)} />
-          <div className="absolute z-30 top-full left-0 mt-1 w-56 max-h-64 overflow-y-auto
-                          bg-white border border-ahg-accent/40 rounded-lg shadow-xl py-1">
-            <button onClick={() => elegir('vaciar')}
-                    className="w-full text-left px-3 py-1.5 text-xs text-ahg-text/50 hover:bg-ahg-bg">
-              Dejar vacío
-            </button>
-            <button onClick={() => elegir('franco')}
-                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">
-              Franco
-            </button>
-            <div className="border-t border-ahg-accent/20 my-1" />
-            {empleados.map(e => {
-              const ok = !posicion.requiere_reporte || (e.carga_reporte && e.tiene_usuario);
-              return (
-                <button key={e.id} onClick={() => elegir(e.id)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-ahg-bg flex items-center gap-1.5">
-                  <span className="flex-1 truncate">
-                    {e.nombre}
-                    {e.puesto && <span className="text-ahg-text/40 capitalize"> · {e.puesto}</span>}
-                  </span>
-                  {!ok && <span className="text-amber-600" title="No puede cargar reporte">⚠</span>}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </td>
-  );
+// Nombre corto para una celda de 46px. Cuando hay apellido siempre se muestra su
+// inicial: en el café hay dos Patricias, y "Patric." para las dos no sirve de nada.
+function corto(nombre) {
+  const [pila, apellido] = nombre.trim().split(/\s+/);
+  if (!apellido) return pila.length <= 8 ? pila : pila.slice(0, 7) + '.';
+  const base = pila.length <= 5 ? pila : pila.slice(0, 5);
+  return `${base} ${apellido[0]}.`;
 }
 
 export default function CalendarioPage() {
@@ -116,12 +50,15 @@ export default function CalendarioPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
+  // El selector se abre como capa fija: dentro del scroll horizontal se cortaría.
+  const [selector, setSelector] = useState(null);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
     api.get('/locales').then(r => {
       const act = r.data.data.filter(l => l.activo);
       setLocales(act);
-      if (act.length && !localId) setLocalId(act[0].id);
+      if (act.length) setLocalId(prev => prev ?? act[0].id);
     });
   }, []);
 
@@ -137,21 +74,19 @@ export default function CalendarioPage() {
   useEffect(cargar, [localId, mes]);
 
   async function guardarCelda(posicion_id, fecha, cambio) {
+    setSelector(null);
     try {
       const r = await api.put('/calendario/celda', { posicion_id, fecha, ...cambio });
-      if (r.data.avisos?.length) setAviso(r.data.avisos[0].texto);
-      else setAviso('');
+      setAviso(r.data.avisos?.length ? r.data.avisos[0].texto : '');
       cargar();
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo guardar el turno');
     }
   }
 
-  async function copiarSemana(lunesOrigen, lunesDestino) {
+  async function copiarSemana(desde, hasta) {
     try {
-      const r = await api.post('/calendario/copiar-semana', {
-        local_id: localId, desde: lunesOrigen, hasta: lunesDestino,
-      });
+      const r = await api.post('/calendario/copiar-semana', { local_id: localId, desde, hasta });
       setAviso(`Se copiaron ${r.data.data.copiadas} turnos a la semana siguiente.`);
       cargar();
     } catch (err) {
@@ -159,12 +94,15 @@ export default function CalendarioPage() {
     }
   }
 
-  const semanas = semanasDe(mes);
-  const celdaDe = (posId, fecha) => d?.celdas.find(c => c.posicion_id === posId && c.fecha === fecha);
+  const dias = diasDe(mes);
+  const celdaDe = (posId, fs) => d?.celdas.find(c => c.posicion_id === posId && c.fecha === fs);
 
-  // Cuántas celdas del mes están sin resolver, para saber si está listo.
-  const totalCeldas = (d?.posiciones.length || 0) * new Date(...mes.split('-').map((v, i) => i ? +v : +v), 0).getDate();
-  const cubiertas = d?.celdas.length || 0;
+  // Lunes de cada semana, para los botones de copiar del encabezado.
+  const semanas = [];
+  for (const dia of dias) {
+    if (!semanas[dia.semana]) semanas[dia.semana] = { inicio: dia, dias: [] };
+    semanas[dia.semana].dias.push(dia);
+  }
 
   const conProblema = d ? d.celdas.filter(c => {
     if (c.estado !== 'asignado' || !c.empleado_id) return false;
@@ -172,6 +110,17 @@ export default function CalendarioPage() {
     const e = d.empleados.find(x => x.id === c.empleado_id);
     return p?.requiere_reporte && e && (!e.carga_reporte || !e.tiene_usuario);
   }) : [];
+
+  const sinCubrir = d ? d.posiciones.length * dias.length - d.celdas.length : 0;
+
+  function abrirSelector(ev, posicion, fs) {
+    const r = ev.currentTarget.getBoundingClientRect();
+    setSelector({
+      posicion, fs,
+      top: Math.min(r.bottom + 4, window.innerHeight - 300),
+      left: Math.min(r.left, window.innerWidth - 240),
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -193,26 +142,31 @@ export default function CalendarioPage() {
         <input type="month" className="input w-auto !py-1.5 text-sm" value={mes}
                onChange={e => e.target.value && setMes(e.target.value)} />
         <button onClick={() => setMes(correrMes(mes, 1))} className="btn-secondary !px-3 !py-1.5 text-sm">▶</button>
-        {d && <span className="text-sm text-ahg-text/50 ml-auto">{cubiertas} turnos cargados</span>}
+        {d && (
+          <span className="text-sm text-ahg-text/50 ml-auto">
+            {d.celdas.length} cargados
+            {sinCubrir > 0 && <span className="text-ahg-text/40"> · {sinCubrir} sin cubrir</span>}
+          </span>
+        )}
       </div>
 
       {error && <div className="card px-4 py-3 border-red-300 bg-red-50 text-red-700 text-sm">{error}</div>}
       {aviso && (
         <div className="card px-4 py-3 border-amber-300 bg-amber-50 text-amber-800 text-sm flex justify-between gap-3">
           <span>{aviso}</span>
-          <button onClick={() => setAviso('')} className="font-bold">×</button>
+          <button onClick={() => setAviso('')} className="font-bold flex-shrink-0">×</button>
         </div>
       )}
 
       {conProblema.length > 0 && (
         <div className="card px-4 py-3 border-amber-300 bg-amber-50">
           <p className="text-sm font-semibold text-amber-800 mb-1">
-            {conProblema.length} turno{conProblema.length === 1 ? '' : 's'} asignado
-            {conProblema.length === 1 ? '' : 's'} a alguien que no puede cargar el reporte
+            {conProblema.length} turno{conProblema.length === 1 ? '' : 's'} del mes
+            {conProblema.length === 1 ? ' está asignado' : ' están asignados'} a alguien que no puede cargar el reporte
           </p>
           <p className="text-xs text-amber-700">
-            Están marcados en ámbar con ⚠ en la grilla. Andá a Empleados, marcá a esa persona
-            como que carga reporte, y creale un usuario desde Usuarios y accesos.
+            Están en ámbar con ⚠. Marcá a esa persona como que carga reporte en Empleados,
+            y creale un usuario desde Usuarios y accesos.
           </p>
         </div>
       )}
@@ -224,84 +178,160 @@ export default function CalendarioPage() {
           Este local todavía no tiene puestos configurados.
         </div>
       ) : (
-        semanas.map((semana, si) => {
-          const lunes = fechaStr(semana[0]);
-          const lunesSiguiente = semanas[si + 1] ? fechaStr(semanas[si + 1][0]) : null;
-          const bloques = [...new Set(d.posiciones.map(p => p.turno))];
-
-          return (
-            <div key={lunes} className="card p-4">
-              <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
-                <h3 className="font-bold text-sm" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                  Semana del {semana[0].getDate()} al {semana[semana.length - 1].getDate()}
-                </h3>
-                {lunesSiguiente && (
-                  <button onClick={() => copiarSemana(lunes, lunesSiguiente)}
-                          className="text-xs font-semibold text-ahg-primary hover:underline">
-                    Copiar a la semana siguiente →
-                  </button>
-                )}
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="text-xs" style={{ borderCollapse: 'collapse', minWidth: '640px', width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th className="text-left px-2 py-1.5 font-semibold text-ahg-text/40 text-[10px] uppercase tracking-wider w-28">
-                        Puesto
-                      </th>
-                      <th className="text-left px-2 py-1.5 font-semibold text-ahg-text/40 text-[10px] w-20">
-                        Horario
-                      </th>
-                      {semana.map(f => (
-                        <th key={f.getDate()} className="px-1 py-1.5 text-center font-semibold text-ahg-text/50 capitalize">
-                          <span className="block text-[10px] text-ahg-text/35">
-                            {DIA_CORTO.format(f).replace('.', '')}
-                          </span>
-                          {f.getDate()}
-                        </th>
-                      ))}
+        <div className="card overflow-hidden">
+          <div ref={scrollRef} className="overflow-x-auto">
+            <table className="text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+              <thead>
+                {/* Semanas, con el botón para copiar a la siguiente */}
+                <tr>
+                  <th className="sticky left-0 z-20 bg-ahg-bg" style={{ width: 118, minWidth: 118 }} />
+                  <th className="sticky z-20 bg-ahg-bg" style={{ left: 118, width: 66, minWidth: 66 }} />
+                  {semanas.map((s, i) => (
+                    <th key={i} colSpan={s.dias.length}
+                        className="px-1 py-1 text-[10px] font-semibold text-ahg-text/40 bg-ahg-bg
+                                   border-l-2 border-ahg-accent/40 whitespace-nowrap">
+                      {semanas[i + 1] ? (
+                        <button
+                          onClick={() => copiarSemana(s.inicio.fs, semanas[i + 1].inicio.fs)}
+                          className="hover:text-ahg-primary hover:underline"
+                          title="Copiar esta semana a la siguiente">
+                          {s.dias[0].n}–{s.dias[s.dias.length - 1].n} · copiar →
+                        </button>
+                      ) : (
+                        <span>{s.dias[0].n}–{s.dias[s.dias.length - 1].n}</span>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+                {/* Días */}
+                <tr>
+                  <th className="sticky left-0 z-20 bg-ahg-bg text-left px-2 py-1.5 font-semibold
+                                 text-ahg-text/40 text-[10px] uppercase tracking-wider
+                                 border-b border-ahg-accent/30">
+                    Puesto
+                  </th>
+                  <th className="sticky z-20 bg-ahg-bg text-left px-2 py-1.5 font-semibold
+                                 text-ahg-text/40 text-[10px] border-b border-ahg-accent/30
+                                 border-r border-ahg-accent/30"
+                      style={{ left: 118 }}>
+                    Horario
+                  </th>
+                  {dias.map(dia => (
+                    <th key={dia.n}
+                        className={`px-0.5 py-1 text-center font-semibold border-b border-ahg-accent/30
+                          ${dia.finde ? 'bg-ahg-accent/10 text-ahg-text/35' : 'text-ahg-text/50'}
+                          ${dia.dow === 0 ? 'border-l-2 border-l-ahg-accent/40' : ''}`}
+                        style={{ width: 46, minWidth: 46 }}>
+                      <span className="block text-[9px] text-ahg-text/30">{DIA_INICIAL[dia.dow]}</span>
+                      {dia.n}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...new Set(d.posiciones.map(p => p.turno))].map(bloque => (
+                  <>
+                    <tr key={`b-${bloque}`}>
+                      <td colSpan={2 + dias.length}
+                          className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest
+                                     text-ahg-primary bg-ahg-accent/15 sticky left-0">
+                        {bloque}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {bloques.map(bloque => (
-                      <>
-                        <tr key={`b-${bloque}`}>
-                          <td colSpan={2 + semana.length}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest
-                                         text-ahg-primary bg-ahg-accent/15">
-                            {bloque}
-                          </td>
-                        </tr>
-                        {d.posiciones.filter(p => p.turno === bloque).map(p => (
-                          <tr key={p.id}>
-                            <td className="px-2 py-1 font-medium whitespace-nowrap">{p.nombre}</td>
-                            <td className="px-2 py-1 text-ahg-text/40 tabular-nums whitespace-nowrap text-[10px]">
-                              {p.hora_desde ? `${p.hora_desde}–${p.hora_hasta}` : '—'}
+                    {d.posiciones.filter(p => p.turno === bloque).map(p => (
+                      <tr key={p.id}>
+                        <td className="sticky left-0 z-10 bg-white px-2 py-1 font-medium
+                                       whitespace-nowrap border-b border-ahg-accent/20"
+                            style={{ width: 118, minWidth: 118 }}>
+                          {p.nombre}
+                          {p.requiere_reporte && (
+                            <span className="text-ahg-primary ml-1" title="Esta posición lleva reporte">•</span>
+                          )}
+                        </td>
+                        <td className="sticky z-10 bg-white px-2 py-1 text-ahg-text/40 tabular-nums
+                                       whitespace-nowrap text-[10px] border-b border-ahg-accent/20
+                                       border-r border-ahg-accent/30"
+                            style={{ left: 118, width: 66, minWidth: 66 }}>
+                          {p.hora_desde ? `${p.hora_desde}–${p.hora_hasta}` : '—'}
+                        </td>
+                        {dias.map(dia => {
+                          const celda = celdaDe(p.id, dia.fs);
+                          const emp = celda?.empleado_id ? d.empleados.find(e => e.id === celda.empleado_id) : null;
+                          const franco = celda?.estado === 'franco';
+                          const problema = emp && p.requiere_reporte && (!emp.carga_reporte || !emp.tiene_usuario);
+                          const cubre = emp && emp.local_id_principal !== d.local.id;
+
+                          const fondo = franco ? 'bg-red-50 text-red-700'
+                            : emp ? (problema ? 'bg-amber-100 text-amber-900' : 'bg-green-50 text-green-800')
+                            : dia.finde ? 'bg-ahg-accent/5 text-ahg-text/20' : 'bg-white text-ahg-text/20';
+
+                          return (
+                            <td key={dia.n}
+                                className={`p-0 border-b border-ahg-accent/20
+                                  ${dia.dow === 0 ? 'border-l-2 border-l-ahg-accent/40' : 'border-l border-l-ahg-accent/10'}`}
+                                style={{ width: 46, minWidth: 46 }}>
+                              <button
+                                onClick={ev => abrirSelector(ev, p, dia.fs)}
+                                title={emp ? `${emp.nombre}${problema ? ' — no puede cargar el reporte' : ''}${cubre ? ' — cubre de otro local' : ''}` : undefined}
+                                className={`w-full h-[30px] px-1 text-[10px] leading-none truncate
+                                            hover:brightness-90 transition-all ${fondo}`}>
+                                {franco ? 'Fr' : emp ? (
+                                  <>
+                                    {corto(emp.nombre)}
+                                    {problema && '⚠'}
+                                    {cubre && !problema && '*'}
+                                  </>
+                                ) : '+'}
+                              </button>
                             </td>
-                            {semana.map(f => {
-                              const fs = fechaStr(f);
-                              return (
-                                <Celda
-                                  key={fs}
-                                  celda={celdaDe(p.id, fs)}
-                                  posicion={{ ...p, local_id: d.local.id }}
-                                  fecha={fs}
-                                  empleados={d.empleados}
-                                  onGuardar={cambio => guardarCelda(p.id, fs, cambio)}
-                                />
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </>
+                          );
+                        })}
+                      </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Selector de persona, en capa fija para que el scroll no lo recorte */}
+      {selector && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setSelector(null)} />
+          <div className="fixed z-50 w-56 max-h-72 overflow-y-auto bg-white
+                          border border-ahg-accent/40 rounded-lg shadow-xl py-1"
+               style={{ top: selector.top, left: selector.left }}>
+            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-ahg-text/40
+                          border-b border-ahg-accent/20 mb-1">
+              {selector.posicion.nombre} · {Number(selector.fs.slice(8))}
+            </p>
+            <button onClick={() => guardarCelda(selector.posicion.id, selector.fs, { estado: 'sin_cubrir', empleado_id: null })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-ahg-text/50 hover:bg-ahg-bg">
+              Dejar vacío
+            </button>
+            <button onClick={() => guardarCelda(selector.posicion.id, selector.fs, { estado: 'franco', empleado_id: null })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">
+              Franco
+            </button>
+            <div className="border-t border-ahg-accent/20 my-1" />
+            {d?.empleados.map(e => {
+              const ok = !selector.posicion.requiere_reporte || (e.carga_reporte && e.tiene_usuario);
+              return (
+                <button key={e.id}
+                        onClick={() => guardarCelda(selector.posicion.id, selector.fs, { estado: 'asignado', empleado_id: e.id })}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-ahg-bg flex items-center gap-1.5">
+                  <span className="flex-1 truncate">
+                    {e.nombre}
+                    {e.puesto && <span className="text-ahg-text/40 capitalize"> · {e.puesto}</span>}
+                  </span>
+                  {!ok && <span className="text-amber-600" title="No puede cargar el reporte de esta posición">⚠</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       <div className="flex flex-wrap gap-4 text-xs text-ahg-text/50">
@@ -309,7 +339,7 @@ export default function CalendarioPage() {
           <i className="w-3 h-3 rounded-sm bg-green-50 border border-green-200 inline-block" />Cubierto
         </span>
         <span className="flex items-center gap-1.5">
-          <i className="w-3 h-3 rounded-sm bg-amber-50 border border-amber-300 inline-block" />No puede reportar
+          <i className="w-3 h-3 rounded-sm bg-amber-100 border border-amber-300 inline-block" />⚠ No puede reportar
         </span>
         <span className="flex items-center gap-1.5">
           <i className="w-3 h-3 rounded-sm bg-red-50 border border-red-200 inline-block" />Franco
@@ -317,6 +347,8 @@ export default function CalendarioPage() {
         <span className="flex items-center gap-1.5">
           <i className="w-3 h-3 rounded-sm bg-white border border-ahg-accent/30 inline-block" />Sin cubrir
         </span>
+        <span>* cubre de otro local</span>
+        <span><span className="text-ahg-primary">•</span> la posición lleva reporte</span>
       </div>
     </div>
   );

@@ -144,32 +144,9 @@ router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   }
 });
 
-// ── PATCH /:id/password ───────────────────────────────────────────────────────
-
-router.patch('/:id/password', requireAuth, puedeAdministrar, async (req, res) => {
-  try {
-    const { password } = req.body;
-    if (!password || password.length < 8) {
-      return res.status(400).json({ ok: false, error: 'La contraseña necesita al menos 8 caracteres' });
-    }
-
-    const objetivo = await pool.query('SELECT rol FROM usuarios WHERE id = $1', [req.params.id]);
-    if (!objetivo.rowCount) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
-    if (objetivo.rows[0].rol === ROLES.ADMIN && req.user.rol !== ROLES.ADMIN) {
-      return res.status(403).json({ ok: false, error: 'No podés cambiarle la contraseña a un dueño' });
-    }
-
-    const hash = await bcrypt.hash(password, 12);
-    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[usuarios PATCH password]', err);
-    res.status(500).json({ ok: false, error: 'Error al cambiar la contraseña' });
-  }
-});
-
-// ── PATCH /mi-password ────────────────────────────────────────────────────────
+// ── PATCH /mi/password ────────────────────────────────────────────────────────
 // Cualquiera puede cambiar la suya, verificando la actual.
+// Va ANTES de /:id/password: si no, Express matchea esa con id = "mi".
 
 router.patch('/mi/password', requireAuth, async (req, res) => {
   try {
@@ -192,6 +169,30 @@ router.patch('/mi/password', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[usuarios PATCH mi/password]', err);
+    res.status(500).json({ ok: false, error: 'Error al cambiar la contraseña' });
+  }
+});
+
+// ── PATCH /:id/password ───────────────────────────────────────────────────────
+
+router.patch('/:id/password', requireAuth, puedeAdministrar, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 8) {
+      return res.status(400).json({ ok: false, error: 'La contraseña necesita al menos 8 caracteres' });
+    }
+
+    const objetivo = await pool.query('SELECT rol FROM usuarios WHERE id = $1', [req.params.id]);
+    if (!objetivo.rowCount) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
+    if (objetivo.rows[0].rol === ROLES.ADMIN && req.user.rol !== ROLES.ADMIN) {
+      return res.status(403).json({ ok: false, error: 'No podés cambiarle la contraseña a un dueño' });
+    }
+
+    const hash = await bcrypt.hash(password, 12);
+    await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[usuarios PATCH password]', err);
     res.status(500).json({ ok: false, error: 'Error al cambiar la contraseña' });
   }
 });

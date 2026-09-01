@@ -25,6 +25,7 @@ app.use('/api/empleados', require('./routes/empleados'));
 app.use('/api/reportes',  require('./routes/reportes'));
 app.use('/api/consolidado', soloRed, require('./routes/consolidado'));
 app.use('/api/kpi',        soloRed, require('./routes/kpi'));
+app.use('/api/calendario', soloRed, require('./routes/calendario'));
 app.use('/api/ventas',    soloRed, require('./routes/ventas'));
 app.use('/api/productos', soloRed, require('./routes/productos'));
 app.use('/api/red',       soloRed, require('./routes/red'));

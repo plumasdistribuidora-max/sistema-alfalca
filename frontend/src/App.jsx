@@ -4,7 +4,8 @@ import Layout           from './components/Layout';
 import Login            from './pages/Login';
 import Home             from './pages/Home';
 import Locales          from './pages/Locales';
-import Empleados        from './pages/Empleados';
+import EmpleadosPage    from './pages/equipo/EmpleadosPage';
+import CalendarioPage   from './pages/equipo/CalendarioPage';
 import VentasImportar   from './pages/ventas/Importar';
 import VentasListado    from './pages/ventas/Listado';
 import VentasDashboard  from './pages/ventas/DashboardLocal';
@@ -21,7 +22,6 @@ import UsuariosPage           from './pages/admin/UsuariosPage';
 import MiReporte              from './pages/reportes/MiReporte';
 import Reportes               from './pages/reportes/Reportes';
 import KpiPage                from './pages/kpi/KpiPage';
-import ValorHoraPage          from './pages/admin/ValorHoraPage';
 import FormulariosPage        from './pages/admin/FormulariosPage';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
@@ -62,10 +62,10 @@ export default function App() {
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Reportes />)} />
             <Route path="kpi"                  element={soloRed(<KpiPage />)} />
-            <Route path="valor-hora"           element={soloRed(<ValorHoraPage />)} />
             <Route path="formularios"          element={soloRed(<FormulariosPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />
-            <Route path="empleados"            element={soloRed(<Empleados />)} />
+            <Route path="empleados"            element={soloRed(<EmpleadosPage />)} />
+            <Route path="calendario"           element={soloRed(<CalendarioPage />)} />
             <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />
             <Route path="ventas/listado"       element={soloRed(<VentasListado />)} />
             <Route path="ventas/dashboard"     element={soloRed(<VentasDashboard />)} />

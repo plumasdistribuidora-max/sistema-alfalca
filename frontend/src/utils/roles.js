@@ -33,6 +33,22 @@ export const AREA_LABEL = {
   general: 'General',
 };
 
+// Puestos de la grilla de turnos, por área.
+export const PUESTOS_POR_AREA = {
+  tienda:  ['vendedor', 'encargado'],
+  cafe:    ['encargado', 'barista', 'mozo', 'bacha', 'refuerzo'],
+  cocina:  ['cocina', 'ref cocina', 'bacha'],
+  general: ['encargado general'],
+};
+
+// De un turno de café de siete personas, solo dos cargan reporte. El resto trabaja,
+// se le cuentan las horas, y no entra al sistema. Esto es solo la sugerencia inicial:
+// el campo se puede cambiar a mano en cualquier empleado.
+const PUESTOS_QUE_REPORTAN = ['encargado', 'encargado general', 'cocina', 'vendedor'];
+
+export const puestoReportaPorDefecto = puesto =>
+  !puesto || PUESTOS_QUE_REPORTAN.includes(puesto);
+
 // Rol que le corresponde por defecto a un empleado según su área.
 export const ROL_POR_AREA = {
   tienda:  ROLES.EMPLEADO_TIENDA,

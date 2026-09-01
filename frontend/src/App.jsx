@@ -20,6 +20,8 @@ import MaestroDocenasPage      from './pages/admin/MaestroDocenasPage';
 import UsuariosPage           from './pages/admin/UsuariosPage';
 import MiReporte              from './pages/reportes/MiReporte';
 import Bandeja                from './pages/reportes/Bandeja';
+import Consolidado            from './pages/reportes/Consolidado';
+import ValorHoraPage          from './pages/admin/ValorHoraPage';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
@@ -58,6 +60,8 @@ export default function App() {
             <Route path="locales"              element={soloDueno(<Locales />)} />
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Bandeja />)} />
+            <Route path="consolidado"          element={soloRed(<Consolidado />)} />
+            <Route path="valor-hora"           element={soloRed(<ValorHoraPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />
             <Route path="empleados"            element={soloRed(<Empleados />)} />
             <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />

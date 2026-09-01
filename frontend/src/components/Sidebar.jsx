@@ -144,13 +144,15 @@ export default function Sidebar({ open, onClose }) {
                 </div>
               )}
 
-              <NavItem to="/reportes" icon={ICON.listado}  label="Reportes del día" />
+              <NavItem to="/consolidado" icon={ICON.dashboard} label="Consolidado diario" />
+              <NavItem to="/reportes"    icon={ICON.listado}   label="Reportes del día" />
               <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
               <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
 
               <SectionLabel label="Equipo" />
               <NavItem to="/usuarios"  icon={ICON.empleados} label="Usuarios y accesos" />
               <NavItem to="/empleados" icon={ICON.personal}  label="Empleados" />
+              <NavItem to="/valor-hora" icon={ICON.cashflow}  label="Valor hora" />
             </>
           )}
 

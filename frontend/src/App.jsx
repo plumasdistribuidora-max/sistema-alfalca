@@ -23,6 +23,7 @@ import Bandeja                from './pages/reportes/Bandeja';
 import Consolidado            from './pages/reportes/Consolidado';
 import Mensual                from './pages/reportes/Mensual';
 import ValorHoraPage          from './pages/admin/ValorHoraPage';
+import FormulariosPage        from './pages/admin/FormulariosPage';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="consolidado"          element={soloRed(<Consolidado />)} />
             <Route path="mensual"              element={soloRed(<Mensual />)} />
             <Route path="valor-hora"           element={soloRed(<ValorHoraPage />)} />
+            <Route path="formularios"          element={soloRed(<FormulariosPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />
             <Route path="empleados"            element={soloRed(<Empleados />)} />
             <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />

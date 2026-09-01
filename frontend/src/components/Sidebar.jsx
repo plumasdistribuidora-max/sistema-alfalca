@@ -153,7 +153,8 @@ export default function Sidebar({ open, onClose }) {
               <SectionLabel label="Equipo" />
               <NavItem to="/usuarios"  icon={ICON.empleados} label="Usuarios y accesos" />
               <NavItem to="/empleados" icon={ICON.personal}  label="Empleados" />
-              <NavItem to="/valor-hora" icon={ICON.cashflow}  label="Valor hora" />
+              <NavItem to="/valor-hora"   icon={ICON.cashflow} label="Valor hora" />
+              <NavItem to="/formularios"  icon={ICON.catalogo} label="Formularios" />
             </>
           )}
 

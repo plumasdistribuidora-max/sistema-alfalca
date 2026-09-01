@@ -132,6 +132,80 @@ router.get('/plantillas/:codigo', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /plantillas ───────────────────────────────────────────────────────────
+
+router.get('/plantillas', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT codigo, nombre, area, version, campos, activo, updated_at FROM reporte_plantillas ORDER BY nombre'
+    );
+    res.json({ ok: true, data: rows });
+  } catch (err) {
+    console.error('[reportes/plantillas GET]', err);
+    res.status(500).json({ ok: false, error: 'Error al obtener los formularios' });
+  }
+});
+
+// ── PUT /plantillas/:codigo ───────────────────────────────────────────────────
+// Editar un formulario sube su versión. Los reportes ya cargados guardan la versión
+// con la que se llenaron, así que no se rompen.
+
+const TIPOS_VALIDOS = [
+  'texto', 'texto_largo', 'numero', 'decimal', 'moneda', 'seleccion',
+  'si_no', 'si_no_lista', 'horas_empleados', 'checklist', 'foto', 'facturas',
+];
+
+router.put('/plantillas/:codigo', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
+  try {
+    const { campos, nombre } = req.body;
+    if (!Array.isArray(campos) || !campos.length) {
+      return res.status(400).json({ ok: false, error: 'El formulario necesita al menos un campo' });
+    }
+
+    const codigos = new Set();
+    for (const c of campos) {
+      if (!c.codigo?.trim())  return res.status(400).json({ ok: false, error: 'Hay un campo sin código interno' });
+      if (!c.label?.trim())   return res.status(400).json({ ok: false, error: `El campo "${c.codigo}" no tiene pregunta` });
+      if (!TIPOS_VALIDOS.includes(c.tipo)) {
+        return res.status(400).json({ ok: false, error: `Tipo desconocido en "${c.label}": ${c.tipo}` });
+      }
+      if (codigos.has(c.codigo)) {
+        return res.status(400).json({ ok: false, error: `El código "${c.codigo}" está repetido` });
+      }
+      codigos.add(c.codigo);
+
+      if (c.tipo === 'seleccion' && !(c.opciones?.length)) {
+        return res.status(400).json({ ok: false, error: `"${c.label}" necesita al menos una opción` });
+      }
+      if (c.tipo === 'checklist' && !(c.items?.length)) {
+        return res.status(400).json({ ok: false, error: `"${c.label}" necesita al menos un ítem` });
+      }
+      if (c.tipo === 'si_no_lista' && !(c.subcampos?.length)) {
+        return res.status(400).json({ ok: false, error: `"${c.label}" necesita al menos un campo de detalle` });
+      }
+    }
+
+    // El turno estructura el reporte entero: sin él no se sabe de qué turno es.
+    if (!codigos.has('turno')) {
+      return res.status(400).json({ ok: false, error: 'El formulario no puede quedarse sin el campo de turno' });
+    }
+
+    const { rows } = await pool.query(`
+      UPDATE reporte_plantillas
+      SET campos = $1::jsonb, nombre = COALESCE($2, nombre),
+          version = version + 1, updated_at = NOW()
+      WHERE codigo = $3
+      RETURNING codigo, nombre, area, version, campos
+    `, [JSON.stringify(campos), nombre?.trim() || null, req.params.codigo]);
+
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'No existe ese formulario' });
+    res.json({ ok: true, data: rows[0] });
+  } catch (err) {
+    console.error('[reportes/plantillas PUT]', err);
+    res.status(500).json({ ok: false, error: 'Error al guardar el formulario' });
+  }
+});
+
 // ── GET /mio ──────────────────────────────────────────────────────────────────
 // Lo que necesita la pantalla del empleado al entrar: qué plantilla le toca,
 // en qué local, y si ya viene cargando algo hoy.

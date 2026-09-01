@@ -11,6 +11,19 @@ function hoyStr() {
 
 const n = v => Number(v) || 0;
 
+// El placeholder de los campos de texto dice "Sin novedades", y la gente lo escribe
+// tal cual en vez de dejarlo vacío. Sin esto, cada turno sube una novedad que no lo es.
+const NADA = [
+  'sin novedades', 'sin novedad', 'ninguna', 'ninguno', 'nada', 'no', 'no hubo',
+  'todo bien', 'sin nada', 'n/a', 'na', '-', '--', '.', 'ok',
+];
+function esNovedad(texto) {
+  const t = String(texto || '')
+    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.!,]/g, '').trim();
+  return t !== '' && !NADA.includes(t);
+}
+
 // Las horas de un reporte según el tipo de plantilla: la de café trae las de todo
 // el turno, las otras solo las de quien firma.
 function horasDe(reporte) {
@@ -115,8 +128,8 @@ async function armarDia(fecha) {
         novedades.vencimientos.push({ local, turno: rep.turno, ...it });
       }
     }
-    if (r.mantenimiento?.trim?.()) {
-      novedades.mantenimiento.push({ local, turno: rep.turno, texto: r.mantenimiento });
+    if (esNovedad(r.mantenimiento)) {
+      novedades.mantenimiento.push({ local, turno: rep.turno, texto: r.mantenimiento.trim() });
     }
     if (r.faltantes?.hubo) {
       for (const it of (r.faltantes.items || [])) {
@@ -128,8 +141,8 @@ async function armarDia(fecha) {
         novedades.ausencias.push({ local, turno: rep.turno, ...it });
       }
     }
-    if (r.quejas?.trim?.()) {
-      novedades.quejas.push({ local, turno: rep.turno, texto: r.quejas });
+    if (esNovedad(r.quejas)) {
+      novedades.quejas.push({ local, turno: rep.turno, texto: r.quejas.trim() });
     }
   }
 

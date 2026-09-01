@@ -3,7 +3,7 @@ const multer   = require('multer');
 const xlsx     = require('xlsx');
 const pool     = require('../config/db');
 const { uploadToR2 } = require('../config/r2');
-const { requireAuth, canAccessLocal } = require('../middleware/auth');
+const { requireAuth, canAccessLocal, ROLES_RED } = require('../middleware/auth');
 const { getDocenasPorProducto, isEnMaestro, isLoaded: maestroIsLoaded } = require('../services/maestroDocenas');
 
 const router = express.Router();
@@ -76,7 +76,7 @@ function normalizeNombre(s) {
 }
 
 function checkLocalAccess(user, localId) {
-  if (user.rol === 'admin') return true;
+  if (ROLES_RED.includes(user.rol)) return true;
   return user.locales_permitidos?.includes(parseInt(localId));
 }
 

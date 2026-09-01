@@ -1,8 +1,11 @@
 const express = require('express');
 const pool    = require('../config/db');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 
 const router = express.Router();
+
+// El encargado general da de alta y de baja a su gente sin depender del dueño.
+const puedeAdministrar = requireRol(ROLES.ENCARGADO_GENERAL);
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -12,9 +15,11 @@ router.get('/', requireAuth, async (req, res) => {
     if (local_id) { params.push(local_id); where = 'WHERE e.local_id_principal = $1'; }
 
     const { rows } = await pool.query(`
-      SELECT e.*, l.nombre AS local_nombre
+      SELECT e.*, l.nombre AS local_nombre,
+             u.id AS usuario_id, u.email AS usuario_email, u.rol AS usuario_rol
       FROM empleados e
       JOIN locales l ON l.id = e.local_id_principal
+      LEFT JOIN usuarios u ON u.empleado_id = e.id AND u.activo = true
       ${where}
       ORDER BY e.nombre
     `, params);
@@ -44,16 +49,17 @@ router.get('/sin-matchear/:local_id', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, nombre_pos, local_id_principal } = req.body;
+    const { nombre, nombre_pos, local_id_principal, area } = req.body;
     if (!nombre || !nombre_pos || !local_id_principal)
       return res.status(400).json({ ok: false, error: 'nombre, nombre_pos y local_id_principal son requeridos' });
 
     const posNorm = nombre_pos.toLowerCase().trim();
     const { rows } = await pool.query(
-      'INSERT INTO empleados (nombre, nombre_pos, local_id_principal) VALUES ($1,$2,$3) RETURNING *',
-      [nombre.trim(), posNorm, local_id_principal]
+      `INSERT INTO empleados (nombre, nombre_pos, local_id_principal, area)
+       VALUES ($1, $2, $3, COALESCE($4, 'tienda')) RETURNING *`,
+      [nombre.trim(), posNorm, local_id_principal, area || null]
     );
 
     // Retroactivo: asignar empleado_id a tickets existentes sin match
@@ -70,17 +76,18 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, nombre_pos, local_id_principal, activo } = req.body;
+    const { nombre, nombre_pos, local_id_principal, area, activo } = req.body;
     const { rows } = await pool.query(`
       UPDATE empleados SET
         nombre             = COALESCE($1, nombre),
         nombre_pos         = COALESCE($2, nombre_pos),
         local_id_principal = COALESCE($3, local_id_principal),
-        activo             = COALESCE($4, activo)
-      WHERE id = $5 RETURNING *
-    `, [nombre, nombre_pos, local_id_principal, activo, req.params.id]);
+        area               = COALESCE($4, area),
+        activo             = COALESCE($5, activo)
+      WHERE id = $6 RETURNING *
+    `, [nombre, nombre_pos, local_id_principal, area, activo, req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Empleado no encontrado' });
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
@@ -89,7 +96,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'UPDATE empleados SET activo = false WHERE id = $1 RETURNING *',

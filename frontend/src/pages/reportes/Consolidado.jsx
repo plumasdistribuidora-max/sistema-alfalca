@@ -62,7 +62,7 @@ export default function Consolidado() {
   const [cerrando, setCerrando] = useState(false);
 
   const [form, setForm] = useState({
-    ventas_fudo: {}, explicaciones: {},
+    explicaciones: {},
     vencimientos_ok: false, acciones_vencimientos: '',
     mantenimiento: '', control_tienda_ok: false,
   });
@@ -77,7 +77,6 @@ export default function Consolidado() {
         setD(data);
         const c = data.consolidado;
         setForm({
-          ventas_fudo:   c?.ventas_fudo   || {},
           explicaciones: c?.explicaciones || {},
           vencimientos_ok:       c?.vencimientos_ok ?? false,
           acciones_vencimientos: c?.acciones_vencimientos || '',
@@ -114,9 +113,6 @@ export default function Consolidado() {
     debounce.current = setTimeout(() => guardar(nuevo), 800);
   }
 
-  function ponerFudo(localId, valor) {
-    cambiar({ ventas_fudo: { ...form.ventas_fudo, [localId]: valor } });
-  }
   function explicar(localId, texto) {
     cambiar({ explicaciones: { ...form.explicaciones, [localId]: texto } });
   }
@@ -190,7 +186,7 @@ export default function Consolidado() {
 
       {/* KPI del día */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Kpi titulo="Venta del día" valor={`$ ${money.format(t.ventas_fudo)}`}
+        <Kpi titulo="Venta del día" valor={`$ ${money.format(t.ventas_sistema)}`}
              detalle={`${t.tickets} tickets`} />
         <Kpi titulo="Ticket promedio"
              valor={t.ticket_promedio ? `$ ${money.format(t.ticket_promedio)}` : '—'} />
@@ -210,14 +206,15 @@ export default function Consolidado() {
         </div>
       )}
 
-      {/* Doble control contra Fudo */}
+      {/* Control: lo que reportó el turno contra lo que trajo el Excel */}
       <div className="card p-5">
         <h2 className="font-bold mb-1" style={{ fontFamily: 'Nunito, sans-serif' }}>
-          Ventas por local
+          Ventas y KPI por local
         </h2>
         <p className="text-xs text-ahg-text/50 mb-3">
-          La columna Sistema sale del Excel de Fudo ya importado. Al lado, poné lo que ves
-          en el panel de Fudo.
+          <strong>Sistema</strong> es el Excel de Fudo que importaste. <strong>Reportado</strong> es
+          lo que cargó cada turno mirando la caja. Son dos fuentes distintas: si no coinciden,
+          algo pasó y hay que explicarlo.
         </p>
 
         <div className="overflow-x-auto">
@@ -226,54 +223,63 @@ export default function Consolidado() {
               <tr className="border-b border-ahg-accent/30">
                 <th className="table-th">Local</th>
                 <th className="table-th text-right">Sistema</th>
-                <th className="table-th text-right">Fudo</th>
+                <th className="table-th text-right">Reportado</th>
                 <th className="table-th text-right">Dif.</th>
+                <th className="table-th text-right">Horas</th>
+                <th className="table-th text-right">Personal</th>
+                <th className="table-th text-right">Hs / vta</th>
               </tr>
             </thead>
             <tbody>
-              {d.locales.map(l => {
-                const v = form.ventas_fudo[l.local_id];
-                const dif = v === '' || v == null ? null : Number(v) - l.ventas_sistema;
-                return (
-                  <tr key={l.local_id} className="border-b border-ahg-accent/20">
-                    <td className="table-td font-medium">
-                      {l.nombre}
-                      <span className="block text-xs text-ahg-text/40">
-                        {l.reportes.length
-                          ? `${l.reportes.length} reporte${l.reportes.length === 1 ? '' : 's'} · ${l.horas.toFixed(1)} h`
+              {d.locales.map(l => (
+                <tr key={l.local_id} className="border-b border-ahg-accent/20">
+                  <td className="table-td font-medium">
+                    {l.nombre}
+                    <span className="block text-xs text-ahg-text/40">
+                      {l.turnos_esperados > 0
+                        ? `${l.turnos_reportados} de ${l.turnos_esperados} turnos`
+                        : l.reportes.length
+                          ? `${l.reportes.length} reporte${l.reportes.length === 1 ? '' : 's'}`
                           : 'sin reportes'}
-                      </span>
-                    </td>
-                    <td className="table-td text-right tabular-nums">{money.format(l.ventas_sistema)}</td>
-                    <td className="table-td text-right">
-                      <input
-                        className="input text-right tabular-nums w-32 ml-auto"
-                        inputMode="numeric" disabled={cerrado}
-                        value={v === '' || v == null ? '' : money.format(v)}
-                        onChange={e => ponerFudo(l.local_id, soloNumero(e.target.value))}
-                      />
-                    </td>
-                    <td className="table-td text-right tabular-nums">
-                      {dif == null ? <span className="text-ahg-text/30">—</span>
-                        : Math.abs(dif) < 1 ? <span className="text-green-600 font-semibold">✓</span>
-                        : <span className="text-red-600 font-bold">{dif > 0 ? '+' : '−'}{money.format(Math.abs(dif))}</span>}
-                    </td>
-                  </tr>
-                );
-              })}
+                    </span>
+                  </td>
+                  <td className="table-td text-right tabular-nums">{money.format(l.ventas_sistema)}</td>
+                  <td className="table-td text-right tabular-nums">
+                    {l.turnos_reportados ? money.format(l.ventas_reportadas) : <span className="text-ahg-text/30">—</span>}
+                  </td>
+                  <td className="table-td text-right tabular-nums">
+                    {l.turnos_esperados > 0 && !l.completo
+                      ? <span className="text-amber-600 text-xs font-medium">faltan turnos</span>
+                      : l.diferencia == null ? <span className="text-ahg-text/30">—</span>
+                      : Math.abs(l.diferencia) < 1 ? <span className="text-green-600 font-semibold">✓</span>
+                      : <span className="text-red-600 font-bold">
+                          {l.diferencia > 0 ? '+' : '−'}{money.format(Math.abs(l.diferencia))}
+                        </span>}
+                  </td>
+                  <td className="table-td text-right tabular-nums">{l.horas ? l.horas.toFixed(1) : '—'}</td>
+                  <td className="table-td text-right tabular-nums">
+                    {l.gasto_personal ? money.format(l.gasto_personal) : '—'}
+                  </td>
+                  <td className="table-td text-right tabular-nums font-semibold">
+                    {l.horas_sobre_ventas == null ? <span className="text-ahg-text/30 font-normal">—</span>
+                      : <span className={l.horas_sobre_ventas <= l.objetivo ? 'text-green-600' : 'text-red-600'}>
+                          {l.horas_sobre_ventas.toFixed(1)}%
+                        </span>}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
         {/* Explicación por cada local que no cierra */}
         {d.locales.map(l => {
-          const v = form.ventas_fudo[l.local_id];
-          const dif = v === '' || v == null ? null : Number(v) - l.ventas_sistema;
-          if (dif == null || Math.abs(dif) < 1) return null;
+          if (l.diferencia == null || Math.abs(l.diferencia) < 1) return null;
           return (
             <div key={l.local_id} className="mt-3 pl-3 border-l-2 border-red-400">
               <p className="text-xs font-semibold text-red-700 mb-1">
-                {l.nombre} no cierra por $ {money.format(Math.abs(dif))} — explicá qué pasó
+                {l.nombre}: el turno reportó $ {money.format(l.ventas_reportadas)} y el sistema
+                trae $ {money.format(l.ventas_sistema)} — explicá la diferencia
               </p>
               <textarea
                 className="input text-sm" rows={2} disabled={cerrado}

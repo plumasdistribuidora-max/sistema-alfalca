@@ -12,16 +12,23 @@ app.use(cors({
 }));
 app.use(express.json());
 
+const { requireAuth, requireRol, ROLES } = require('./middleware/auth');
+
+// Los módulos de red se cierran acá, a nivel de router. Esconderlos del menú no alcanza:
+// sin esto, un empleado de tienda con su token puede pegarle a /api/red y ver toda la red.
+const soloRed = [requireAuth, requireRol(ROLES.ENCARGADO_GENERAL)];
+
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/locales',   require('./routes/locales'));
+app.use('/api/usuarios',  require('./routes/usuarios'));
 app.use('/api/empleados', require('./routes/empleados'));
-app.use('/api/ventas',    require('./routes/ventas'));
-app.use('/api/productos', require('./routes/productos'));
-app.use('/api/red',      require('./routes/red'));
-app.use('/api/stock',    require('./routes/stock'));
-app.use('/api/imports',  require('./routes/imports'));
-app.use('/api/maestros', require('./routes/maestros'));
-app.use('/api/cashflow', require('./routes/cashflow'));
+app.use('/api/ventas',    soloRed, require('./routes/ventas'));
+app.use('/api/productos', soloRed, require('./routes/productos'));
+app.use('/api/red',       soloRed, require('./routes/red'));
+app.use('/api/stock',     soloRed, require('./routes/stock'));
+app.use('/api/imports',   soloRed, require('./routes/imports'));
+app.use('/api/maestros',  soloRed, require('./routes/maestros'));
+app.use('/api/cashflow',  soloRed, require('./routes/cashflow'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
+import { AREAS, AREA_LABEL, esDeRed } from '../utils/roles';
 
 function Modal({ empleado, locales, onClose, onSaved }) {
   const isEdit   = !!empleado?.id;
-  const [form, setForm]     = useState({ nombre: '', nombre_pos: '', local_id_principal: locales[0]?.id || '', ...empleado });
+  const [form, setForm]     = useState({ nombre: '', nombre_pos: '', local_id_principal: locales[0]?.id || '', area: 'tienda', ...empleado });
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
 
@@ -44,6 +45,13 @@ function Modal({ empleado, locales, onClose, onSaved }) {
               {locales.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
             </select>
           </div>
+          <div>
+            <label className="label">Área</label>
+            <select className="input" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))} required>
+              {AREAS.map(a => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}
+            </select>
+            <p className="text-xs text-stone-400 mt-1">Define qué reporte le toca cargar y qué rol se le propone al crearle el usuario.</p>
+          </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" className="btn-primary flex-1" disabled={loading}>
@@ -64,7 +72,7 @@ export default function Empleados() {
   const [modal, setModal]         = useState(null);
   const [loading, setLoading]     = useState(true);
   const { user }                  = useAuth();
-  const isAdmin                   = user?.rol === 'admin';
+  const puedeEditar               = esDeRed(user);
 
   function load() {
     setLoading(true);
@@ -106,7 +114,7 @@ export default function Empleados() {
             <option value="">Todos los locales</option>
             {locales.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
           </select>
-          {isAdmin && <button onClick={() => setModal({})} className="btn-primary">+ Nuevo empleado</button>}
+          {puedeEditar && <button onClick={() => setModal({})} className="btn-primary">+ Nuevo empleado</button>}
         </div>
       </div>
 
@@ -149,8 +157,10 @@ export default function Empleados() {
                 <th className="table-th">Nombre</th>
                 <th className="table-th">Nombre POS</th>
                 <th className="table-th">Local</th>
+                <th className="table-th">Área</th>
+                <th className="table-th">Usuario</th>
                 <th className="table-th">Estado</th>
-                {isAdmin && <th className="table-th">Acciones</th>}
+                {puedeEditar && <th className="table-th">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -159,12 +169,18 @@ export default function Empleados() {
                   <td className="table-td font-medium">{e.nombre}</td>
                   <td className="table-td font-mono text-xs text-stone-500">{e.nombre_pos}</td>
                   <td className="table-td text-stone-600">{e.local_nombre}</td>
+                  <td className="table-td text-stone-600">{AREA_LABEL[e.area] || e.area}</td>
+                  <td className="table-td text-xs">
+                    {e.usuario_email
+                      ? <span className="text-stone-600">{e.usuario_email}</span>
+                      : <span className="text-stone-400">sin acceso</span>}
+                  </td>
                   <td className="table-td">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${e.activo ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
                       {e.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  {isAdmin && (
+                  {puedeEditar && (
                     <td className="table-td">
                       <div className="flex gap-2">
                         <button onClick={() => setModal(e)} className="text-xs text-ahg-secondary hover:underline">Editar</button>
@@ -177,7 +193,7 @@ export default function Empleados() {
                 </tr>
               ))}
               {!empleados.length && (
-                <tr><td colSpan={5} className="table-td text-center text-stone-400 py-8">Sin empleados cargados. Importá un Excel primero.</td></tr>
+                <tr><td colSpan={7} className="table-td text-center text-stone-400 py-8">Sin empleados cargados. Importá un Excel primero.</td></tr>
               )}
             </tbody>
           </table>

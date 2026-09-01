@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { esDueno, esDeRed, esDeTurno, rolLabel } from '../utils/roles';
 import logo from '../assets/logo.svg';
 
 const ICON = {
@@ -116,43 +117,66 @@ export default function Sidebar({ open, onClose }) {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
 
-          {/* Tiendas — grupo desplegable */}
-          <button
-            onClick={() => setTiendaExpanded(prev => !prev)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-white/70 hover:bg-white/10 hover:text-white"
-          >
-            <span className="text-base w-5 text-center">{ICON.red}</span>
-            <span className="flex-1 text-left">Tiendas</span>
-            <span className={`text-xs inline-block transition-transform duration-200 ${tiendaOpen ? 'rotate-0' : '-rotate-90'}`}>
-              ▾
-            </span>
-          </button>
-
-          {tiendaOpen && (
-            <div className="space-y-0.5 pb-0.5">
-              <SubNavItem to="/red"               icon={ICON.red}      label="Dashboard" />
-              <SubNavItem to="/ventas/importar"   icon={ICON.importar} label="Importar Excel" />
-              <SubNavItem to="/historial-imports" icon={ICON.historial} label="Historial Excel" />
-            </div>
-          )}
-
-          <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
-          <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
-
-          {user?.rol?.toLowerCase() === 'admin' && (
+          {/* Quien solo carga su reporte de turno no ve la red */}
+          {esDeTurno(user) && (
             <>
-              <SectionLabel label="Admin" />
-              <NavItem to="/admin/maestros/docenas" icon={ICON.maestros} label="Maestro de docenas" />
+              <NavItem to="/" icon={ICON.dashboard} label="Mi turno" />
+              <SectionLabel label="Próximamente" />
+              <DisabledItem icon={ICON.listado} label="Cargar mi reporte" badge="Etapa 2" />
             </>
           )}
 
-          <SectionLabel label="Próximamente" />
-          <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />
-          <DisabledItem icon={ICON.personal}  label="Personal"             badge="Fase 5" />
+          {esDeRed(user) && (
+            <>
+              {/* Tiendas — grupo desplegable */}
+              <button
+                onClick={() => setTiendaExpanded(prev => !prev)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-white/70 hover:bg-white/10 hover:text-white"
+              >
+                <span className="text-base w-5 text-center">{ICON.red}</span>
+                <span className="flex-1 text-left">Tiendas</span>
+                <span className={`text-xs inline-block transition-transform duration-200 ${tiendaOpen ? 'rotate-0' : '-rotate-90'}`}>
+                  ▾
+                </span>
+              </button>
+
+              {tiendaOpen && (
+                <div className="space-y-0.5 pb-0.5">
+                  <SubNavItem to="/red"               icon={ICON.red}      label="Dashboard" />
+                  <SubNavItem to="/ventas/importar"   icon={ICON.importar} label="Importar Excel" />
+                  <SubNavItem to="/historial-imports" icon={ICON.historial} label="Historial Excel" />
+                </div>
+              )}
+
+              <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
+              <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
+
+              <SectionLabel label="Equipo" />
+              <NavItem to="/usuarios"  icon={ICON.empleados} label="Usuarios y accesos" />
+              <NavItem to="/empleados" icon={ICON.personal}  label="Empleados" />
+            </>
+          )}
+
+          {esDueno(user) && (
+            <>
+              <SectionLabel label="Admin" />
+              <NavItem to="/admin/maestros/docenas" icon={ICON.maestros} label="Maestro de docenas" />
+              <NavItem to="/locales"                icon={ICON.locales}  label="Locales" />
+            </>
+          )}
+
+          {esDeRed(user) && (
+            <>
+              <SectionLabel label="Próximamente" />
+              <DisabledItem icon={ICON.listado}   label="Reportes diarios"     badge="Etapa 2" />
+              <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />
+            </>
+          )}
         </nav>
 
         <div className="px-4 py-3 border-t border-white/10">
-          <p className="text-xs text-white/30">v1.0.0 — Fase 1</p>
+          <p className="text-xs text-white/50 font-medium truncate">{user?.nombre}</p>
+          <p className="text-xs text-white/30">{rolLabel(user?.rol)}</p>
         </div>
       </aside>
     </>

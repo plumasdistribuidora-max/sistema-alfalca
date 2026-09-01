@@ -17,6 +17,9 @@ import RedDashboard             from './pages/red/RedDashboard';
 import StockInteligente        from './pages/stock/StockInteligente';
 import FinanzasPage            from './pages/finanzas/FinanzasPage';
 import MaestroDocenasPage      from './pages/admin/MaestroDocenasPage';
+import UsuariosPage           from './pages/admin/UsuariosPage';
+import MiTurno                from './pages/MiTurno';
+import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -28,6 +31,21 @@ function PrivateRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+// Quien no tiene el rol vuelve a su inicio en vez de ver una pantalla que no le corresponde.
+function RolRoute({ permitido, children }) {
+  const { user } = useAuth();
+  return permitido(user) ? children : <Navigate to="/" replace />;
+}
+
+const soloRed   = children => <RolRoute permitido={esDeRed}>{children}</RolRoute>;
+const soloDueno = children => <RolRoute permitido={esDueno}>{children}</RolRoute>;
+
+// Quien solo carga su reporte de turno ve su propia pantalla, no el dashboard de la red.
+function Inicio() {
+  const { user } = useAuth();
+  return esDeTurno(user) ? <MiTurno /> : <Home />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -35,21 +53,22 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Home />} />
-            <Route path="locales"              element={<Locales />} />
-            <Route path="empleados"            element={<Empleados />} />
-            <Route path="ventas/importar"      element={<VentasImportar />} />
-            <Route path="ventas/listado"       element={<VentasListado />} />
-            <Route path="ventas/dashboard"     element={<VentasDashboard />} />
-            <Route path="ventas/comparativo"   element={<VentasComparativo />} />
-            <Route path="historial-imports"              element={<HistorialImports />} />
-            <Route path="ventas/productos/docenas"       element={<DocenasAnalisisPage />} />
-            <Route path="ventas/productos/empleados"     element={<DocenasPorEmpleadoPage />} />
-            <Route path="ventas/productos/catalogo"      element={<CatalogoPage />} />
-            <Route path="red"                            element={<RedDashboard />} />
-            <Route path="stock"                          element={<StockInteligente />} />
-            <Route path="finanzas"                       element={<FinanzasPage />} />
-            <Route path="admin/maestros/docenas"         element={<MaestroDocenasPage />} />
+            <Route index element={<Inicio />} />
+            <Route path="locales"              element={soloDueno(<Locales />)} />
+            <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
+            <Route path="empleados"            element={soloRed(<Empleados />)} />
+            <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />
+            <Route path="ventas/listado"       element={soloRed(<VentasListado />)} />
+            <Route path="ventas/dashboard"     element={soloRed(<VentasDashboard />)} />
+            <Route path="ventas/comparativo"   element={soloRed(<VentasComparativo />)} />
+            <Route path="historial-imports"              element={soloRed(<HistorialImports />)} />
+            <Route path="ventas/productos/docenas"       element={soloRed(<DocenasAnalisisPage />)} />
+            <Route path="ventas/productos/empleados"     element={soloRed(<DocenasPorEmpleadoPage />)} />
+            <Route path="ventas/productos/catalogo"      element={soloRed(<CatalogoPage />)} />
+            <Route path="red"                            element={soloRed(<RedDashboard />)} />
+            <Route path="stock"                          element={soloRed(<StockInteligente />)} />
+            <Route path="finanzas"                       element={soloRed(<FinanzasPage />)} />
+            <Route path="admin/maestros/docenas"         element={soloDueno(<MaestroDocenasPage />)} />
           </Route>
         </Routes>
       </BrowserRouter>

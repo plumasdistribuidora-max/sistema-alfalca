@@ -51,9 +51,8 @@ function Novedades({ titulo, items, render, tono = 'amber' }) {
   );
 }
 
-export default function Consolidado() {
+export default function CierreDelDia({ fecha, onCambio }) {
   const { user } = useAuth();
-  const [fecha, setFecha] = useState(hoyStr());
   const [d, setD]         = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -124,7 +123,7 @@ export default function Consolidado() {
       clearTimeout(debounce.current);
       await guardar(form);
       await api.post('/consolidado/cerrar', { fecha });
-      cargar();
+      cargar(); onCambio?.();
     } catch (err) {
       const dd = err.response?.data;
       if (dd?.data?.faltan) setFaltan(dd.data.faltan);
@@ -138,7 +137,7 @@ export default function Consolidado() {
     if (!confirm('¿Reabrir el día para que el encargado pueda corregirlo?')) return;
     try {
       await api.post('/consolidado/reabrir', { fecha });
-      cargar();
+      cargar(); onCambio?.();
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo reabrir');
     }
@@ -152,27 +151,7 @@ export default function Consolidado() {
     : t.horas_sobre_ventas <= 16 ? 'bueno' : 'alerta';
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      <div className="rounded-2xl px-6 py-5" style={{ background: '#4C1D95' }}>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Nunito, sans-serif' }}>
-              Consolidado diario
-            </h1>
-            <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>
-              {FECHA_LARGA.format(new Date(`${fecha}T12:00:00`))}
-            </p>
-          </div>
-          {cerrado && (
-            <span className="bg-green-400 text-green-950 text-xs font-semibold px-3 py-1 rounded-full">
-              Cerrado
-            </span>
-          )}
-        </div>
-      </div>
-
-      <input type="date" className="input w-auto" value={fecha} onChange={e => setFecha(e.target.value)} />
-
+    <div className="space-y-5">
       {error && <div className="card px-4 py-3 border-red-300 bg-red-50 text-red-700 text-sm">{error}</div>}
 
       {faltan.length > 0 && (

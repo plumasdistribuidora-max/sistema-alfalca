@@ -19,8 +19,7 @@ import FinanzasPage            from './pages/finanzas/FinanzasPage';
 import MaestroDocenasPage      from './pages/admin/MaestroDocenasPage';
 import UsuariosPage           from './pages/admin/UsuariosPage';
 import MiReporte              from './pages/reportes/MiReporte';
-import Bandeja                from './pages/reportes/Bandeja';
-import Consolidado            from './pages/reportes/Consolidado';
+import Reportes               from './pages/reportes/Reportes';
 import KpiPage                from './pages/kpi/KpiPage';
 import ValorHoraPage          from './pages/admin/ValorHoraPage';
 import FormulariosPage        from './pages/admin/FormulariosPage';
@@ -61,8 +60,7 @@ export default function App() {
             <Route index element={<Inicio />} />
             <Route path="locales"              element={soloDueno(<Locales />)} />
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
-            <Route path="reportes"             element={soloRed(<Bandeja />)} />
-            <Route path="consolidado"          element={soloRed(<Consolidado />)} />
+            <Route path="reportes"             element={soloRed(<Reportes />)} />
             <Route path="kpi"                  element={soloRed(<KpiPage />)} />
             <Route path="valor-hora"           element={soloRed(<ValorHoraPage />)} />
             <Route path="formularios"          element={soloRed(<FormulariosPage />)} />

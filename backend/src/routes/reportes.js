@@ -533,30 +533,90 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /bandeja ──────────────────────────────────────────────────────────────
+// ── GET /dia ──────────────────────────────────────────────────────────────────
+// Todos los reportes que TENDRÍAN que existir ese día, con o sin carga. Mostrar
+// solo los que llegaron esconde justamente lo que hay que ver: el que falta.
+//
+// Cada tienda espera 2 (mañana y tarde); el café espera 4 (café y cocina, en los
+// dos turnos). Sale de las áreas que tienen gente cargando reportes en cada local
+// cruzadas con los turnos de su plantilla.
 
-router.get('/bandeja', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
+router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
   try {
     const fecha = req.query.fecha || hoyStr();
-    const { rows } = await pool.query(`
-      SELECT r.id, r.plantilla_codigo, r.fecha, r.turno, r.estado, r.enviado_at, r.respuestas,
-             l.nombre AS local_nombre, u.nombre AS usuario_nombre,
-             e.puesto AS usuario_puesto,
-             p.nombre AS plantilla_nombre,
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      return res.status(400).json({ ok: false, error: 'Fecha inválida' });
+    }
+
+    const locales = (await pool.query(
+      'SELECT id, nombre, tipo FROM locales WHERE activo = true ORDER BY id'
+    )).rows;
+
+    const plantillas = (await pool.query(
+      'SELECT codigo, nombre, area, campos FROM reporte_plantillas WHERE activo = true'
+    )).rows;
+
+    const areasPorLocal = (await pool.query(`
+      SELECT DISTINCT local_id_principal AS local_id, area
+      FROM empleados WHERE activo = true AND carga_reporte = true
+    `)).rows;
+
+    const cargados = (await pool.query(`
+      SELECT r.id, r.plantilla_codigo, r.turno, r.estado, r.local_id, r.enviado_at,
+             u.nombre AS usuario_nombre, e.puesto AS usuario_puesto,
              (SELECT COUNT(*)::int FROM reporte_adjuntos a WHERE a.reporte_id = r.id) AS fotos,
              (SELECT COUNT(*)::int FROM facturas f WHERE f.reporte_id = r.id)         AS facturas
       FROM reportes r
-      JOIN locales l ON l.id = r.local_id
       JOIN usuarios u ON u.id = r.usuario_id
       LEFT JOIN empleados e ON e.id = u.empleado_id
-      JOIN reporte_plantillas p ON p.codigo = r.plantilla_codigo
-      WHERE r.fecha = $1 AND r.estado <> 'borrador'
-      ORDER BY l.nombre, r.turno, r.id
-    `, [fecha]);
-    res.json({ ok: true, data: { fecha, reportes: rows } });
+      WHERE r.fecha = $1
+    `, [fecha])).rows;
+
+    const filas = locales.map(local => {
+      const areas = areasPorLocal.filter(a => a.local_id === local.id).map(a => a.area);
+      const slots = [];
+
+      for (const area of areas) {
+        const p = plantillas.find(x => x.area === area);
+        if (!p) continue;
+        const turnos = p.campos.find(c => c.codigo === 'turno')?.opciones || ['Único'];
+        for (const turno of turnos) {
+          const reporte = cargados.find(r =>
+            r.local_id === local.id && r.plantilla_codigo === p.codigo && r.turno === turno
+          ) || null;
+          slots.push({
+            plantilla_codigo: p.codigo,
+            plantilla_nombre: p.nombre,
+            turno,
+            // Un borrador todavía no llegó: para el encargado equivale a sin cargar,
+            // pero se distingue porque alguien ya lo empezó.
+            estado: reporte ? reporte.estado : 'sin_cargar',
+            reporte,
+          });
+        }
+      }
+
+      const recibidos = slots.filter(s => ['enviado', 'observado', 'aprobado'].includes(s.estado)).length;
+      return {
+        local_id: local.id, nombre: local.nombre, tipo: local.tipo,
+        esperados: slots.length, recibidos, slots,
+      };
+    });
+
+    const consolidado = (await pool.query(
+      'SELECT fecha::text, estado, cerrado_at, vencimientos_ok, control_tienda_ok FROM consolidados WHERE fecha = $1',
+      [fecha]
+    )).rows[0] || null;
+
+    const totales = filas.reduce((t, l) => ({
+      esperados: t.esperados + l.esperados,
+      recibidos: t.recibidos + l.recibidos,
+    }), { esperados: 0, recibidos: 0 });
+
+    res.json({ ok: true, data: { fecha, locales: filas, totales, consolidado } });
   } catch (err) {
-    console.error('[reportes/bandeja]', err);
-    res.status(500).json({ ok: false, error: 'Error al obtener la bandeja' });
+    console.error('[reportes/dia]', err);
+    res.status(500).json({ ok: false, error: 'Error al armar el día' });
   }
 });
 

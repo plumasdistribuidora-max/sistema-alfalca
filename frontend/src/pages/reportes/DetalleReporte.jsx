@@ -2,19 +2,6 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-const ESTADO_ESTILO = {
-  enviado:   'bg-amber-100 text-amber-800',
-  observado: 'bg-red-100 text-red-700',
-  aprobado:  'bg-green-100 text-green-700',
-};
-const ESTADO_LABEL = { enviado: 'Sin revisar', observado: 'Devuelto', aprobado: 'Aprobado' };
-
-function hoyStr() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-}
 
 function Foto({ id }) {
   const [url, setUrl] = useState(null);
@@ -88,7 +75,7 @@ function Respuesta({ campo, valor, equipo }) {
   );
 }
 
-function Detalle({ id, onCerrar, onRevisado }) {
+export default function DetalleReporte({ id, onCerrar, onRevisado }) {
   const [r, setR] = useState(null);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -205,81 +192,3 @@ function Detalle({ id, onCerrar, onRevisado }) {
   );
 }
 
-export default function Bandeja() {
-  const [fecha, setFecha]   = useState(hoyStr());
-  const [datos, setDatos]   = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError]   = useState('');
-  const [abierto, setAbierto] = useState(null);
-
-  function cargar() {
-    setCargando(true);
-    api.get('/reportes/bandeja', { params: { fecha } })
-      .then(r => { setDatos(r.data.data.reportes); setError(''); })
-      .catch(err => setError(err.response?.data?.error || 'No se pudo cargar la bandeja'))
-      .finally(() => setCargando(false));
-  }
-
-  useEffect(cargar, [fecha]);
-
-  const sinRevisar = datos.filter(r => r.estado === 'enviado').length;
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl px-6 py-5" style={{ background: '#4C1D95' }}>
-        <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Nunito, sans-serif' }}>
-          Reportes del día
-        </h1>
-        <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>
-          Lo que cargaron los turnos
-        </p>
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <input type="date" className="input w-auto" value={fecha} onChange={e => setFecha(e.target.value)} />
-        <p className="text-sm text-ahg-text/60">
-          {FECHA_LARGA.format(new Date(`${fecha}T12:00:00`))}
-          {sinRevisar > 0 && <> · <strong className="text-amber-700">{sinRevisar} sin revisar</strong></>}
-        </p>
-      </div>
-
-      {error && <div className="card px-4 py-3 border-red-300 bg-red-50 text-red-700 text-sm">{error}</div>}
-
-      {cargando ? (
-        <p className="text-sm text-ahg-text/50">Cargando…</p>
-      ) : !datos.length ? (
-        <div className="card p-8 text-center">
-          <p className="text-sm text-ahg-text/50">Todavía no llegó ningún reporte de este día.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {datos.map(r => (
-            <button
-              key={r.id}
-              onClick={() => setAbierto(r.id)}
-              className="card w-full p-4 text-left hover:border-ahg-primary transition-colors flex items-center gap-4"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-ahg-text">{r.local_nombre}</p>
-                <p className="text-sm text-ahg-text/60">
-                  {r.usuario_nombre}{r.usuario_puesto && <span className="capitalize"> · {r.usuario_puesto}</span>} · turno {r.turno.toLowerCase()}
-                </p>
-                <p className="text-xs text-ahg-text/40 mt-0.5">
-                  {r.fotos} foto{r.fotos === 1 ? '' : 's'}
-                  {r.facturas > 0 && ` · ${r.facturas} factura${r.facturas === 1 ? '' : 's'}`}
-                </p>
-              </div>
-              <span className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-full flex-shrink-0 ${ESTADO_ESTILO[r.estado]}`}>
-                {ESTADO_LABEL[r.estado]}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {abierto && (
-        <Detalle id={abierto} onCerrar={() => setAbierto(null)} onRevisado={cargar} />
-      )}
-    </div>
-  );
-}

@@ -144,6 +144,7 @@ export default function Sidebar({ open, onClose }) {
                 </div>
               )}
 
+              <NavItem to="/mensual"     icon={ICON.comparar}  label="El mes por local" />
               <NavItem to="/consolidado" icon={ICON.dashboard} label="Consolidado diario" />
               <NavItem to="/reportes"    icon={ICON.listado}   label="Reportes del día" />
               <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />

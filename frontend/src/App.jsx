@@ -21,6 +21,7 @@ import UsuariosPage           from './pages/admin/UsuariosPage';
 import MiReporte              from './pages/reportes/MiReporte';
 import Bandeja                from './pages/reportes/Bandeja';
 import Consolidado            from './pages/reportes/Consolidado';
+import Mensual                from './pages/reportes/Mensual';
 import ValorHoraPage          from './pages/admin/ValorHoraPage';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Bandeja />)} />
             <Route path="consolidado"          element={soloRed(<Consolidado />)} />
+            <Route path="mensual"              element={soloRed(<Mensual />)} />
             <Route path="valor-hora"           element={soloRed(<ValorHoraPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />
             <Route path="empleados"            element={soloRed(<Empleados />)} />

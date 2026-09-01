@@ -61,20 +61,6 @@ function SubNavItem({ to, icon, label }) {
   );
 }
 
-function DisabledItem({ icon, label, badge }) {
-  return (
-    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-white/30 cursor-not-allowed select-none">
-      <span className="text-base w-5 text-center">{icon}</span>
-      <span>{label}</span>
-      {badge && (
-        <span className="ml-auto text-xs bg-white/10 text-white/40 px-1.5 py-0.5 rounded-full">
-          {badge}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function SectionLabel({ label }) {
   return <p className="px-3 pt-4 pb-1 text-xs font-semibold text-white/40 uppercase tracking-widest">{label}</p>;
 }
@@ -124,6 +110,13 @@ export default function Sidebar({ open, onClose }) {
 
           {esDeRed(user) && (
             <>
+              <SectionLabel label="El día" />
+              <NavItem to="/consolidado" icon={ICON.dashboard} label="Consolidado diario" />
+              <NavItem to="/reportes"    icon={ICON.listado}   label="Reportes del día" />
+
+              <SectionLabel label="Análisis" />
+              <NavItem to="/kpi" icon={ICON.comparar} label="KPI" />
+
               {/* Tiendas — grupo desplegable */}
               <button
                 onClick={() => setTiendaExpanded(prev => !prev)}
@@ -135,41 +128,30 @@ export default function Sidebar({ open, onClose }) {
                   ▾
                 </span>
               </button>
-
               {tiendaOpen && (
                 <div className="space-y-0.5 pb-0.5">
-                  <SubNavItem to="/red"               icon={ICON.red}      label="Dashboard" />
-                  <SubNavItem to="/ventas/importar"   icon={ICON.importar} label="Importar Excel" />
+                  <SubNavItem to="/red"               icon={ICON.red}       label="Dashboard" />
+                  <SubNavItem to="/ventas/importar"   icon={ICON.importar}  label="Importar Excel" />
                   <SubNavItem to="/historial-imports" icon={ICON.historial} label="Historial Excel" />
                 </div>
               )}
 
-              <NavItem to="/mensual"     icon={ICON.comparar}  label="El mes por local" />
-              <NavItem to="/consolidado" icon={ICON.dashboard} label="Consolidado diario" />
-              <NavItem to="/reportes"    icon={ICON.listado}   label="Reportes del día" />
               <NavItem to="/stock"    icon={ICON.stock}    label="Stock inteligente" />
               <NavItem to="/finanzas" icon={ICON.finanzas} label="Finanzas" />
 
               <SectionLabel label="Equipo" />
-              <NavItem to="/usuarios"  icon={ICON.empleados} label="Usuarios y accesos" />
-              <NavItem to="/empleados" icon={ICON.personal}  label="Empleados" />
-              <NavItem to="/valor-hora"   icon={ICON.cashflow} label="Valor hora" />
-              <NavItem to="/formularios"  icon={ICON.catalogo} label="Formularios" />
+              <NavItem to="/usuarios"   icon={ICON.empleados} label="Usuarios y accesos" />
+              <NavItem to="/empleados"  icon={ICON.personal}  label="Empleados" />
+              <NavItem to="/valor-hora" icon={ICON.cashflow}  label="Valor hora" />
             </>
           )}
 
           {esDueno(user) && (
             <>
-              <SectionLabel label="Admin" />
+              <SectionLabel label="Configuración" />
+              <NavItem to="/formularios"            icon={ICON.catalogo} label="Formularios" />
               <NavItem to="/admin/maestros/docenas" icon={ICON.maestros} label="Maestro de docenas" />
               <NavItem to="/locales"                icon={ICON.locales}  label="Locales" />
-            </>
-          )}
-
-          {esDeRed(user) && (
-            <>
-              <SectionLabel label="Próximamente" />
-              <DisabledItem icon={ICON.benchmark} label="Benchmark Franquicia" badge="Fase 4" />
             </>
           )}
         </nav>

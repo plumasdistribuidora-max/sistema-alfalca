@@ -3,13 +3,11 @@ import logo from '../../assets/logo.svg';
 import api from '../../api';
 import ResumenSection  from './secciones/ResumenSection';
 import TiendasSection  from './secciones/TiendasSection';
-import MesesSection    from './secciones/MesesSection';
 import AnalisisSection from './secciones/AnalisisSection';
 
 const TABS = [
   { id: 'resumen',  label: 'Resumen'  },
   { id: 'tiendas', label: 'Tiendas'  },
-  { id: 'meses',   label: 'Meses'    },
   { id: 'analisis',label: 'Análisis' },
 ];
 
@@ -107,7 +105,6 @@ export default function RedDashboard() {
       {/* ── Contenido del tab activo ────────────────────────────────────────── */}
       {activeTab === 'resumen'  && <ResumenSection />}
       {activeTab === 'tiendas' && <TiendasSection />}
-      {activeTab === 'meses'   && <MesesSection />}
       {activeTab === 'analisis' && <AnalisisSection />}
     </div>
   );

@@ -1,10 +1,12 @@
 // ── Paleta por tienda (consistente en todos los gráficos) ───────────────────
-// Paleta categórica validada: cinco tonos distintos, no cinco pasos del mismo
-// violeta. La escala monocroma anterior era imposible de leer en un apilado.
-// Verificada con el validador de dataviz sobre fondo claro — pasa banda de
-// luminosidad, piso de croma, separación para daltonismo y piso de visión
-// normal en pares adyacentes. De ahí que el ORDEN sea fijo y no por ranking:
-// los pares que se validaron son los que quedan pegados en el gráfico.
+// Tomada del tablero "Entre Dos" que eligió Martín: azul, verde, ámbar, azul
+// claro y marrón. Tres de los cinco quedaron tal cual la foto; el gris azulado
+// de Sheraton y el marrón del Café tuvieron que moverse un poco — el gris casi
+// no tenía color (croma 0,04) y se leía gris, y el marrón caía por debajo de la
+// banda de luminosidad. Con ese ajuste la paleta pasa los cuatro chequeos.
+//
+// El ORDEN es fijo y no por ranking: los pares validados son los que quedan
+// pegados en el apilado, y así los dos azules nunca se tocan.
 export const TIENDA_ORDEN = [
   'Peatonal Tienda de Alfajores',
   '9 de Julio Tienda de Alfajores',
@@ -14,15 +16,15 @@ export const TIENDA_ORDEN = [
 ];
 
 export const TIENDA_COLORS = {
-  'Peatonal Tienda de Alfajores':   '#2a78d6', // azul
-  '9 de Julio Tienda de Alfajores': '#eb6834', // naranja
-  'Amigorena Tienda de Alfajores':  '#1baf7a', // aqua
-  'Sheraton Tienda de Alfajores':   '#eda100', // amarillo
-  'Café Peatonal Cafetería':        '#e87ba4', // magenta
+  'Peatonal Tienda de Alfajores':   '#4b7fb5', // azul
+  '9 de Julio Tienda de Alfajores': '#227d5a', // verde
+  'Amigorena Tienda de Alfajores':  '#c6832e', // ámbar
+  'Sheraton Tienda de Alfajores':   '#6aabde', // azul claro
+  'Café Peatonal Cafetería':        '#794106', // marrón
 };
 
 // Slots libres para una tienda que todavía no esté en el mapa.
-export const TIENDA_FALLBACK = ['#008300', '#4a3aa7', '#e34948'];
+export const TIENDA_FALLBACK = ['#7a4f9c', '#9c2f2f', '#4f6b1f'];
 
 export function colorDeTienda(nombre, idx = 0) {
   return TIENDA_COLORS[nombre] ?? TIENDA_FALLBACK[idx % TIENDA_FALLBACK.length];

@@ -115,7 +115,7 @@ async function queryQuincenal(hasta) {
       SELECT vi.local_id,
         COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
       FROM ventas_items vi CROSS JOIN meta m
-      WHERE vi.local_id IN (SELECT id FROM locales WHERE es_alfajorera = true AND activo = true)
+      WHERE vi.local_id IN (SELECT id FROM locales WHERE activo = true)
         AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') >= m.mes_ini
         AND EXTRACT(DAY FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')::date) <= m.n_dias
       GROUP BY vi.local_id
@@ -124,7 +124,7 @@ async function queryQuincenal(hasta) {
       SELECT vi.local_id,
         COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
       FROM ventas_items vi CROSS JOIN meta m
-      WHERE vi.local_id IN (SELECT id FROM locales WHERE es_alfajorera = true AND activo = true)
+      WHERE vi.local_id IN (SELECT id FROM locales WHERE activo = true)
         AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') >= m.mes_ant_ini
         AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') < m.mes_ini
         AND EXTRACT(DAY FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')::date) <= m.n_dias
@@ -396,11 +396,13 @@ router.get('/resumen', requireAuth, async (req, res) => {
         ORDER BY facturacion DESC
       `, p),
 
-      // Docenas totales (solo alfajoreras)
+      // Docenas totales — incluye la cafetería: también vende productos que suman
       pool.query(`
-        SELECT COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
+        SELECT
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas,
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada AND l.es_alfajorera), 0) AS docenas_alfajoreras
         FROM ventas_items vi
-        JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true
         WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
       `, p),
 
@@ -431,8 +433,12 @@ router.get('/resumen', requireAuth, async (req, res) => {
     const factRows = factRes.rows;
     const facturacion_total = factRows.reduce((s, r) => s + n(r.facturacion), 0);
     const fact_alfajoreras  = factRows.filter(r => r.es_alfajorera).reduce((s, r) => s + n(r.facturacion), 0);
-    const docenas_totales   = n(docRes.rows[0]?.docenas);
-    const precio_implicito_docena = docenas_totales > 0 ? Math.round(fact_alfajoreras / docenas_totales) : null;
+    const docenas_totales     = n(docRes.rows[0]?.docenas);
+    const docenas_alfajoreras = n(docRes.rows[0]?.docenas_alfajoreras);
+    // El precio implícito se calcula solo sobre tiendas: la facturación del café
+    // es mayormente cafetería, mezclarla distorsionaría el valor de la docena.
+    const precio_implicito_docena = docenas_alfajoreras > 0
+      ? Math.round(fact_alfajoreras / docenas_alfajoreras) : null;
 
     const mesesEvol   = [...new Set(evolRes.rows.map(r => r.mes))].sort();
     const tiendaOrden = factRows.map(r => r.nombre); // ya viene ORDER BY facturacion DESC
@@ -453,6 +459,8 @@ router.get('/resumen', requireAuth, async (req, res) => {
       data: {
         facturacion_total:       Math.round(facturacion_total),
         docenas_totales:         Math.round(docenas_totales * 100) / 100,
+        docenas_alfajoreras:     Math.round(docenas_alfajoreras * 100) / 100,
+        docenas_cafeteria:       Math.round((docenas_totales - docenas_alfajoreras) * 100) / 100,
         precio_implicito_docena,
         unidad_lider: factRows[0] ? {
           nombre:      factRows[0].nombre,
@@ -687,7 +695,7 @@ router.get('/docenas-mensuales', requireAuth, async (req, res) => {
         TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
         COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS valor
       FROM ventas_items vi
-      JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
+      JOIN locales l ON l.id = vi.local_id AND l.activo = true
       WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
       GROUP BY l.id, l.nombre, mes
       ORDER BY mes, l.nombre
@@ -755,7 +763,7 @@ router.get('/tiendas-comparativo', requireAuth, async (req, res) => {
         SELECT l.id, l.nombre,
           COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
         FROM ventas_items vi
-        JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true
           ${tiendaFilter}
         WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
           ${mesesNum.length ? `AND EXTRACT(MONTH FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')) = ANY($${tiendaIds.length ? 4 : 3}::int[])` : ''}
@@ -772,14 +780,14 @@ router.get('/tiendas-comparativo', requireAuth, async (req, res) => {
       `, params),
 
       pool.query(`
-        SELECT l.nombre,
+        SELECT l.nombre, l.es_alfajorera,
           TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
           COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS valor
         FROM ventas_items vi
-        JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true ${tiendaFilter}
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true ${tiendaFilter}
         WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
           ${mesesNum.length ? `AND EXTRACT(MONTH FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')) = ANY($${tiendaIds.length ? 4 : 3}::int[])` : ''}
-        GROUP BY l.nombre, mes ORDER BY mes, l.nombre
+        GROUP BY l.nombre, l.es_alfajorera, mes ORDER BY mes, l.nombre
       `, params),
     ]);
 
@@ -875,17 +883,17 @@ router.get('/mes-detalle', requireAuth, async (req, res) => {
         SELECT vi.local_id,
           COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
         FROM ventas_items vi
-        JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true
         WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
         GROUP BY vi.local_id
       `, [desde, hasta]),
 
-      // Docenas acumuladas del año por mes (solo alfajoreras)
+      // Docenas acumuladas del año por mes (todas las unidades)
       pool.query(`
         SELECT TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
                COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
         FROM ventas_items vi
-        JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true
         WHERE EXTRACT(YEAR FROM (vi.fecha_creacion AT TIME ZONE '${TZ}')) = $1
         GROUP BY mes ORDER BY mes
       `, [anio]),
@@ -955,7 +963,7 @@ router.get('/analisis', requireAuth, async (req, res) => {
           TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
           COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS valor
         FROM ventas_items vi
-        JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = true AND l.activo = true
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true
         WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
         GROUP BY l.nombre, mes ORDER BY mes, l.nombre
       `, p),
@@ -987,12 +995,17 @@ router.get('/analisis', requireAuth, async (req, res) => {
     const allMeses   = [...new Set(factRows.map(r => r.mes))].sort();
     const mesesComp  = allMeses.filter(m => m < mesActual);   // meses completos
 
-    // ── Totales de docenas por mes (alfajoreras) ─────────────────────────────
+    // ── Totales de docenas por mes (todas las unidades) ──────────────────────
     const docMeses = [...new Set(docRows.map(r => r.mes))].sort();
-    const docTotPorMes = {};
-    docRows.forEach(r => { docTotPorMes[r.mes] = (docTotPorMes[r.mes] || 0) + n(r.valor); });
+    const docTotPorMes  = {};
+    const docAlfaPorMes = {};   // solo tiendas, para el precio por docena
+    docRows.forEach(r => {
+      docTotPorMes[r.mes] = (docTotPorMes[r.mes] || 0) + n(r.valor);
+      if (r.es_alfajorera) docAlfaPorMes[r.mes] = (docAlfaPorMes[r.mes] || 0) + n(r.valor);
+    });
 
-    const docenas_acumuladas = docMeses.reduce((s, m) => s + (docTotPorMes[m] || 0), 0);
+    const docenas_acumuladas   = docMeses.reduce((s, m) => s + (docTotPorMes[m]  || 0), 0);
+    const docenas_alfajoreras  = docMeses.reduce((s, m) => s + (docAlfaPorMes[m] || 0), 0);
 
     // Facturación alfajoreras por mes (para precio/docena)
     const factAlfaMes = {};
@@ -1004,9 +1017,10 @@ router.get('/analisis', requireAuth, async (req, res) => {
     const docenas_tendencia = {
       meses:          docMeses,
       docenas_totales: docMeses.map(m => Math.round((docTotPorMes[m] || 0) * 100) / 100),
+      // Tiendas contra tiendas: la facturación del café es mayormente cafetería.
       precio_por_docena: docMeses.map(m => {
-        const doc  = docTotPorMes[m] || 0;
-        const fact = factAlfaMes[m] || 0;
+        const doc  = docAlfaPorMes[m] || 0;
+        const fact = factAlfaMes[m]   || 0;
         return doc > 0 ? Math.round(fact / doc) : null;
       }),
     };
@@ -1016,8 +1030,8 @@ router.get('/analisis', requireAuth, async (req, res) => {
     const fact_alfajoreras  = factRows
       .filter(r => r.es_alfajorera)
       .reduce((s, r) => s + n(r.valor), 0);
-    const precio_implicito_docena = docenas_acumuladas > 0
-      ? Math.round(fact_alfajoreras / docenas_acumuladas) : null;
+    const precio_implicito_docena = docenas_alfajoreras > 0
+      ? Math.round(fact_alfajoreras / docenas_alfajoreras) : null;
 
     // Crecimiento promedio mensual (meses completos consecutivos)
     const monthlyTotals = mesesComp.map(mes =>

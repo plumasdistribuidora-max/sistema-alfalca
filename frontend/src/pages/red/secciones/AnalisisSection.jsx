@@ -102,8 +102,8 @@ export default function AnalisisSection() {
       {/* 6 KPIs estratégicos */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KpiCard accent label="Facturación total red" value={fmtM(kpis.facturacion_total)} sub="Ene–May 2026 · todas las unidades" />
-        <KpiCard       label="Docenas acumuladas"    value={fmtDoc(kpis.docenas_acumuladas)} sub="Solo tiendas alfajoreras" />
-        <KpiCard       label="Precio implícito/docena" value={kpis.precio_implicito_docena ? fmtARS(kpis.precio_implicito_docena) : '—'} sub="Facturación alfajoreras / docenas" />
+        <KpiCard       label="Docenas acumuladas"    value={fmtDoc(kpis.docenas_acumuladas)} sub="Tiendas y cafetería" />
+        <KpiCard       label="Precio implícito/docena" value={kpis.precio_implicito_docena ? fmtARS(kpis.precio_implicito_docena) : '—'} sub="Facturación y docenas de tiendas" />
         <KpiCard       label="Tickets totales"       value={fmtNum(kpis.tickets_totales)} sub={`Prom ticket ${fmtARS(kpis.ticket_promedio)}`} />
         <KpiCard
           label="Crecimiento prom mensual"
@@ -150,7 +150,7 @@ export default function AnalisisSection() {
       {docChartData.length > 0 && (
         <div className="card p-5">
           <h2 className="font-semibold text-stone-800 mb-1">Docenas mensuales · tendencia red</h2>
-          <p className="text-xs text-stone-400 mb-4">Barras: docenas totales alfajoreras · Línea: precio implícito por docena</p>
+          <p className="text-xs text-stone-400 mb-4">Barras: docenas totales de la red · Línea: precio implícito por docena en tiendas</p>
           <div style={{ height: 250 }}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={docChartData} margin={{ top: 5, right: 40, left: 5, bottom: 5 }}>

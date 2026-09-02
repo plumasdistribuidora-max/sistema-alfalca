@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import api from '../../../api';
 import {
-  fmtM, fmtNum, fmtDoc, fmtPct, fmtARS,
+  fmtNum, fmtDoc, fmtPct, fmtARS,
   colorDeTienda, shortName, ordenarTiendas, yearRange,
   rangosRapidos, fmtRango,
 } from '../redUtils';
@@ -21,8 +21,6 @@ function fmtMesLabelFull(yyyymm) { if (!yyyymm) return ''; const [y, m] = yyyymm
 // El fondo de la tarjeta: los apilados llevan un hilo de este color entre
 // segmentos para que dos tiendas contiguas nunca se toquen.
 const SURFACE = '#ffffff';
-
-const fmtDocRedondo = v => Math.round(Number(v) || 0).toLocaleString('es-AR');
 
 // ── Componentes UI ──────────────────────────────────────────────────────────
 
@@ -168,7 +166,7 @@ function FiltroPeriodo({ desde, hasta, onChange }) {
 
 // Las filas de métrica de cada tarjeta, según tipo de tienda
 function filasDe(t) {
-  const base = [{ key: 'facturacion', label: 'Facturación', fmt: fmtM, m: t.facturacion }];
+  const base = [{ key: 'facturacion', label: 'Facturación', fmt: fmtARS, m: t.facturacion }];
   if (t.es_alfajorera) {
     return [...base,
       { key: 'tickets',     label: 'Tickets',     fmt: fmtNum, m: t.tickets     },
@@ -194,6 +192,7 @@ export default function ResumenSection() {
   const [compError,   setCompError]   = useState(null);
   const [periodo,     setPeriodo]     = useState(() => rangosRapidos()[0]);
 
+  const [modalVentas, setModalVentas] = useState(null);
   const [modalDoc,    setModalDoc]    = useState(null);
   const [modalLocal,  setModalLocal]  = useState(null);
   const [detalle,     setDetalle]     = useState(null);
@@ -223,7 +222,11 @@ export default function ResumenSection() {
   }, [periodo.desde, periodo.hasta]);
 
   useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') setModalDoc(null); }
+    function onKey(e) {
+      if (e.key !== 'Escape') return;
+      setModalDoc(null);
+      setModalVentas(null);
+    }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -289,6 +292,30 @@ export default function ResumenSection() {
   const totalesVentas = totalesPorMes(ventasBarData, clavesVentas);
   const totalesDoc    = totalesPorMes(docBarData, clavesDoc);
 
+  // El detalle del mes sale de evolucion_mensual, que ya trae el monto exacto
+  // por tienda: no hace falta ir de nuevo al backend.
+  function handleVentasClick(payload) {
+    const mesRaw = payload?.activePayload?.[0]?.payload?.mes_raw;
+    if (!mesRaw) return;
+    const fila = (data.evolucion_mensual || []).find(r => r.mes === mesRaw);
+    if (!fila) return;
+    const total = Object.values(fila.por_tienda).reduce((a, b) => a + Number(b || 0), 0);
+    const docsMes = Object.fromEntries(
+      seriesDoc.map(sd => [sd.tienda, sd.por_mes?.[mesRaw] || 0])
+    );
+    setModalVentas({
+      mes: mesRaw,
+      mesLabel: fmtMesLabelFull(mesRaw),
+      total,
+      filas: ordenarTiendas(Object.keys(fila.por_tienda)).map(nombre => ({
+        nombre,
+        facturacion: Number(fila.por_tienda[nombre] || 0),
+        porcentaje:  total > 0 ? Math.round(Number(fila.por_tienda[nombre] || 0) / total * 1000) / 10 : 0,
+        docenas:     docsMes[nombre] ?? null,
+      })),
+    });
+  }
+
   function handleBarClick(payload) {
     if (!payload?.activePayload?.length) return;
     const mesRaw = payload.activePayload[0]?.payload?.mes_raw;
@@ -330,7 +357,7 @@ export default function ResumenSection() {
         <KpiCard
           primary
           label="Facturación total red"
-          value={fmtM(data.facturacion_total)}
+          value={fmtARS(data.facturacion_total)}
           sub={`${data.num_unidades} unidades`}
         />
         <KpiCard
@@ -341,7 +368,7 @@ export default function ResumenSection() {
         <KpiCard
           label="Docenas totales"
           value={fmtDoc(data.docenas_totales)}
-          sub={data.precio_implicito_docena ? `equiv. ${fmtARS(data.precio_implicito_docena)}/docena` : ''}
+          sub={data.precio_implicito_docena ? `${fmtARS(data.precio_implicito_docena)}/docena en tiendas` : ''}
         />
       </div>
 
@@ -379,14 +406,14 @@ export default function ResumenSection() {
                     Total red · {fmtRango(periodo.desde, periodo.hasta)}
                   </p>
                   <p className="text-3xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                    {fmtM(comp.total.actual)}
+                    {fmtARS(comp.total.actual)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-5">
                   {COLS.map(c => (
                     <div key={c.key} className="text-right">
                       <p className="text-xs opacity-50 mb-0.5">{c.head}</p>
-                      <p className="text-base font-semibold opacity-80">{fmtM(comp.total[c.key])}</p>
+                      <p className="text-base font-semibold opacity-80">{fmtARS(comp.total[c.key])}</p>
                       <p className="text-sm font-bold">
                         {comp.total[c.varKey] === null
                           ? <span className="text-white/40">—</span>
@@ -466,13 +493,16 @@ export default function ResumenSection() {
       {ventasBarData.length > 0 && (
         <div className="card p-5">
           <h2 className="font-semibold text-stone-800 mb-1">Ventas por mes y tienda</h2>
-          <p className="text-xs text-stone-400 mb-4">En millones de pesos · apilado por tienda</p>
+          <p className="text-xs text-stone-400 mb-4">
+            Escala en millones · click en un mes para ver el monto exacto de cada tienda
+          </p>
           <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ventasBarData} margin={{ top: 22, right: 10, left: 5, bottom: 5 }}>
+              <BarChart data={ventasBarData} margin={{ top: 22, right: 10, left: 5, bottom: 5 }}
+                        onClick={handleVentasClick}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" vertical={false} />
                 <XAxis dataKey="mes" tickLine={false} axisLine={{ stroke: '#e7e5e4' }} height={38}
-                       tick={<TickMesConTotal totales={totalesVentas} formato={fmtM} />} />
+                       tick={<TickMesConTotal totales={totalesVentas} formato={fmtARS} />} />
                 <YAxis
                   tickFormatter={v => (v / 1_000_000).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   tick={{ fontSize: 10, fill: '#78716c' }} tickLine={false} axisLine={false} width={38}
@@ -481,7 +511,7 @@ export default function ResumenSection() {
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(120,113,108,0.06)' }}
-                  content={<StackTooltip titulo="Total red" formato={fmtM} unidad="" />}
+                  content={<StackTooltip titulo="Total red" formato={fmtARS} unidad="" />}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {nombresVentas.map((nombre, idx) => (
@@ -494,6 +524,7 @@ export default function ResumenSection() {
                     strokeWidth={1.5}
                     isAnimationActive={false}
                     radius={idx === nombresVentas.length - 1 ? [4, 4, 0, 0] : 0}
+                    cursor="pointer"
                   />
                 ))}
               </BarChart>
@@ -526,7 +557,7 @@ export default function ResumenSection() {
                       <Cell key={i} fill={colorDeTienda(entry.tienda, i)} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v, name) => [fmtM(v), shortName(name)]} />
+                  <Tooltip formatter={(v, name) => [fmtARS(v), shortName(name)]} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -537,7 +568,7 @@ export default function ResumenSection() {
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: colorDeTienda(p.tienda, i) }} />
                   <span className="text-xs text-stone-600 flex-1 truncate">{shortName(p.tienda)}</span>
-                  <span className="text-xs text-stone-400">{fmtM(p.facturacion)}</span>
+                  <span className="text-xs text-stone-400">{fmtARS(p.facturacion)}</span>
                   <span className="text-xs font-semibold text-stone-800 w-12 text-right">{fmtPct(p.porcentaje)}</span>
                 </div>
               ))}
@@ -549,21 +580,21 @@ export default function ResumenSection() {
       {/* ── Docenas mensuales ─────────────────────────────────────────────── */}
       {docBarData.length > 0 && (
         <div className="card p-5">
-          <h2 className="font-semibold text-stone-800 mb-1">Docenas mensuales · tiendas alfajoreras</h2>
-          <p className="text-xs text-stone-400 mb-4">Café Peatonal excluido · click en un mes para ver detalle</p>
+          <h2 className="font-semibold text-stone-800 mb-1">Docenas mensuales por tienda</h2>
+          <p className="text-xs text-stone-400 mb-4">Incluye la cafetería · click en un mes para ver el detalle por producto</p>
           <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={docBarData} margin={{ top: 22, right: 10, left: 5, bottom: 5 }} onClick={handleBarClick}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" vertical={false} />
                 <XAxis dataKey="mes" tickLine={false} axisLine={{ stroke: '#e7e5e4' }} height={38}
-                       tick={<TickMesConTotal totales={totalesDoc} formato={fmtDocRedondo} />} />
+                       tick={<TickMesConTotal totales={totalesDoc} formato={fmtDoc} />} />
                 <YAxis
                   tickFormatter={v => (Number(v) || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   tick={{ fontSize: 10, fill: '#78716c' }} tickLine={false} axisLine={false} width={46}
                 />
                 <Tooltip
                   cursor={{ fill: 'rgba(120,113,108,0.06)' }}
-                  content={<StackTooltip titulo="Total grupo" formato={fmtDocRedondo} unidad=" doc" />}
+                  content={<StackTooltip titulo="Total grupo" formato={fmtDoc} unidad=" doc" />}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {seriesDoc.map((s, idx) => (
@@ -585,7 +616,81 @@ export default function ResumenSection() {
         </div>
       )}
 
-            {/* Modal drill-down docenas */}
+            {/* Detalle del mes en ventas */}
+      {modalVentas && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setModalVentas(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                  Ventas de {modalVentas.mesLabel}
+                </h3>
+                <p className="text-xs text-stone-400 mt-0.5">Monto exacto por tienda</p>
+              </div>
+              <button
+                onClick={() => setModalVentas(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-400 hover:text-stone-600"
+              >✕</button>
+            </div>
+
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              <div className="rounded-xl px-4 py-3 mb-4 text-white flex items-baseline justify-between gap-4"
+                   style={{ background: '#4C1D95' }}>
+                <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Total red</span>
+                <span className="text-2xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                  {fmtARS(modalVentas.total)}
+                </span>
+              </div>
+
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-stone-200">
+                    <th className="text-left py-2 text-xs text-stone-400 font-semibold uppercase">Tienda</th>
+                    <th className="text-right py-2 text-xs text-stone-400 font-semibold uppercase">Facturación</th>
+                    <th className="text-right py-2 text-xs text-stone-400 font-semibold uppercase">%</th>
+                    <th className="text-right py-2 text-xs text-stone-400 font-semibold uppercase">Docenas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-50">
+                  {modalVentas.filas.map(f => (
+                    <tr key={f.nombre} className="hover:bg-stone-50">
+                      <td className="py-2.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle"
+                              style={{ background: colorDeTienda(f.nombre) }} />
+                        <span className="text-stone-800">{shortName(f.nombre)}</span>
+                      </td>
+                      <td className="text-right py-2.5 font-semibold text-stone-900 tabular-nums">
+                        {fmtARS(f.facturacion)}
+                      </td>
+                      <td className="text-right py-2.5 text-stone-500 tabular-nums">{fmtPct(f.porcentaje)}</td>
+                      <td className="text-right py-2.5 text-stone-500 tabular-nums">
+                        {f.docenas === null || f.docenas === undefined ? '—' : fmtDoc(f.docenas)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-6 py-3 border-t border-stone-100 flex justify-end">
+              <button
+                onClick={() => setModalVentas(null)}
+                className="px-4 py-2 rounded-xl bg-stone-100 text-stone-700 text-sm font-semibold hover:bg-stone-200"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal drill-down docenas */}
       {modalDoc && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
@@ -650,7 +755,7 @@ export default function ResumenSection() {
                     <div className="bg-stone-50 rounded-xl p-3">
                       <p className="text-xs text-stone-500 font-semibold uppercase tracking-wide mb-0.5">Facturación</p>
                       <p className="text-2xl font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                        {fmtM(detalle.facturacion_total)}
+                        {fmtARS(detalle.facturacion_total)}
                       </p>
                     </div>
                   </div>

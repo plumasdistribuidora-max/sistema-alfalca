@@ -163,7 +163,7 @@ export default function MesesSection() {
             {docAcum.length > 0 && (
               <div className="card p-5">
                 <h2 className="font-semibold text-stone-800 mb-1">Docenas acumuladas en el año</h2>
-                <p className="text-xs text-stone-400 mb-4">Solo alfajoreras · todos los meses</p>
+                <p className="text-xs text-stone-400 mb-4">Todas las unidades · todos los meses</p>
                 <div style={{ height: 220 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={docAcum} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>

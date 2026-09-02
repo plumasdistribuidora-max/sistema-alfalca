@@ -266,7 +266,7 @@ export default function TiendasSection() {
         {docChartData.length > 0 && (
           <div className="card p-5">
             <h2 className="font-semibold text-stone-800 mb-1">Docenas mensuales</h2>
-            <p className="text-xs text-stone-400 mb-4">Tiendas alfajoreras</p>
+            <p className="text-xs text-stone-400 mb-4">Todas las unidades</p>
             <div style={{ height: 230 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={docChartData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>

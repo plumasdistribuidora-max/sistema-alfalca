@@ -114,7 +114,6 @@ export default function Sidebar({ open, onClose }) {
               <NavItem to="/reportes" icon={ICON.listado} label="Reportes" />
 
               <SectionLabel label="Análisis" />
-              <NavItem to="/kpi" icon={ICON.comparar} label="KPI" />
 
               {/* Tiendas — grupo desplegable */}
               <button

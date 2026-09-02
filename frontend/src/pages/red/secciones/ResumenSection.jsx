@@ -1,50 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import api from '../../../api';
-import { fmtM, fmtNum, fmtDoc, fmtPct, fmtARS, colorDeTienda, shortName, yearRange } from '../redUtils';
+import {
+  fmtM, fmtNum, fmtDoc, fmtPct, fmtARS,
+  colorDeTienda, shortName, ordenarTiendas, yearRange,
+  rangosRapidos, fmtRango,
+} from '../redUtils';
 
 // ── Constantes y helpers ────────────────────────────────────────────────────
 
-const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-const MESES_ES    = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
-const MESES_FULL  = {'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
+const MESES_ES   = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+const MESES_FULL = {'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'};
 
 function fmtMesLabel(yyyymm)     { if (!yyyymm) return ''; const [,m] = yyyymm.split('-'); return MESES_ES[m] || yyyymm; }
 function fmtMesLabelFull(yyyymm) { if (!yyyymm) return ''; const [y, m] = yyyymm.split('-'); return `${MESES_FULL[m] || yyyymm} ${y}`; }
 
-// "2026-05-01", 21  →  "1–21 may"
-function rangoLabel(isoDate, nDias) {
-  if (!isoDate || !nDias) return '—';
-  const mes = parseInt(String(isoDate).slice(5, 7), 10) - 1;
-  return `1–${nDias} ${MESES_CORTO[mes]}`;
-}
+// El fondo de la tarjeta: los apilados llevan un hilo de este color entre
+// segmentos para que dos tiendas contiguas nunca se toquen.
+const SURFACE = '#ffffff';
 
-// "2026-05-01"  →  "2026"
-function anioDeIso(isoDate) {
-  return isoDate ? String(isoDate).slice(0, 4) : '';
-}
-
-// Filas de métrica para cada tarjeta según tipo de tienda
-function buildRows(t) {
-  const ptAnt = t.prom_ticket_anterior != null ? fmtARS(t.prom_ticket_anterior) : '—';
-  const base = [
-    { label: 'Facturación', actual: fmtM(t.facturacion_actual),  anterior: fmtM(t.facturacion_anterior), var: t.var_facturacion },
-  ];
-  if (t.es_alfajorera) {
-    return [...base,
-      { label: 'Tickets',     actual: fmtNum(t.tickets),         anterior: fmtNum(t.tickets_anterior),    var: t.var_tickets     },
-      { label: 'Ticket prom', actual: fmtARS(t.prom_ticket),     anterior: ptAnt,                         var: t.var_prom_ticket },
-      { label: 'Docenas',     actual: fmtDoc(t.docenas),         anterior: fmtDoc(t.docenas_anterior),    var: t.var_docenas     },
-    ];
-  }
-  return [...base,
-    { label: 'Personas',    actual: fmtNum(t.personas_actual), anterior: fmtNum(t.personas_anterior),   var: t.var_personas    },
-    { label: 'Ticket prom', actual: fmtARS(t.prom_ticket),     anterior: ptAnt,                         var: t.var_prom_ticket },
-  ];
-}
+const fmtDocRedondo = v => Math.round(Number(v) || 0).toLocaleString('es-AR');
 
 // ── Componentes UI ──────────────────────────────────────────────────────────
 
@@ -71,7 +49,6 @@ function KpiCard({ label, value, sub, primary }) {
   );
 }
 
-// Badge de variación para texto grande (header de tarjeta)
 function VarBadge({ v }) {
   if (v === null || v === undefined) return <span className="text-stone-300 text-xs">—</span>;
   const pos = Number(v) >= 0;
@@ -82,12 +59,14 @@ function VarBadge({ v }) {
   );
 }
 
-// Variación para celda de tabla (más compacto)
-function VarCell({ v }) {
-  if (v === null || v === undefined) return <span className="text-stone-300">—</span>;
+// Variación de tabla. El absoluto contra el que compara va en el title, para
+// que la celda quede legible pero el dato duro esté a un hover.
+function VarCell({ v, referencia }) {
+  if (v === null || v === undefined)
+    return <span className="text-stone-300" title={referencia}>—</span>;
   const pos = Number(v) >= 0;
   return (
-    <span className={`font-semibold ${pos ? 'text-emerald-600' : 'text-red-500'}`}>
+    <span className={`font-semibold ${pos ? 'text-emerald-600' : 'text-red-500'}`} title={referencia}>
       {pos ? '▲' : '▼'}{Math.abs(Number(v))}%
     </span>
   );
@@ -100,33 +79,107 @@ function Medalla({ m }) {
   return <span className="text-sm text-stone-400 w-6 text-center inline-block">{m}</span>;
 }
 
-// Tooltip personalizado para el gráfico de docenas mensuales
-const ALFAJORERAS_DOC = ['Peatonal', '9 de Julio', 'Amigorena', 'Sheraton'];
-function fmtDocRound(v) {
-  return Math.round(Number(v) || 0).toLocaleString('es-AR');
-}
-function DocTooltip({ active, payload }) {
+// Tooltip común a los dos apilados: total del mes arriba y el desglose debajo.
+function StackTooltip({ active, payload, titulo, formato, unidad }) {
   if (!active || !payload?.length) return null;
   const mesRaw = payload[0]?.payload?.mes_raw;
-  const totalGrupo = payload
-    .filter(p => ALFAJORERAS_DOC.includes(p.dataKey))
-    .reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+  const total  = payload.reduce((s, p) => s + (Number(p.value) || 0), 0);
   return (
     <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 14px', minWidth: 210, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
       <p style={{ fontWeight: 600, marginBottom: 8, color: '#1c1917', fontSize: 13 }}>{fmtMesLabelFull(mesRaw)}</p>
       <div style={{ background: '#EEEDFE', borderRadius: 6, padding: '5px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>Total Grupo</span>
-        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>{fmtDocRound(totalGrupo)} doc</span>
+        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>{titulo}</span>
+        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>{formato(total)}{unidad}</span>
       </div>
-      {payload.map((p, i) => (
+      {[...payload].reverse().map((p, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.fill, flexShrink: 0 }} />
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.color || p.fill, flexShrink: 0 }} />
           <span style={{ flex: 1, color: '#44403c', fontSize: 12 }}>{p.dataKey}</span>
-          <span style={{ color: '#1c1917', fontWeight: 500, fontSize: 12 }}>{fmtDocRound(p.value)} doc</span>
+          <span style={{ color: '#1c1917', fontWeight: 500, fontSize: 12 }}>{formato(p.value)}{unidad}</span>
         </div>
       ))}
     </div>
   );
+}
+
+// El total del mes va en el eje X, debajo del nombre. LabelList dentro de Bar
+// no llega a renderizar en esta versión de recharts, y el total por mes es
+// demasiado útil como para dejarlo solamente en el tooltip.
+//
+// Va como componente de módulo y se pasa como elemento, no como función
+// generada en el render: si el tipo del tick cambia en cada pasada, recharts
+// remonta el eje y reinicia la animación de las barras una y otra vez — quedan
+// planas y no se ven.
+function TickMesConTotal({ x, y, payload, totales, formato }) {
+  const total = totales?.[payload.value];
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" dy={12} style={{ fontSize: 11, fill: '#57534e' }}>{payload.value}</text>
+      {total > 0 && (
+        <text textAnchor="middle" dy={26} style={{ fontSize: 10, fontWeight: 600, fill: '#a8a29e' }}>
+          {formato(total)}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function totalesPorMes(data, series) {
+  return Object.fromEntries(
+    data.map(row => [row.mes, series.reduce((s, k) => s + (Number(row[k]) || 0), 0)])
+  );
+}
+
+// ── Filtro de período del comparativo ───────────────────────────────────────
+
+function FiltroPeriodo({ desde, hasta, onChange }) {
+  const rapidos = useMemo(() => rangosRapidos(), []);
+  const activo  = rapidos.find(r => r.desde === desde && r.hasta === hasta)?.id;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex rounded-lg border border-stone-200 overflow-hidden text-xs">
+        {rapidos.map(r => (
+          <button
+            key={r.id}
+            onClick={() => onChange(r.desde, r.hasta)}
+            className={`px-3 py-1.5 transition-colors ${
+              activo === r.id
+                ? 'bg-violet-600 text-white font-semibold'
+                : 'bg-white text-stone-600 hover:bg-stone-50'
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input type="date" value={desde} max={hasta}
+               onChange={e => onChange(e.target.value, hasta)}
+               className="input text-xs w-36 py-1.5" />
+        <span className="text-stone-400 text-xs">→</span>
+        <input type="date" value={hasta} min={desde}
+               onChange={e => onChange(desde, e.target.value)}
+               className="input text-xs w-36 py-1.5" />
+      </div>
+    </div>
+  );
+}
+
+// Las filas de métrica de cada tarjeta, según tipo de tienda
+function filasDe(t) {
+  const base = [{ key: 'facturacion', label: 'Facturación', fmt: fmtM, m: t.facturacion }];
+  if (t.es_alfajorera) {
+    return [...base,
+      { key: 'tickets',     label: 'Tickets',     fmt: fmtNum, m: t.tickets     },
+      { key: 'prom_ticket', label: 'Ticket prom', fmt: fmtARS, m: t.prom_ticket },
+      { key: 'docenas',     label: 'Docenas',     fmt: fmtDoc, m: t.docenas     },
+    ];
+  }
+  return [...base,
+    { key: 'personas',    label: 'Personas',    fmt: fmtNum, m: t.personas    },
+    { key: 'prom_ticket', label: 'Ticket prom', fmt: fmtARS, m: t.prom_ticket },
+  ];
 }
 
 // ── Componente principal ────────────────────────────────────────────────────
@@ -135,6 +188,12 @@ export default function ResumenSection() {
   const [data,        setData]        = useState(null);
   const [docenas,     setDocenas]     = useState(null);
   const [loading,     setLoading]     = useState(true);
+
+  const [comp,        setComp]        = useState(null);
+  const [compLoading, setCompLoading] = useState(true);
+  const [compError,   setCompError]   = useState(null);
+  const [periodo,     setPeriodo]     = useState(() => rangosRapidos()[0]);
+
   const [modalDoc,    setModalDoc]    = useState(null);
   const [modalLocal,  setModalLocal]  = useState(null);
   const [detalle,     setDetalle]     = useState(null);
@@ -152,6 +211,16 @@ export default function ResumenSection() {
       setDocenas(dRes.data.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!periodo?.desde || !periodo?.hasta) return;
+    setCompLoading(true);
+    setCompError(null);
+    api.get('/red/comparativo', { params: { desde: periodo.desde, hasta: periodo.hasta } })
+      .then(r => setComp(r.data.data))
+      .catch(err => setCompError(err?.response?.data?.error || err.message))
+      .finally(() => setCompLoading(false));
+  }, [periodo.desde, periodo.hasta]);
 
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') setModalDoc(null); }
@@ -172,8 +241,8 @@ export default function ResumenSection() {
 
   if (loading) return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[1,2,3,4].map(i => <Skeleton key={i} className="h-28" />)}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1,2,3].map(i => <Skeleton key={i} className="h-28" />)}
       </div>
       <Skeleton className="h-72" />
       <div className="grid md:grid-cols-2 gap-4">
@@ -185,37 +254,40 @@ export default function ResumenSection() {
 
   if (!data) return <p className="text-center py-16 text-stone-400">Sin datos.</p>;
 
-  // Evolución mensual: pivot para LineChart
-  const mesesEvol  = (data.evolucion_mensual || []).map(row => ({
+  // ── Ventas mensuales por tienda (apilado, en millones) ────────────────────
+  const nombresVentas = ordenarTiendas(
+    data.evolucion_mensual?.length
+      ? [...new Set(data.evolucion_mensual.flatMap(r => Object.keys(r.por_tienda)))]
+      : []
+  );
+  const clavesVentas  = nombresVentas.map(shortName);
+  const ventasBarData = (data.evolucion_mensual || []).map(row => ({
     mes: fmtMesLabel(row.mes),
+    mes_raw: row.mes,
     ...Object.fromEntries(Object.entries(row.por_tienda).map(([k, v]) => [shortName(k), v])),
   }));
-  const nombresEvol = data.evolucion_mensual?.length
-    ? [...new Set(data.evolucion_mensual.flatMap(r => Object.keys(r.por_tienda)))]
-    : [];
 
-  // Participación para PieChart
-  const participacion = (data.participacion || []).filter(p => Number(p.facturacion) > 0);
+  // ── Participación: mismo orden fijo que los apilados ──────────────────────
+  const participacion = ordenarTiendas(
+    (data.participacion || []).filter(p => Number(p.facturacion) > 0).map(p => p.tienda)
+  ).map(nombre => (data.participacion || []).find(p => p.tienda === nombre));
 
-  // Docenas mensuales para stacked BarChart
-  const { meses: mesesDoc = [], series: seriesDoc = [] } = docenas || {};
+  // ── Docenas mensuales ─────────────────────────────────────────────────────
+  const { meses: mesesDoc = [], series: seriesDocRaw = [] } = docenas || {};
+  const seriesDoc = ordenarTiendas(seriesDocRaw.map(s => s.tienda))
+    .map(nombre => seriesDocRaw.find(s => s.tienda === nombre));
+  const clavesDoc = seriesDoc.map(s => shortName(s.tienda));
   const docBarData = mesesDoc.map(mes => {
     const row = { mes: fmtMesLabel(mes), mes_raw: mes };
     seriesDoc.forEach(s => { row[shortName(s.tienda)] = s.por_mes[mes] || 0; });
     return row;
   });
 
-  // Comparativo quincenal
-  const quincenal  = data.comparativo_quincenal || {};
-  const tiendas_q  = quincenal.tiendas || [];
-  const nDias      = quincenal.n_dias || 0;
-  const rangoAct   = rangoLabel(quincenal.mes_ini,     nDias);
-  const rangoAnt   = rangoLabel(quincenal.mes_ant_ini, nDias);
-  const anioAct    = anioDeIso(quincenal.mes_ini);
-  const anioAnt    = anioDeIso(quincenal.mes_ant_ini);
-  const totalAct   = tiendas_q.reduce((s, t) => s + t.facturacion_actual,   0);
-  const totalAnt   = tiendas_q.reduce((s, t) => s + t.facturacion_anterior, 0);
-  const varTotal   = totalAnt > 0 ? Math.round((totalAct - totalAnt) / totalAnt * 1000) / 10 : null;
+  // Sin useMemo: acá ya pasamos los early returns, y un hook después de un
+  // return condicional rompe el orden de hooks. Lo que reiniciaba la animación
+  // era el tipo del tick, no la identidad de este objeto.
+  const totalesVentas = totalesPorMes(ventasBarData, clavesVentas);
+  const totalesDoc    = totalesPorMes(docBarData, clavesDoc);
 
   function handleBarClick(payload) {
     if (!payload?.activePayload?.length) return;
@@ -243,158 +315,199 @@ export default function ResumenSection() {
     }
   }
 
+  const mesesConDato = comp?.tiendas?.[0]?.meses_promedio ?? 0;
+  const COLS = [
+    { key: 'mes_ant',   varKey: 'var_mes_ant',   head: 'vs mes ant.',  sub: comp && fmtRango(comp.mes_ant.desde, comp.mes_ant.hasta) },
+    { key: 'prom_anio', varKey: 'var_prom_anio', head: 'vs prom. año', sub: comp && `promedio de ${mesesConDato} meses de ${comp.prom_anio.anio}` },
+    { key: 'anio_ant',  varKey: 'var_anio_ant',  head: 'vs año pas.',  sub: comp && fmtRango(comp.anio_ant.desde, comp.anio_ant.hasta) },
+  ];
+
   return (
     <div className="space-y-5">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+      {/* ── Cards ─────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KpiCard
           primary
           label="Facturación total red"
           value={fmtM(data.facturacion_total)}
-          sub={`${data.num_unidades} unidades · ${data.num_meses} meses`}
+          sub={`${data.num_unidades} unidades`}
         />
         <KpiCard
-          label="Docenas alfajoreras"
+          label="Período analizado"
+          value={data.num_meses ? `${data.num_meses} ${data.num_meses === 1 ? 'mes' : 'meses'}` : '—'}
+          sub={`Año ${new Date().getFullYear()} · enero a la fecha`}
+        />
+        <KpiCard
+          label="Docenas totales"
           value={fmtDoc(data.docenas_totales)}
           sub={data.precio_implicito_docena ? `equiv. ${fmtARS(data.precio_implicito_docena)}/docena` : ''}
         />
-        <KpiCard
-          label="Unidad líder"
-          value={shortName(data.unidad_lider?.nombre) || '—'}
-          sub={data.unidad_lider ? `${fmtM(data.unidad_lider.facturacion)} · ${fmtPct(data.unidad_lider.porcentaje)} del total` : ''}
-        />
-        <KpiCard
-          label="Mejor mes"
-          value={fmtMesLabel(data.mejor_mes?.mes) || '—'}
-          sub={data.mejor_mes ? `${fmtM(data.mejor_mes.facturacion)} total red` : ''}
-        />
       </div>
 
-      {/* ── Comparativo quincenal ─────────────────────────────────────────── */}
-      {tiendas_q.length > 0 && (
-        <div className="space-y-3">
-
-          {/* Encabezado + total consolidado */}
-          <div className="card p-5 space-y-4">
+      {/* ── Comparativo por tienda ────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="card p-5 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
                 Comparativo por tienda
               </h2>
               <p className="text-xs text-stone-400 mt-0.5">
-                {rangoAct} {anioAct} comparado con {rangoAnt} {anioAnt} · ranking por facturación
+                {fmtRango(periodo.desde, periodo.hasta)}
+                {comp && ` · ${comp.periodo.n_dias} ${comp.periodo.n_dias === 1 ? 'día' : 'días'}`}
+                {' · ranking por facturación'}
               </p>
             </div>
-
-            {/* Total consolidado (5 tiendas) */}
-            <div className="rounded-xl px-5 py-4 text-white flex flex-wrap items-center justify-between gap-4"
-              style={{ background: '#4C1D95' }}>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-0.5">
-                  Total 5 tiendas · {rangoAct}
-                </p>
-                <p className="text-2xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                  {fmtM(totalAct)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs opacity-50 mb-0.5">{rangoAnt}</p>
-                <p className="text-lg font-semibold opacity-75">{fmtM(totalAnt)}</p>
-              </div>
-              <div className="text-xl font-bold">
-                {varTotal === null
-                  ? <span className="text-white/40 text-sm">—</span>
-                  : <span className={varTotal >= 0 ? 'text-emerald-300' : 'text-red-300'}>
-                      {varTotal >= 0 ? '▲' : '▼'} {Math.abs(varTotal)}%
-                    </span>
-                }
-              </div>
-            </div>
+            <FiltroPeriodo
+              desde={periodo.desde}
+              hasta={periodo.hasta}
+              onChange={(desde, hasta) => setPeriodo({ desde, hasta })}
+            />
           </div>
 
-          {/* Tarjetas por tienda */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {tiendas_q.map((t, i) => {
-              const rows = buildRows(t);
-              return (
-                <div
-                  key={t.nombre}
-                  className="card p-4 space-y-2.5"
-                  style={{ borderLeft: `3px solid ${colorDeTienda(t.nombre, i)}` }}
-                >
-                  {/* Header: medalla + nombre + variación facturación */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <Medalla m={t.medalla} />
-                      <span className="font-semibold text-stone-800 text-sm">{shortName(t.nombre)}</span>
-                      {!t.es_alfajorera && (
-                        <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">café</span>
-                      )}
-                    </div>
-                    <VarBadge v={t.var_facturacion} />
-                  </div>
+          {compError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">{compError}</p>
+          )}
 
-                  {/* Tabla 3 columnas */}
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-stone-100">
-                        <th className="text-left pb-1.5 text-stone-400 font-medium" />
-                        <th className="text-right pb-1.5 text-stone-700 font-semibold pr-2">{rangoAct}</th>
-                        <th className="text-right pb-1.5 text-stone-400 font-medium pr-2">{rangoAnt}</th>
-                        <th className="text-right pb-1.5 text-stone-400 font-medium">Var</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map(row => (
-                        <tr key={row.label} className="border-b border-stone-50 last:border-0">
-                          <td className="py-1.5 text-stone-500 pr-2 whitespace-nowrap">{row.label}</td>
-                          <td className="py-1.5 text-right font-semibold text-stone-800 pr-2 whitespace-nowrap">{row.actual}</td>
-                          <td className="py-1.5 text-right text-stone-400 pr-2 whitespace-nowrap">{row.anterior}</td>
-                          <td className="py-1.5 text-right whitespace-nowrap"><VarCell v={row.var} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          {/* Total consolidado */}
+          {comp && (
+            <div className="rounded-xl px-5 py-4 text-white" style={{ background: '#4C1D95', opacity: compLoading ? 0.6 : 1 }}>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-0.5">
+                    Total red · {fmtRango(periodo.desde, periodo.hasta)}
+                  </p>
+                  <p className="text-3xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                    {fmtM(comp.total.actual)}
+                  </p>
                 </div>
-              );
-            })}
+                <div className="flex flex-wrap gap-5">
+                  {COLS.map(c => (
+                    <div key={c.key} className="text-right">
+                      <p className="text-xs opacity-50 mb-0.5">{c.head}</p>
+                      <p className="text-base font-semibold opacity-80">{fmtM(comp.total[c.key])}</p>
+                      <p className="text-sm font-bold">
+                        {comp.total[c.varKey] === null
+                          ? <span className="text-white/40">—</span>
+                          : <span className={comp.total[c.varKey] >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                              {comp.total[c.varKey] >= 0 ? '▲' : '▼'} {Math.abs(comp.total[c.varKey])}%
+                            </span>
+                        }
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tarjetas por tienda */}
+        {compLoading && !comp ? (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-44" />)}
+          </div>
+        ) : comp?.tiendas?.length ? (
+          <div className="grid sm:grid-cols-2 gap-3" style={{ opacity: compLoading ? 0.6 : 1 }}>
+            {comp.tiendas.map(t => (
+              <div
+                key={t.nombre}
+                className="card p-4 space-y-2.5"
+                style={{ borderLeft: `3px solid ${colorDeTienda(t.nombre)}` }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Medalla m={t.medalla} />
+                    <span className="font-semibold text-stone-800 text-sm">{shortName(t.nombre)}</span>
+                    {!t.es_alfajorera && (
+                      <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">café</span>
+                    )}
+                  </div>
+                  <VarBadge v={t.facturacion.var_mes_ant} />
+                </div>
+
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-stone-100">
+                      <th className="text-left pb-1.5 text-stone-400 font-medium" />
+                      <th className="text-right pb-1.5 text-stone-700 font-semibold pr-2">Período</th>
+                      {COLS.map(c => (
+                        <th key={c.key} className="text-right pb-1.5 text-stone-400 font-medium pr-2 whitespace-nowrap"
+                            title={c.sub}>
+                          {c.head}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filasDe(t).map(fila => (
+                      <tr key={fila.key} className="border-b border-stone-50 last:border-0">
+                        <td className="py-1.5 text-stone-500 pr-2 whitespace-nowrap">{fila.label}</td>
+                        <td className="py-1.5 text-right font-semibold text-stone-800 pr-2 whitespace-nowrap">
+                          {fila.fmt(fila.m.actual)}
+                        </td>
+                        {COLS.map(c => (
+                          <td key={c.key} className="py-1.5 text-right pr-2 whitespace-nowrap">
+                            <VarCell v={fila.m[c.varKey]} referencia={`${c.head} · ${fila.fmt(fila.m[c.key])}`} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Ventas por mes y tienda ───────────────────────────────────────── */}
+      {ventasBarData.length > 0 && (
+        <div className="card p-5">
+          <h2 className="font-semibold text-stone-800 mb-1">Ventas por mes y tienda</h2>
+          <p className="text-xs text-stone-400 mb-4">En millones de pesos · apilado por tienda</p>
+          <div style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ventasBarData} margin={{ top: 22, right: 10, left: 5, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" vertical={false} />
+                <XAxis dataKey="mes" tickLine={false} axisLine={{ stroke: '#e7e5e4' }} height={38}
+                       tick={<TickMesConTotal totales={totalesVentas} formato={fmtM} />} />
+                <YAxis
+                  tickFormatter={v => (v / 1_000_000).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                  tick={{ fontSize: 10, fill: '#78716c' }} tickLine={false} axisLine={false} width={38}
+                  label={{ value: 'millones $', angle: -90, position: 'insideLeft',
+                           style: { fontSize: 10, fill: '#a8a29e' }, offset: 12 }}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(120,113,108,0.06)' }}
+                  content={<StackTooltip titulo="Total red" formato={fmtM} unidad="" />}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {nombresVentas.map((nombre, idx) => (
+                  <Bar
+                    key={nombre}
+                    dataKey={shortName(nombre)}
+                    stackId="v"
+                    fill={colorDeTienda(nombre, idx)}
+                    stroke={SURFACE}
+                    strokeWidth={1.5}
+                    isAnimationActive={false}
+                    radius={idx === nombresVentas.length - 1 ? [4, 4, 0, 0] : 0}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
 
-      {/* Gráficos: líneas + dona */}
-      <div className="grid md:grid-cols-3 gap-5">
-        {mesesEvol.length > 0 && (
-          <div className="card p-5 md:col-span-2">
-            <h2 className="font-semibold text-stone-800 mb-4">Evolución de facturación</h2>
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mesesEvol} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={v => `$${(v/1_000_000).toFixed(1)}M`} tick={{ fontSize: 10 }} width={52} />
-                  <Tooltip formatter={(v, name) => [fmtM(v), name]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {nombresEvol.map((nombre, idx) => (
-                    <Line
-                      key={nombre}
-                      type="monotone"
-                      dataKey={shortName(nombre)}
-                      stroke={colorDeTienda(nombre, idx)}
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {participacion.length > 0 && (
-          <div className="card p-5">
-            <h2 className="font-semibold text-stone-800 mb-4">Participación acumulada</h2>
-            <div style={{ height: 160 }}>
+      {/* ── Participación acumulada ───────────────────────────────────────── */}
+      {participacion.length > 0 && (
+        <div className="card p-5">
+          <h2 className="font-semibold text-stone-800 mb-4">Participación acumulada</h2>
+          <div className="grid sm:grid-cols-2 gap-5 items-center">
+            <div style={{ height: 190 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -402,9 +515,12 @@ export default function ResumenSection() {
                     dataKey="facturacion"
                     nameKey="tienda"
                     cx="50%" cy="50%"
-                    innerRadius={42}
-                    outerRadius={68}
+                    innerRadius={48}
+                    outerRadius={82}
                     paddingAngle={2}
+                    stroke={SURFACE}
+                    strokeWidth={2}
+                    isAnimationActive={false}
                   >
                     {participacion.map((entry, i) => (
                       <Cell key={i} fill={colorDeTienda(entry.tienda, i)} />
@@ -414,38 +530,52 @@ export default function ResumenSection() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="space-y-1.5 mt-2">
+            {/* La vista de tabla: tres de estos colores quedan por debajo de 3:1
+                contra el blanco, así que la identidad nunca depende solo del color. */}
+            <div className="space-y-1.5">
               {participacion.map((p, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: colorDeTienda(p.tienda, i) }} />
                   <span className="text-xs text-stone-600 flex-1 truncate">{shortName(p.tienda)}</span>
-                  <span className="text-xs font-semibold text-stone-800">{fmtPct(p.porcentaje)}</span>
+                  <span className="text-xs text-stone-400">{fmtM(p.facturacion)}</span>
+                  <span className="text-xs font-semibold text-stone-800 w-12 text-right">{fmtPct(p.porcentaje)}</span>
                 </div>
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Docenas mensuales (stacked bar, clickable) */}
+      {/* ── Docenas mensuales ─────────────────────────────────────────────── */}
       {docBarData.length > 0 && (
         <div className="card p-5">
           <h2 className="font-semibold text-stone-800 mb-1">Docenas mensuales · tiendas alfajoreras</h2>
           <p className="text-xs text-stone-400 mb-4">Café Peatonal excluido · click en un mes para ver detalle</p>
-          <div style={{ height: 240 }}>
+          <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={docBarData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }} onClick={handleBarClick}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" />
-                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip content={<DocTooltip />} />
+              <BarChart data={docBarData} margin={{ top: 22, right: 10, left: 5, bottom: 5 }} onClick={handleBarClick}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" vertical={false} />
+                <XAxis dataKey="mes" tickLine={false} axisLine={{ stroke: '#e7e5e4' }} height={38}
+                       tick={<TickMesConTotal totales={totalesDoc} formato={fmtDocRedondo} />} />
+                <YAxis
+                  tickFormatter={v => (Number(v) || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                  tick={{ fontSize: 10, fill: '#78716c' }} tickLine={false} axisLine={false} width={46}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(120,113,108,0.06)' }}
+                  content={<StackTooltip titulo="Total grupo" formato={fmtDocRedondo} unidad=" doc" />}
+                />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {seriesDoc.map((s, idx) => (
                   <Bar
                     key={s.tienda}
                     dataKey={shortName(s.tienda)}
-                    stackId="a"
+                    stackId="d"
                     fill={colorDeTienda(s.tienda, idx)}
+                    stroke={SURFACE}
+                    strokeWidth={1.5}
+                    isAnimationActive={false}
+                    radius={idx === seriesDoc.length - 1 ? [4, 4, 0, 0] : 0}
                     cursor="pointer"
                   />
                 ))}
@@ -455,7 +585,7 @@ export default function ResumenSection() {
         </div>
       )}
 
-      {/* Modal drill-down docenas */}
+            {/* Modal drill-down docenas */}
       {modalDoc && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"

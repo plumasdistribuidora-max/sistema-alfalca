@@ -487,6 +487,193 @@ router.get('/resumen', requireAuth, async (req, res) => {
   }
 });
 
+// ── A2) GET /comparativo ─────────────────────────────────────────────────────
+// Comparativo por tienda de un rango libre contra tres referencias:
+//   · el mismo rango corrido un mes atrás
+//   · el promedio de ese mismo rango en cada mes del año (solo meses con venta)
+//   · el mismo rango del año pasado
+//
+// Las ventanas se generan en SQL y se cruzan contra un agregado diario, no
+// contra la tabla cruda: 15 ventanas × un scan de ventas_items sería justamente
+// lo que hace lentas las docenas.
+
+router.get('/comparativo', requireAuth, async (req, res) => {
+  try {
+    const range = parseRange(req);
+    if (!range) return res.status(400).json({ ok: false, error: 'Fechas inválidas (YYYY-MM-DD)' });
+    const [desde, hasta] = range;
+    if (desde > hasta) return res.status(400).json({ ok: false, error: 'La fecha de inicio es posterior a la de fin' });
+
+    const { rows } = await pool.query(`
+      WITH p AS (
+        SELECT $1::date AS d_ini,
+               $2::date AS d_fin,
+               ($2::date - $1::date)                                    AS span,
+               ($1::date - DATE_TRUNC('month', $1::date)::date)         AS off_dia
+      ),
+      win AS (
+        SELECT 'actual'::text AS tipo, 0 AS idx, d_ini AS ini, d_fin AS fin FROM p
+        UNION ALL
+        SELECT 'mes_ant',  0, (d_ini - INTERVAL '1 month')::date, (d_fin - INTERVAL '1 month')::date FROM p
+        UNION ALL
+        SELECT 'anio_ant', 0, (d_ini - INTERVAL '1 year')::date,  (d_fin - INTERVAL '1 year')::date  FROM p
+        UNION ALL
+        -- misma ventana de días aplicada a cada mes del año del rango
+        SELECT 'prom_anio', g.m,
+               ((DATE_TRUNC('year', p.d_ini)::date + (g.m || ' month')::INTERVAL)::date + p.off_dia),
+               ((DATE_TRUNC('year', p.d_ini)::date + (g.m || ' month')::INTERVAL)::date + p.off_dia + p.span)
+        FROM p, generate_series(0, 11) AS g(m)
+      ),
+      lim AS (SELECT MIN(ini) AS ini, MAX(fin) AS fin FROM win),
+      -- Un solo scan por tabla, agregado por local y día
+      tk_dia AS (
+        SELECT vt.local_id, vt.fecha AS d,
+               SUM(vt.total)                 AS fact,
+               COUNT(DISTINCT vt.id)         AS tickets,
+               COALESCE(SUM(vt.personas), 0) AS personas
+        FROM ventas_tickets vt, lim
+        WHERE vt.fecha BETWEEN lim.ini AND lim.fin
+        GROUP BY vt.local_id, vt.fecha
+      ),
+      dz_dia AS (
+        SELECT vi.local_id,
+               DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') AS d,
+               COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
+        FROM ventas_items vi, lim
+        -- cota amplia sobre la columna cruda para que entre por el índice;
+        -- el recorte fino lo hace el DATE(...) de abajo
+        WHERE vi.fecha_creacion >= (lim.ini - 1)::timestamptz
+          AND vi.fecha_creacion <  (lim.fin + 2)::timestamptz
+          AND DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN lim.ini AND lim.fin
+        GROUP BY vi.local_id, DATE(vi.fecha_creacion AT TIME ZONE '${TZ}')
+      ),
+      -- Cada agregado se colapsa a nivel ventana ANTES de juntarlos: si se
+      -- unieran los dos diarios contra la misma ventana, el join cruzaría
+      -- días-de-ticket con días-de-docena y multiplicaría la facturación.
+      tk_win AS (
+        SELECT w.tipo, w.idx, t.local_id,
+               SUM(t.fact) AS fact, SUM(t.tickets) AS tickets, SUM(t.personas) AS personas
+        FROM win w JOIN tk_dia t ON t.d BETWEEN w.ini AND w.fin
+        GROUP BY w.tipo, w.idx, t.local_id
+      ),
+      dz_win AS (
+        SELECT w.tipo, w.idx, z.local_id, SUM(z.docenas) AS docenas
+        FROM win w JOIN dz_dia z ON z.d BETWEEN w.ini AND w.fin
+        GROUP BY w.tipo, w.idx, z.local_id
+      )
+      SELECT l.id, l.nombre, l.es_alfajorera, w.tipo, w.idx,
+             COALESCE(t.fact,     0) AS facturacion,
+             COALESCE(t.tickets,  0) AS tickets,
+             COALESCE(t.personas, 0) AS personas,
+             COALESCE(z.docenas,  0) AS docenas
+      FROM locales l
+      CROSS JOIN win w
+      LEFT JOIN tk_win t ON t.local_id = l.id AND t.tipo = w.tipo AND t.idx = w.idx
+      LEFT JOIN dz_win z ON z.local_id = l.id AND z.tipo = w.tipo AND z.idx = w.idx
+      WHERE l.activo = true
+    `, [desde, hasta]);
+
+    // Reagrupar por local; el promedio del año se calcula sobre los meses con venta
+    const porLocal = new Map();
+    for (const r of rows) {
+      const id = Number(r.id);
+      if (!porLocal.has(id))
+        porLocal.set(id, { id, nombre: r.nombre, es_alfajorera: r.es_alfajorera, ventanas: {}, prom: [] });
+      const e = porLocal.get(id);
+      const m = {
+        facturacion: n(r.facturacion),
+        tickets:     n(r.tickets),
+        personas:    n(r.personas),
+        docenas:     Math.round(n(r.docenas) * 100) / 100,
+      };
+      if (r.tipo === 'prom_anio') e.prom.push(m);
+      else e.ventanas[r.tipo] = m;
+    }
+
+    const promedio = (arr, campo) => {
+      const conVenta = arr.filter(m => m.facturacion > 0);
+      if (!conVenta.length) return 0;
+      return conVenta.reduce((s, m) => s + m[campo], 0) / conVenta.length;
+    };
+
+    const tiendas = [...porLocal.values()].map(e => {
+      const act = e.ventanas.actual   || { facturacion: 0, tickets: 0, personas: 0, docenas: 0 };
+      const mes = e.ventanas.mes_ant  || { facturacion: 0, tickets: 0, personas: 0, docenas: 0 };
+      const anio= e.ventanas.anio_ant || { facturacion: 0, tickets: 0, personas: 0, docenas: 0 };
+      const prm = {
+        facturacion: Math.round(promedio(e.prom, 'facturacion')),
+        tickets:     Math.round(promedio(e.prom, 'tickets')),
+        personas:    Math.round(promedio(e.prom, 'personas')),
+        docenas:     Math.round(promedio(e.prom, 'docenas') * 100) / 100,
+        meses_con_venta: e.prom.filter(m => m.facturacion > 0).length,
+      };
+
+      const ticketProm = w => (w.tickets > 0 ? Math.round(w.facturacion / w.tickets) : 0);
+      const metrica = campo => ({
+        actual:    campo === 'prom_ticket' ? ticketProm(act) : act[campo],
+        mes_ant:   campo === 'prom_ticket' ? ticketProm(mes) : mes[campo],
+        prom_anio: campo === 'prom_ticket' ? (prm.tickets > 0 ? Math.round(prm.facturacion / prm.tickets) : 0) : prm[campo],
+        anio_ant:  campo === 'prom_ticket' ? ticketProm(anio) : anio[campo],
+      });
+      const conVar = m => ({
+        ...m,
+        var_mes_ant:   varPct(m.actual, m.mes_ant),
+        var_prom_anio: varPct(m.actual, m.prom_anio),
+        var_anio_ant:  varPct(m.actual, m.anio_ant),
+      });
+
+      return {
+        nombre:        e.nombre,
+        es_alfajorera: e.es_alfajorera,
+        meses_promedio: prm.meses_con_venta,
+        facturacion:  conVar(metrica('facturacion')),
+        tickets:      conVar(metrica('tickets')),
+        prom_ticket:  conVar(metrica('prom_ticket')),
+        docenas:      conVar(metrica('docenas')),
+        personas:     conVar(metrica('personas')),
+      };
+    });
+
+    tiendas.sort((a, b) => b.facturacion.actual - a.facturacion.actual);
+    tiendas.forEach((t, i) => { t.medalla = i + 1; });
+
+    const sum = sel => tiendas.reduce((s, t) => s + sel(t), 0);
+    const total = {
+      actual:    sum(t => t.facturacion.actual),
+      mes_ant:   sum(t => t.facturacion.mes_ant),
+      prom_anio: sum(t => t.facturacion.prom_anio),
+      anio_ant:  sum(t => t.facturacion.anio_ant),
+    };
+    total.var_mes_ant   = varPct(total.actual, total.mes_ant);
+    total.var_prom_anio = varPct(total.actual, total.prom_anio);
+    total.var_anio_ant  = varPct(total.actual, total.anio_ant);
+
+    // Las etiquetas de cada ventana, para que el front no recalcule fechas
+    const shift = (iso, campo, cant) => {
+      const d = new Date(`${iso}T12:00:00Z`);
+      if (campo === 'month') d.setUTCMonth(d.getUTCMonth() - cant);
+      else                   d.setUTCFullYear(d.getUTCFullYear() - cant);
+      return d.toISOString().slice(0, 10);
+    };
+    const nDias = Math.round((new Date(hasta) - new Date(desde)) / 86400000) + 1;
+
+    res.json({
+      ok: true,
+      data: {
+        periodo:   { desde, hasta, n_dias: nDias },
+        mes_ant:   { desde: shift(desde, 'month', 1), hasta: shift(hasta, 'month', 1) },
+        anio_ant:  { desde: shift(desde, 'year', 1),  hasta: shift(hasta, 'year', 1)  },
+        prom_anio: { anio: Number(desde.slice(0, 4)) },
+        total,
+        tiendas,
+      },
+    });
+  } catch (err) {
+    console.error('[red/comparativo]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── B) GET /docenas-mensuales ────────────────────────────────────────────────
 
 router.get('/docenas-mensuales', requireAuth, async (req, res) => {

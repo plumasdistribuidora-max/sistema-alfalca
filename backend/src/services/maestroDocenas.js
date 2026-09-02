@@ -1,130 +1,92 @@
 'use strict';
 
-const xlsx          = require('xlsx');
-const { getFromR2 } = require('../config/r2');
+const pool = require('../config/db');
 
-const R2_KEY     = 'maestros/alfalca/Maestro_Productos_Docenas_ALFALCA.xlsx';
-const HOJA       = 'Maestro Docenas';
-const HEADER_ROW = 2; // fila 3 del Excel (0-based)
-
-// Normalización canónica — misma función para maestro Y para nombres de venta
+// Normalización canónica del nombre de un producto.
+// Es la única función de normalización del sistema: la usa tanto la importación
+// de ventas para armar la clave del catálogo como cualquier búsqueda posterior.
+// Antes había dos variantes distintas y eso generaba filas duplicadas para el
+// mismo producto cuando el POS mandaba espacios de más.
 function normalizar(s) {
   return (s || '').toString()
-    .replace(/ /g, ' ')                       // non-breaking space → espacio normal
+    .replace(/ /g, ' ')                    // espacio duro → espacio normal
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '') // quitar tildes/diacríticos
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')  // quitar tildes
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-let _map    = new Map(); // nombre_normalizado → { docenas, categoria, producto }
-let _arr    = [];
+// Cache en memoria: nombre_normalizado → { id, docenas, definido }
+// docenas es null cuando el producto todavía no fue definido.
+let _map    = new Map();
 let _loaded = false;
 
 async function loadMaestro() {
-  console.log('[maestroDocenas] === INICIO RELOAD ===');
+  const { rows } = await pool.query(`
+    SELECT id, nombre_normalizado, nombre_display, docenas_por_unidad
+    FROM productos_catalogo
+  `);
 
-  const r2Res = await getFromR2(R2_KEY);
-  const chunks = [];
-  for await (const chunk of r2Res.Body) chunks.push(chunk);
-  const buffer = Buffer.concat(chunks);
-
-  console.log('[maestroDocenas] Excel descargado, tamaño:', buffer.length, 'bytes');
-
-  const wb = xlsx.read(buffer, { type: 'buffer' });
-
-  console.log('[maestroDocenas] Hojas disponibles:', wb.SheetNames);
-
-  const ws = wb.Sheets[HOJA];
-  if (!ws) throw new Error(`Hoja "${HOJA}" no encontrada en el Excel del maestro`);
-
-  console.log('[maestroDocenas] Hoja seleccionada:', HOJA);
-
-  const rows = xlsx.utils.sheet_to_json(ws, { range: HEADER_ROW, defval: null });
-
-  console.log('[maestroDocenas] Filas crudas leídas:', rows.length);
-  console.log('[maestroDocenas] Primera fila:', JSON.stringify(rows[0]));
-  console.log('[maestroDocenas] Segunda fila:', JSON.stringify(rows[1]));
-
-  const newMap = new Map();
-  const newArr = [];
-  let dupes = 0;
-
-  for (const row of rows) {
-    // Col 1: Categoría
-    const categoria = (row['Categoría'] || row['Categoria'] || '').toString().trim();
-
-    // Col 2: Producto (nombre canónico de la fila)
-    const producto = row['Producto'];
-    if (!producto || !String(producto).trim()) {
-      console.log('[maestroDocenas] Fila descartada (razón: sin producto):', JSON.stringify(row));
-      continue;
-    }
-    const productoStr = String(producto).trim();
-
-    // Col 3: Variantes separadas por " | "
-    const variantesRaw = row['Variantes de nombre (todas matchean)'];
-    const variantesStr = variantesRaw ? String(variantesRaw).trim() : productoStr;
-    const variantes    = variantesStr.split('|').map(v => v.trim()).filter(Boolean);
-    if (variantes.length === 0) variantes.push(productoStr);
-
-    // Col 4: DOCENAS — acepta clave con o sin salto de línea en el header del Excel
-    const docenasRaw =
-      row['DOCENAS\n(equivalente)'] ??
-      row['DOCENAS (equivalente)']  ??
-      row['DOCENAS'];
-    let docenas = 0;
-    if (docenasRaw !== null && docenasRaw !== undefined && docenasRaw !== '') {
-      const parsed = parseFloat(docenasRaw);
-      docenas = isNaN(parsed) ? 0 : parsed;
-    }
-
-    // Col 5: Locales
-    const locales = row['Locales'] ? String(row['Locales']).trim() : null;
-
-    // Registrar cada variante en el mapa apuntando al mismo valor de docenas
-    for (const variante of variantes) {
-      const key = normalizar(variante);
-      if (!key) continue;
-      if (newMap.has(key)) {
-        console.warn(`[maestroDocenas] Variante duplicada: "${key}" (producto: "${productoStr}") — se mantiene la primera`);
-        dupes++;
-        continue;
-      }
-      newMap.set(key, { docenas, categoria, producto: productoStr });
-    }
-
-    newArr.push({ producto: productoStr, variantes, docenas, categoria, locales });
+  const nuevo = new Map();
+  for (const r of rows) {
+    const definido = r.docenas_por_unidad !== null;
+    nuevo.set(normalizar(r.nombre_normalizado), {
+      id:       r.id,
+      docenas:  definido ? parseFloat(r.docenas_por_unidad) : null,
+      definido,
+    });
   }
 
-  _map    = newMap;
-  _arr    = newArr;
+  _map    = nuevo;
   _loaded = true;
 
-  const conDocenas = newArr.filter(e => e.docenas > 0).length;
+  const pendientes = rows.filter(r => r.docenas_por_unidad === null).length;
   console.log(
-    `[maestroDocenas] OK — ${newArr.length} productos, ${newMap.size} variantes ` +
-    `(${conDocenas} con docenas > 0, ${dupes} dupes ignorados)`
+    `[maestroDocenas] ${rows.length} productos en catálogo ` +
+    `(${rows.length - pendientes} definidos, ${pendientes} pendientes)`
   );
-  console.log('[maestroDocenas] === FIN RELOAD ===', 'productos:', newArr.length, 'variantes:', newMap.size, 'con_docenas:', conDocenas);
-  return { productos: newArr.length, variantes: newMap.size, con_docenas: conDocenas, duplicados: dupes };
+  return { productos: rows.length, definidos: rows.length - pendientes, pendientes };
 }
 
 /**
- * Retorna el valor de docenas si el nombre matchea alguna variante del maestro
- * (el valor puede ser 0 para productos que no suman docenas).
- * Retorna null si el nombre no tiene ningún match.
+ * Docenas por unidad de un producto.
+ * Devuelve el número si está definido, o null si el producto no existe en el
+ * catálogo o existe pero todavía no fue definido. Nunca devuelve 0 por defecto:
+ * un 0 acá significa "definido explícitamente como que no suma".
  */
 function getDocenasPorProducto(nombre) {
-  const entry = _map.get(normalizar(nombre));
-  return entry !== undefined ? entry.docenas : null;
+  const e = _map.get(normalizar(nombre));
+  return e && e.definido ? e.docenas : null;
 }
 
-function isEnMaestro(nombre) {
+/** true si el producto ya tiene un valor de docenas definido (incluye el 0). */
+function estaDefinido(nombre) {
+  const e = _map.get(normalizar(nombre));
+  return !!(e && e.definido);
+}
+
+/** true si el producto existe en el catálogo, esté definido o no. */
+function existeEnCatalogo(nombre) {
   return _map.has(normalizar(nombre));
 }
 
-function getMaestroArray() { return _arr; }
-function isLoaded()        { return _loaded; }
+/** Actualiza el cache para un producto sin releer todo el catálogo. */
+function setCache(nombreNormalizado, id, docenas) {
+  _map.set(normalizar(nombreNormalizado), {
+    id,
+    docenas:  docenas === null || docenas === undefined ? null : parseFloat(docenas),
+    definido: docenas !== null && docenas !== undefined,
+  });
+}
 
-module.exports = { loadMaestro, getDocenasPorProducto, isEnMaestro, getMaestroArray, isLoaded };
+function isLoaded() { return _loaded; }
+
+module.exports = {
+  normalizar,
+  loadMaestro,
+  getDocenasPorProducto,
+  estaDefinido,
+  existeEnCatalogo,
+  setCache,
+  isLoaded,
+};

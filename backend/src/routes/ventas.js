@@ -4,7 +4,12 @@ const xlsx     = require('xlsx');
 const pool     = require('../config/db');
 const { uploadToR2 } = require('../config/r2');
 const { requireAuth, canAccessLocal, ROLES_RED } = require('../middleware/auth');
-const { getDocenasPorProducto, isEnMaestro, isLoaded: maestroIsLoaded } = require('../services/maestroDocenas');
+const {
+  normalizar: normalizarNombreProducto,
+  getDocenasPorProducto,
+  estaDefinido,
+  loadMaestro: recargarMaestro,
+} = require('../services/maestroDocenas');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -69,10 +74,10 @@ function getCol(row, ...names) {
   return null;
 }
 
+// Clave canónica del catálogo. Delega en el servicio del maestro para que la
+// importación y la búsqueda de docenas usen exactamente la misma normalización.
 function normalizeNombre(s) {
-  return (s || '').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .trim();
+  return normalizarNombreProducto(s);
 }
 
 function checkLocalAccess(user, localId) {
@@ -365,7 +370,8 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       // "Total ($)" → normaliza a "total"
       let productosNuevos = 0;
       const productoIdMap = {}; // nombre_normalizado → db id
-      const docenasMap    = {}; // db id → docenas_por_unidad
+      const docenasMap    = {}; // db id → docenas_por_unidad (null = sin definir)
+      const pendientes    = []; // productos sin docenas definidas vistos en este archivo
 
       for (const row of rowsProductos) {
         const nombreRaw = row['nombre'];
@@ -377,36 +383,44 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         const totalProd     = parseFloat(row['total'] ?? 0) || 0;
         const precioProm    = cantidad > 0 ? Math.round((totalProd / cantidad) * 100) / 100 : null;
 
-        const docenas     = getDocenasPorProducto(nombreDisplay) ?? 0;
+        // Las docenas ya no se recalculan en cada import: el valor vive en el
+        // catálogo y lo define el usuario. Un producto nuevo entra como
+        // pendiente (NULL) en vez de sumar 0 en silencio, y el RETURNING nos
+        // devuelve el valor que ya estaba cargado para los que sí están definidos.
         const esAdicional = normalizeNombre(nombreDisplay).includes('adicional');
-        const regla       = isEnMaestro(nombreDisplay) ? 'Maestro R2' : 'Sin match';
-        if (!isEnMaestro(nombreDisplay) && maestroIsLoaded())
-          console.warn(`[import] Sin match en maestro: "${nombreDisplay}"`);
-
 
         const r = await client.query(`
           INSERT INTO productos_catalogo
             (nombre_normalizado, nombre_display, categoria, subcategoria, codigo_pos,
              docenas_por_unidad, es_adicional, regla_descripcion, precio_promedio)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          VALUES ($1,$2,$3,$4,$5,NULL,$6,'Pendiente de definir',$7)
           ON CONFLICT (nombre_normalizado) DO UPDATE SET
-            precio_promedio    = COALESCE($9, productos_catalogo.precio_promedio),
-            docenas_por_unidad = $6,
-            regla_descripcion  = $8,
-            updated_at         = NOW()
-          RETURNING id, (xmax = 0) AS inserted
+            precio_promedio = COALESCE($7, productos_catalogo.precio_promedio),
+            categoria       = COALESCE(productos_catalogo.categoria, $3),
+            subcategoria    = COALESCE(productos_catalogo.subcategoria, $4),
+            codigo_pos      = COALESCE(productos_catalogo.codigo_pos, $5),
+            updated_at      = NOW()
+          RETURNING id, docenas_por_unidad, (xmax = 0) AS inserted
         `, [
           nombreNorm, nombreDisplay,
           row['categoria'] || null,
           row['subcategoria'] || null,
           row['codigo'] || null,
-          docenas, esAdicional, regla, precioProm,
+          esAdicional, precioProm,
         ]);
 
         const { id: prodId, inserted } = r.rows[0];
+        const docenasDb = r.rows[0].docenas_por_unidad === null
+          ? null
+          : parseFloat(r.rows[0].docenas_por_unidad);
+
         productoIdMap[nombreNorm] = prodId;
-        docenasMap[prodId]        = docenas;
+        docenasMap[prodId]        = docenasDb;
         if (inserted) productosNuevos++;
+        if (docenasDb === null) {
+          pendientes.push({ id: prodId, nombre: nombreDisplay, nuevo: inserted });
+          console.warn(`[import] Producto sin docenas definidas: "${nombreDisplay}"`);
+        }
       }
 
       // ── PASO 3: ventas_items (Adiciones) ──────────────────────────────
@@ -423,10 +437,14 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
         const nombreNorm  = normalizeNombre(nombreRaw);
         const productoId  = productoIdMap[nombreNorm] ?? null;
-        const docenasProd = productoId ? (docenasMap[productoId] ?? 0) : (getDocenasPorProducto(nombreRaw) ?? 0);
+        // Un producto pendiente aporta 0 por ahora; cuando se defina su valor,
+        // el recálculo del maestro actualiza estas filas hacia atrás.
+        const docenasProd = productoId
+          ? docenasMap[productoId]
+          : getDocenasPorProducto(nombreRaw);
         const cantidad    = parseFloat(row['cantidad'] ?? 1) || 1;
         const precioUnit  = parseFloat(row['precio'] ?? 0) || 0;
-        const docenasEq   = cantidad * parseFloat(docenasProd);
+        const docenasEq   = cantidad * (docenasProd ?? 0);
         const cancelada   = parseFiscal(row['cancelada']);
         if (cancelada) itemsCancelados++;
 
@@ -578,6 +596,11 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
       await client.query('COMMIT');
 
+      // El catálogo cambió: refrescamos el cache del maestro (recién ahora, para
+      // no dejarlo sucio si la transacción se hubiera caído).
+      await recargarMaestro().catch(err =>
+        console.warn('[import] No se pudo refrescar el cache del maestro:', err.message));
+
       // ── Actualizar imports_log ─────────────────────────────────────────
       await pool.query(`
         UPDATE imports_log SET
@@ -615,6 +638,8 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           fiscales_insertados:         fiscalesInsertados,
           sin_datos_fiscales:          !tieneFiscales,
           productos_nuevos_catalogo:   productosNuevos,
+          productos_pendientes:        pendientes,
+          productos_pendientes_count:  pendientes.length,
           docenas_totales_periodo:     Math.round(docenasTotalesDB * 10000) / 10000,
           adicionales_total:           parseInt(adicionalesTotal.rows[0].cnt),
           fecha_desde:                 fechaDesde,
@@ -1135,13 +1160,11 @@ router.get('/docenas', requireAuth, async (req, res) => {
         docenas:  Math.round(n(r.docenas) * 10000) / 10000,
       }));
 
-    // Productos que vinieron en ventas pero NO están en el maestro (para auditoría)
-    const noMatcheados = maestroIsLoaded()
-      ? prodRes.rows
-          .filter(r => !isEnMaestro(r.nombre))
-          .map(r => ({ nombre: r.nombre, unidades: n(r.unidades) }))
-          .sort((a, b) => b.unidades - a.unidades)
-      : [];
+    // Productos vendidos en el período que todavía no tienen docenas definidas.
+    const noMatcheados = prodRes.rows
+      .filter(r => !estaDefinido(r.nombre))
+      .map(r => ({ nombre: r.nombre, unidades: n(r.unidades) }))
+      .sort((a, b) => b.unidades - a.unidades);
 
     res.json({
       ok: true,

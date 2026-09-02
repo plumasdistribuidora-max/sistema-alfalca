@@ -36,9 +36,9 @@ app.use('/api/cashflow',  soloRed, require('./routes/cashflow'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 
-// Carga el maestro de docenas desde R2 en startup (no bloquea el servidor si R2 no está disponible)
+// Cachea el maestro de docenas desde la base en startup (no bloquea el arranque)
 require('./services/maestroDocenas').loadMaestro()
-  .catch(err => console.warn('[startup] Maestro docenas no disponible (se usará docenas=0):', err.message));
+  .catch(err => console.warn('[startup] No se pudo cachear el maestro de docenas:', err.message));
 
 if (isProd) {
   const distPath = path.join(__dirname, '../../frontend/dist');

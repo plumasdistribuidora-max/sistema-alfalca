@@ -101,6 +101,37 @@ export default function VentasImportar() {
               <ResultBadge label="Productos catálogo" value={result.productos_nuevos_catalogo} color="bg-emerald-100 text-emerald-800" />
               <ResultBadge label="Docenas totales" value={result.docenas_totales_periodo > 0 ? result.docenas_totales_periodo.toFixed(2) : '—'} color="bg-purple-100 text-purple-800" />
             </div>
+
+            {result.productos_pendientes_count > 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 space-y-2">
+                <p className="font-semibold text-amber-900">
+                  {result.productos_pendientes_count}{' '}
+                  {result.productos_pendientes_count === 1
+                    ? 'producto vendido sin docenas definidas'
+                    : 'productos vendidos sin docenas definidas'}
+                </p>
+                <p className="text-sm text-amber-800">
+                  Estos productos están sumando <strong>0 docenas</strong> hasta que les asignes
+                  un valor. Cuando lo cargues, el histórico se recalcula solo.
+                </p>
+                <ul className="text-sm text-amber-900 space-y-0.5 max-h-48 overflow-y-auto">
+                  {result.productos_pendientes.slice(0, 25).map(p => (
+                    <li key={p.id}>
+                      • {p.nombre}
+                      {p.nuevo && <span className="text-xs text-amber-600 ml-1">(nuevo)</span>}
+                    </li>
+                  ))}
+                  {result.productos_pendientes.length > 25 && (
+                    <li className="text-xs text-amber-600">
+                      …y {result.productos_pendientes.length - 25} más
+                    </li>
+                  )}
+                </ul>
+                <a href="/admin/maestros/docenas?estado=pendientes" className="btn-primary inline-block text-sm">
+                  Asignar docenas ahora →
+                </a>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <button onClick={reset} className="btn-secondary">Importar otro archivo</button>

@@ -1,42 +1,88 @@
 'use strict';
 
-const express             = require('express');
-const multer              = require('multer');
-const { HeadObjectCommand } = require('@aws-sdk/client-s3');
+const express = require('express');
+const pool    = require('../config/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
-const { loadMaestro, getMaestroArray, isLoaded } = require('../services/maestroDocenas');
-const { uploadToR2, getFromR2, r2 } = require('../config/r2');
+const {
+  loadMaestro, normalizar, setCache, isLoaded,
+} = require('../services/maestroDocenas');
 
 const router = express.Router();
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits:  { fileSize: 10 * 1024 * 1024 },
-});
 
-const R2_KEY = 'maestros/alfalca/Maestro_Productos_Docenas_ALFALCA.xlsx';
-const BUCKET = process.env.R2_BUCKET;
+// Recalcula docenas_equivalentes de las ventas ya importadas de un producto.
+// Cubre las líneas enlazadas por producto_id y también las que quedaron sin
+// enlazar, matcheando por el nombre crudo que mandó el POS.
+async function recalcularHistorico(client, prodId, nombreDisplay, docenas) {
+  const valor = docenas === null ? 0 : docenas;
 
-async function getR2LastModified() {
-  try {
-    const head = await r2.send(new HeadObjectCommand({ Bucket: BUCKET, Key: R2_KEY }));
-    return head.LastModified?.toISOString() ?? null;
-  } catch {
-    return null;
-  }
+  const porId = await client.query(`
+    UPDATE ventas_items
+    SET docenas_equivalentes = cantidad * $2::numeric
+    WHERE producto_id = $1
+  `, [prodId, valor]);
+
+  const porNombre = await client.query(`
+    UPDATE ventas_items
+    SET docenas_equivalentes = cantidad * $2::numeric
+    WHERE producto_id IS NULL
+      AND btrim(lower(producto_nombre_raw)) = btrim(lower($1))
+  `, [nombreDisplay, valor]);
+
+  return porId.rowCount + porNombre.rowCount;
 }
 
-// GET /docenas/estado
-router.get('/docenas/estado', requireAuth, requireAdmin, async (req, res) => {
+// Aplica un valor de docenas a un producto y recalcula su histórico.
+async function definirProducto(client, id, docenas, nota, usuario) {
+  const valor = docenas === null ? null : Number(docenas);
+  if (valor !== null && (!isFinite(valor) || valor < 0)) {
+    throw new Error(`Valor de docenas inválido para el producto ${id}`);
+  }
+
+  const upd = await client.query(`
+    UPDATE productos_catalogo SET
+      docenas_por_unidad   = $2,
+      docenas_nota         = $3,
+      docenas_origen       = CASE WHEN $2::numeric IS NULL THEN NULL ELSE 'manual' END,
+      docenas_definido_por = CASE WHEN $2::numeric IS NULL THEN NULL ELSE $4 END,
+      docenas_definido_at  = CASE WHEN $2::numeric IS NULL THEN NULL ELSE NOW() END,
+      regla_descripcion    = CASE WHEN $2::numeric IS NULL
+                                  THEN 'Pendiente de definir'
+                                  ELSE 'Definido a mano' END,
+      updated_at           = NOW()
+    WHERE id = $1
+    RETURNING id, nombre_normalizado, nombre_display, docenas_por_unidad
+  `, [id, valor, nota || null, usuario]);
+
+  if (!upd.rows.length) throw new Error(`Producto ${id} no encontrado`);
+  const p = upd.rows[0];
+
+  const filas = await recalcularHistorico(client, p.id, p.nombre_display, valor);
+  setCache(p.nombre_normalizado, p.id, valor);
+
+  return { id: p.id, nombre: p.nombre_display, docenas: valor, ventas_recalculadas: filas };
+}
+
+// ── GET /docenas/estado ─────────────────────────────────────────────────────
+router.get('/docenas/estado', requireAuth, async (req, res) => {
   try {
-    const arr       = getMaestroArray();
-    const variantes = arr.reduce((s, p) => s + (p.variantes?.length || 1), 0);
-    const ultima_actualizacion = await getR2LastModified();
+    const { rows } = await pool.query(`
+      SELECT
+        COUNT(*)                                          AS productos,
+        COUNT(*) FILTER (WHERE docenas_por_unidad IS NULL) AS pendientes,
+        COUNT(*) FILTER (WHERE docenas_por_unidad > 0)     AS suman,
+        COUNT(*) FILTER (WHERE docenas_por_unidad = 0)     AS no_suman,
+        MAX(docenas_definido_at)                           AS ultima_definicion
+      FROM productos_catalogo
+    `);
+    const r = rows[0];
     res.json({
       ok: true,
       loaded: isLoaded(),
-      productos: arr.length,
-      variantes,
-      ultima_actualizacion,
+      productos:         Number(r.productos),
+      pendientes:        Number(r.pendientes),
+      suman:             Number(r.suman),
+      no_suman:          Number(r.no_suman),
+      ultima_definicion: r.ultima_definicion,
     });
   } catch (err) {
     console.error('[maestros/docenas/estado]', err);
@@ -44,80 +90,282 @@ router.get('/docenas/estado', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// POST /docenas/upload
-router.post(
-  '/docenas/upload',
-  requireAuth,
-  requireAdmin,
-  (req, res, next) => {
-    upload.single('archivo')(req, res, (err) => {
-      if (err?.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ ok: false, error: 'Archivo demasiado grande (máximo 10 MB)' });
-      }
-      if (err) return next(err);
-      next();
-    });
-  },
-  async (req, res) => {
-    try {
-      const file = req.file;
-      if (!file) {
-        return res.status(400).json({ ok: false, error: 'No se recibió ningún archivo' });
-      }
-      if (!file.originalname.toLowerCase().endsWith('.xlsx')) {
-        return res.status(400).json({ ok: false, error: 'Formato no válido. Solo se aceptan archivos .xlsx' });
-      }
-
-      await uploadToR2(
-        R2_KEY,
-        file.buffer,
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-
-      const result             = await loadMaestro();
-      const ultima_actualizacion = await getR2LastModified();
-
-      res.json({ ok: true, ...result, ultima_actualizacion });
-    } catch (err) {
-      console.error('[maestros/docenas/upload]', err);
-      res.status(500).json({ ok: false, error: err.message });
-    }
-  },
-);
-
-// GET /docenas/download
-router.get('/docenas/download', requireAuth, requireAdmin, async (req, res) => {
+// ── GET /docenas/lista ──────────────────────────────────────────────────────
+// Listado completo del maestro. ?estado=pendientes|definidos filtra.
+router.get('/docenas/lista', requireAuth, async (req, res) => {
   try {
-    const r2Res = await getFromR2(R2_KEY);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="Maestro_Productos_Docenas_ALFALCA.xlsx"');
-    if (r2Res.ContentLength) res.setHeader('Content-Length', r2Res.ContentLength);
-    r2Res.Body.pipe(res);
+    const { estado } = req.query;
+    const filtro =
+      estado === 'pendientes' ? 'WHERE pc.docenas_por_unidad IS NULL' :
+      estado === 'definidos'  ? 'WHERE pc.docenas_por_unidad IS NOT NULL' : '';
+
+    const { rows } = await pool.query(`
+      WITH ventas AS (
+        SELECT producto_id,
+               SUM(cantidad) FILTER (WHERE NOT cancelada) AS unidades,
+               MAX(fecha_creacion)                        AS ultima_venta
+        FROM ventas_items
+        WHERE producto_id IS NOT NULL
+        GROUP BY producto_id
+      )
+      SELECT
+        pc.id,
+        pc.nombre_display,
+        pc.categoria,
+        pc.docenas_por_unidad,
+        pc.docenas_origen,
+        pc.docenas_definido_por,
+        pc.docenas_definido_at,
+        pc.docenas_nota,
+        pc.precio_promedio,
+        COALESCE(v.unidades, 0) AS unidades_vendidas,
+        v.ultima_venta
+      FROM productos_catalogo pc
+      LEFT JOIN ventas v ON v.producto_id = pc.id
+      ${filtro}
+      ORDER BY (pc.docenas_por_unidad IS NULL) DESC,
+               COALESCE(v.unidades, 0) DESC,
+               pc.nombre_display
+    `);
+
+    res.json({
+      ok: true,
+      data: rows.map(r => ({
+        id:                r.id,
+        nombre:            r.nombre_display,
+        categoria:         r.categoria,
+        docenas:           r.docenas_por_unidad === null ? null : Number(r.docenas_por_unidad),
+        pendiente:         r.docenas_por_unidad === null,
+        origen:            r.docenas_origen,
+        definido_por:      r.docenas_definido_por,
+        definido_at:       r.docenas_definido_at,
+        nota:              r.docenas_nota,
+        precio_promedio:   r.precio_promedio === null ? null : Number(r.precio_promedio),
+        unidades_vendidas: Number(r.unidades_vendidas),
+        ultima_venta:      r.ultima_venta,
+      })),
+    });
   } catch (err) {
-    console.error('[maestros/docenas/download]', err);
+    console.error('[maestros/docenas/lista]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// POST /docenas/reload
+// ── PUT /docenas/:id ────────────────────────────────────────────────────────
+// Body: { docenas: number | null, nota?: string }
+router.put('/docenas/:id', requireAuth, requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
+
+  const { docenas, nota } = req.body ?? {};
+  if (docenas === undefined) {
+    return res.status(400).json({ ok: false, error: 'Falta el valor de docenas' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await definirProducto(
+      client, id, docenas, nota, req.user?.nombre || req.user?.email || 'admin',
+    );
+    await client.query('COMMIT');
+    res.json({ ok: true, data: r });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[maestros/docenas/put]', err);
+    res.status(400).json({ ok: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ── POST /docenas/bulk ──────────────────────────────────────────────────────
+// Asigna el mismo valor a muchos productos de una. Todo o nada.
+// Body: { ids: [1,2,3], docenas: number, nota?: string }
+//   o:  { categoria: 'Vinos y Espumantes', docenas: number, solo_pendientes?: bool }
+//
+// Va con dos UPDATE de conjunto en vez de uno por producto: con 900 productos
+// la diferencia es de minutos a segundos.
+router.post('/docenas/bulk', requireAuth, requireAdmin, async (req, res) => {
+  const { ids, categoria, docenas, nota, solo_pendientes = true } = req.body ?? {};
+
+  const valor = Number(docenas);
+  if (docenas === undefined || docenas === null || !isFinite(valor) || valor < 0) {
+    return res.status(400).json({ ok: false, error: 'Valor de docenas inválido' });
+  }
+
+  const porIds = Array.isArray(ids) && ids.length > 0;
+  if (!porIds && !categoria) {
+    return res.status(400).json({ ok: false, error: 'Indicá una lista de productos o una categoría' });
+  }
+
+  // El filtro de destino es el mismo para los dos UPDATE.
+  const cond = [];
+  const params = [valor, req.user?.nombre || req.user?.email || 'admin', nota || null];
+  if (porIds) {
+    params.push(ids.map(Number).filter(Boolean));
+    cond.push(`pc.id = ANY($${params.length}::int[])`);
+  }
+  if (categoria) {
+    params.push(categoria === '(sin categoría)' ? null : categoria);
+    cond.push(`pc.categoria IS NOT DISTINCT FROM $${params.length}`);
+  }
+  if (solo_pendientes) cond.push('pc.docenas_por_unidad IS NULL');
+  const where = cond.join(' AND ');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const upd = await client.query(`
+      UPDATE productos_catalogo pc SET
+        docenas_por_unidad   = $1::numeric,
+        docenas_nota         = $3,
+        docenas_origen       = 'manual',
+        docenas_definido_por = $2,
+        docenas_definido_at  = NOW(),
+        regla_descripcion    = 'Definido a mano (masivo)',
+        updated_at           = NOW()
+      WHERE ${where}
+      RETURNING pc.id
+    `, params);
+
+    // Recalcula el histórico de todos los productos tocados de una sola pasada.
+    const recalc = await client.query(`
+      UPDATE ventas_items vi
+      SET docenas_equivalentes = vi.cantidad * $1::numeric
+      WHERE vi.producto_id = ANY($2::int[])
+        AND vi.docenas_equivalentes IS DISTINCT FROM vi.cantidad * $1::numeric
+    `, [valor, upd.rows.map(r => r.id)]);
+
+    await client.query('COMMIT');
+    await loadMaestro();
+
+    res.json({
+      ok: true,
+      actualizados:        upd.rowCount,
+      ventas_recalculadas: recalc.rowCount,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[maestros/docenas/bulk]', err);
+    res.status(400).json({ ok: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ── GET /docenas/categorias ─────────────────────────────────────────────────
+// Categorías con su conteo de pendientes, para la carga masiva.
+router.get('/docenas/categorias', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT COALESCE(categoria, '(sin categoría)') AS categoria,
+             COUNT(*)                                        AS total,
+             COUNT(*) FILTER (WHERE docenas_por_unidad IS NULL) AS pendientes
+      FROM productos_catalogo
+      GROUP BY 1
+      ORDER BY COUNT(*) FILTER (WHERE docenas_por_unidad IS NULL) DESC, 1
+    `);
+    res.json({
+      ok: true,
+      data: rows.map(r => ({
+        categoria:  r.categoria,
+        total:      Number(r.total),
+        pendientes: Number(r.pendientes),
+      })),
+    });
+  } catch (err) {
+    console.error('[maestros/docenas/categorias]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── GET /docenas/export ─────────────────────────────────────────────────────
+// CSV del maestro completo, para revisar fuera del sistema.
+router.get('/docenas/export', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT nombre_display, categoria, docenas_por_unidad,
+             docenas_origen, docenas_definido_por, docenas_definido_at, docenas_nota
+      FROM productos_catalogo
+      ORDER BY (docenas_por_unidad IS NULL) DESC, nombre_display
+    `);
+
+    const esc = v => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const lineas = [
+      'Producto;Categoria;Docenas;Estado;Origen;Definido por;Definido el;Nota',
+      ...rows.map(r => [
+        esc(r.nombre_display),
+        esc(r.categoria),
+        r.docenas_por_unidad === null ? '' : esc(r.docenas_por_unidad),
+        r.docenas_por_unidad === null ? 'PENDIENTE' : 'Definido',
+        esc(r.docenas_origen),
+        esc(r.docenas_definido_por),
+        esc(r.docenas_definido_at ? new Date(r.docenas_definido_at).toISOString().slice(0, 10) : ''),
+        esc(r.docenas_nota),
+      ].join(';')),
+    ];
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="maestro-docenas.csv"');
+    res.send('﻿' + lineas.join('\n'));
+  } catch (err) {
+    console.error('[maestros/docenas/export]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── POST /docenas/reload ────────────────────────────────────────────────────
 router.post('/docenas/reload', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await loadMaestro();
-    res.json({ ok: true, mensaje: 'Maestro recargado correctamente', ...result });
+    res.json({ ok: true, mensaje: 'Maestro recargado desde la base', ...result });
   } catch (err) {
     console.error('[maestros/docenas/reload]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// GET /docenas — listado completo (debug)
-router.get('/docenas', requireAuth, async (req, res) => {
-  res.json({
-    ok:     true,
-    loaded: isLoaded(),
-    total:  getMaestroArray().length,
-    data:   getMaestroArray(),
-  });
+// ── POST /docenas/recalcular ────────────────────────────────────────────────
+// Reaplica todos los valores del maestro sobre las ventas ya importadas.
+//
+// Ojo: los productos pendientes valen 0. Si se corre esto con pendientes
+// encima, todas sus ventas históricas se ponen en 0 de golpe y los totales se
+// desploman. Por eso se bloquea mientras quede alguno sin definir.
+router.post('/docenas/recalcular', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rows: [c] } = await pool.query(
+      'SELECT COUNT(*) AS pendientes FROM productos_catalogo WHERE docenas_por_unidad IS NULL'
+    );
+    const pendientes = Number(c.pendientes);
+    if (pendientes > 0 && req.body?.forzar !== true) {
+      return res.status(409).json({
+        ok: false,
+        pendientes,
+        error: `Quedan ${pendientes} productos sin definir. Como los pendientes valen 0, ` +
+               'recalcular ahora pondría en cero sus ventas históricas. Definilos primero.',
+      });
+    }
+
+    const r = await pool.query(`
+      UPDATE ventas_items vi
+      SET docenas_equivalentes = vi.cantidad * COALESCE(pc.docenas_por_unidad, 0)
+      FROM productos_catalogo pc
+      WHERE pc.id = vi.producto_id
+        AND vi.docenas_equivalentes IS DISTINCT FROM vi.cantidad * COALESCE(pc.docenas_por_unidad, 0)
+    `);
+    await loadMaestro();
+    res.json({ ok: true, ventas_recalculadas: r.rowCount });
+  } catch (err) {
+    console.error('[maestros/docenas/recalcular]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 module.exports = router;

@@ -31,6 +31,7 @@ export default function DocenasAnalisisPage() {
   const [resumen,  setResumen]  = useState(null);
   const [serie,    setSerie]    = useState([]);
   const [heatmap,  setHeatmap]  = useState([]);
+  const [pendientes, setPendientes] = useState(0);
   const [loading,  setLoading]  = useState(false);
 
   const localId = searchParams.get('local_id') || '';
@@ -57,10 +58,12 @@ export default function DocenasAnalisisPage() {
       api.get('/productos/docenas-resumen',   { params }),
       api.get('/productos/docenas-por-dia',   { params }),
       api.get('/productos/docenas-por-hora',  { params }),
-    ]).then(([rRes, dRes, hRes]) => {
+      api.get('/maestros/docenas/estado').catch(() => null),
+    ]).then(([rRes, dRes, hRes, mRes]) => {
       setResumen(rRes.data.data);
       setSerie(dRes.data.data.serie || []);
       setHeatmap(hRes.data.data.heatmap || []);
+      setPendientes(mRes?.data?.pendientes ?? 0);
     }).catch(console.error).finally(() => setLoading(false));
   }, [localId, desde, hasta]);
 
@@ -91,6 +94,20 @@ export default function DocenasAnalisisPage() {
           <input type="date" className="input text-sm w-36" value={hasta} onChange={e => setParam('hasta', e.target.value)} />
         </div>
       </div>
+
+      {pendientes > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-amber-900">
+            <strong>{pendientes}</strong>{' '}
+            {pendientes === 1 ? 'producto sin docenas definidas' : 'productos sin docenas definidas'}
+            {' '}— están sumando 0, así que estos totales quedan cortos.
+          </p>
+          <a href="/admin/maestros/docenas?estado=pendientes"
+             className="text-sm font-semibold text-amber-900 underline whitespace-nowrap">
+            Asignarlas ahora →
+          </a>
+        </div>
+      )}
 
       {loading && <div className="text-center text-stone-400 py-12">Cargando datos...</div>}
 

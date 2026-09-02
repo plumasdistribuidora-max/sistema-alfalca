@@ -855,6 +855,106 @@ router.get('/meses-resumen', requireAuth, async (req, res) => {
   }
 });
 
+// ── E) GET /semanal ──────────────────────────────────────────────────────────
+// Facturación y docenas semana a semana, por tienda, con la variación contra la
+// semana anterior. Las semanas son ISO (lunes a domingo).
+
+router.get('/semanal', requireAuth, async (req, res) => {
+  try {
+    const range = parseRange(req);
+    if (!range) return res.status(400).json({ ok: false, error: 'Fechas inválidas (YYYY-MM-DD)' });
+    const [desde, hasta] = range;
+
+    const { rows } = await pool.query(`
+      WITH tk AS (
+        SELECT vt.local_id,
+               DATE_TRUNC('week', vt.fecha)::date AS semana_ini,
+               SUM(vt.total)         AS facturacion,
+               COUNT(DISTINCT vt.id) AS tickets
+        FROM ventas_tickets vt
+        JOIN locales l ON l.id = vt.local_id AND l.activo = true
+        WHERE vt.fecha BETWEEN $1::date AND $2::date
+        GROUP BY vt.local_id, 2
+      ),
+      dz AS (
+        SELECT vi.local_id,
+               DATE_TRUNC('week', DATE(vi.fecha_creacion AT TIME ZONE '${TZ}'))::date AS semana_ini,
+               COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS docenas
+        FROM ventas_items vi
+        JOIN locales l ON l.id = vi.local_id AND l.activo = true
+        WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
+        GROUP BY vi.local_id, 2
+      ),
+      -- FULL JOIN: una semana puede tener venta sin docenas o al revés, y las
+      -- dos tablas se agregan por separado para no cruzar días entre sí.
+      sem AS (
+        SELECT COALESCE(t.local_id,   d.local_id)   AS local_id,
+               COALESCE(t.semana_ini, d.semana_ini) AS semana_ini,
+               COALESCE(t.facturacion, 0) AS facturacion,
+               COALESCE(t.tickets,     0) AS tickets,
+               COALESCE(d.docenas,     0) AS docenas
+        FROM tk t
+        FULL OUTER JOIN dz d ON d.local_id = t.local_id AND d.semana_ini = t.semana_ini
+      )
+      SELECT l.id, l.nombre, l.es_alfajorera,
+             s.semana_ini,
+             EXTRACT(WEEK FROM s.semana_ini)::int AS semana,
+             s.facturacion, s.tickets, s.docenas
+      FROM sem s
+      JOIN locales l ON l.id = s.local_id AND l.activo = true
+      ORDER BY l.nombre, s.semana_ini
+    `, [desde, hasta]);
+
+    const porLocal = new Map();
+    for (const r of rows) {
+      const ini = r.semana_ini instanceof Date
+        ? r.semana_ini.toISOString().slice(0, 10)
+        : String(r.semana_ini).slice(0, 10);
+      const finD = new Date(`${ini}T12:00:00Z`);
+      finD.setUTCDate(finD.getUTCDate() + 6);
+      const finIso = finD.toISOString().slice(0, 10);
+
+      // Las semanas cortadas por los bordes del período se descartan: una semana
+      // de tres días haría que la siguiente muestre una suba inventada.
+      if (ini < desde || finIso > hasta) continue;
+
+      const id = Number(r.id);
+      if (!porLocal.has(id))
+        porLocal.set(id, { local_id: id, tienda: r.nombre, es_alfajorera: r.es_alfajorera, semanas: [] });
+
+      porLocal.get(id).semanas.push({
+        semana:      Number(r.semana),
+        desde:       ini,
+        hasta:       finIso,
+        facturacion: Math.round(n(r.facturacion)),
+        tickets:     n(r.tickets),
+        docenas:     Math.round(n(r.docenas) * 100) / 100,
+      });
+    }
+
+    const tiendas = [...porLocal.values()].map(t => {
+      t.semanas.forEach((s, i) => {
+        const prev = i > 0 ? t.semanas[i - 1] : null;
+        s.var_facturacion = prev ? varPct(s.facturacion, prev.facturacion) : null;
+        s.var_docenas     = prev ? varPct(s.docenas,     prev.docenas)     : null;
+      });
+      return {
+        ...t,
+        facturacion_total: t.semanas.reduce((a, s) => a + s.facturacion, 0),
+        docenas_total:     Math.round(t.semanas.reduce((a, s) => a + s.docenas, 0) * 100) / 100,
+      };
+    });
+
+    tiendas.sort((a, b) => b.facturacion_total - a.facturacion_total);
+    tiendas.forEach((t, i) => { t.medalla = i + 1; });
+
+    res.json({ ok: true, data: { periodo: { desde, hasta }, tiendas } });
+  } catch (err) {
+    console.error('[red/semanal]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── F) GET /analisis ─────────────────────────────────────────────────────────
 
 router.get('/analisis', requireAuth, async (req, res) => {

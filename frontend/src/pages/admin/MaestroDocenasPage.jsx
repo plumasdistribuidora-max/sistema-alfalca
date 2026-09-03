@@ -14,6 +14,17 @@ const ATAJOS = [
   { label: '2 docenas', valor: 2 },
 ];
 
+// Docenas que el producto le aportó al histórico. Es la medida de cuánto pesa
+// un error en su valor: uno que casi no se vende no mueve la aguja, por mal
+// cargado que esté.
+const aporte = r => (r.docenas ?? 0) * r.unidades_vendidas;
+
+const ORDENES = [
+  { val: 'ventas', label: 'Más vendidos' },
+  { val: 'aporte', label: 'Más docenas aportadas' },
+  { val: 'nombre', label: 'Nombre A-Z' },
+];
+
 function fmtDocenas(v) {
   if (v === null || v === undefined) return '—';
   const n = Number(v);
@@ -38,6 +49,8 @@ export default function MaestroDocenasPage() {
 
   const [categorias,  setCategorias]  = useState([]);
   const [catFiltro,   setCatFiltro]   = useState('');       // filtro del listado
+  const [orden,       setOrden]       = useState('ventas');
+  const [soloConVentas, setSoloConVentas] = useState(false);
   const [seleccion,   setSeleccion]   = useState(new Set()); // ids tildados
   const [masivaValor, setMasivaValor] = useState('');
   const [masivaBusy,  setMasivaBusy]  = useState(false);
@@ -69,14 +82,28 @@ export default function MaestroDocenasPage() {
 
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return rows.filter(r => {
+    const lista = rows.filter(r => {
       if (filtro === 'pendientes' && !r.pendiente) return false;
       if (filtro === 'definidos'  && r.pendiente)  return false;
+      // docenas es null en los pendientes, así que quedan fuera de ambos.
+      if (filtro === 'suman'    && !(r.docenas > 0))   return false;
+      if (filtro === 'no_suman' && !(r.docenas === 0)) return false;
+      if (soloConVentas && !r.unidades_vendidas) return false;
       if (catFiltro && (r.categoria || '(sin categoría)') !== catFiltro) return false;
       if (q && !r.nombre.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rows, filtro, busqueda, catFiltro]);
+
+    const criterio = {
+      ventas: (a, b) => b.unidades_vendidas - a.unidades_vendidas,
+      aporte: (a, b) => aporte(b) - aporte(a),
+      nombre: (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
+    }[orden];
+
+    // Los pendientes van siempre arriba: son los únicos que hay que definir sí o sí.
+    return [...lista].sort((a, b) =>
+      (Number(b.pendiente) - Number(a.pendiente)) || criterio(a, b));
+  }, [rows, filtro, busqueda, catFiltro, orden, soloConVentas]);
 
   async function guardar(row, valor) {
     if (valor === null || valor === '' || isNaN(Number(valor))) {
@@ -211,27 +238,32 @@ export default function MaestroDocenasPage() {
         </div>
       )}
 
-      {/* Contadores */}
+      {/* Contadores. Cada uno filtra el listado de abajo. */}
       <div className="card p-5">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-          <div>
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Productos</p>
-            <p className="text-2xl font-bold text-stone-900">{estado?.productos ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Pendientes</p>
-            <p className={`text-2xl font-bold ${pendientes > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-              {estado?.pendientes ?? '—'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Suman docenas</p>
-            <p className="text-2xl font-bold text-stone-900">{estado?.suman ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">No suman</p>
-            <p className="text-2xl font-bold text-stone-900">{estado?.no_suman ?? '—'}</p>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { val: 'todos',      label: 'Productos',     n: estado?.productos },
+            { val: 'pendientes', label: 'Pendientes',    n: estado?.pendientes,
+              color: pendientes > 0 ? 'text-amber-600' : 'text-emerald-600' },
+            { val: 'suman',      label: 'Suman docenas', n: estado?.suman },
+            { val: 'no_suman',   label: 'No suman',      n: estado?.no_suman },
+          ].map(c => (
+            <button
+              key={c.val}
+              onClick={() => setSearchParams(prev => { prev.set('estado', c.val); return prev; })}
+              title={`Ver ${c.label.toLowerCase()}`}
+              className={`text-left rounded-lg px-3 py-2 border transition-colors ${
+                filtro === c.val
+                  ? 'border-violet-400 bg-violet-50'
+                  : 'border-transparent hover:bg-stone-50 hover:border-stone-200'
+              }`}
+            >
+              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">
+                {c.label}
+              </p>
+              <p className={`text-2xl font-bold ${c.color || 'text-stone-900'}`}>{c.n ?? '—'}</p>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -240,6 +272,8 @@ export default function MaestroDocenasPage() {
         <div className="flex rounded-lg border border-stone-200 overflow-hidden text-sm">
           {[
             ['pendientes', `Pendientes${pendientes ? ` (${pendientes})` : ''}`],
+            ['suman',      'Suman docenas'],
+            ['no_suman',   'No suman'],
             ['definidos',  'Definidos'],
             ['todos',      'Todos'],
           ].map(([val, label]) => (
@@ -267,6 +301,28 @@ export default function MaestroDocenasPage() {
             </option>
           ))}
         </select>
+
+        <select
+          value={orden}
+          onChange={e => setOrden(e.target.value)}
+          className="input text-sm w-52"
+          title="Ordenar el listado"
+        >
+          {ORDENES.map(o => (
+            <option key={o.val} value={o.val}>Ordenar: {o.label}</option>
+          ))}
+        </select>
+
+        <label className="flex items-center gap-2 text-sm text-stone-600 whitespace-nowrap
+                          cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="accent-violet-600 w-4 h-4"
+            checked={soloConVentas}
+            onChange={e => setSoloConVentas(e.target.checked)}
+          />
+          Solo con ventas
+        </label>
 
         <input
           value={busqueda}
@@ -408,6 +464,8 @@ export default function MaestroDocenasPage() {
                         {row.categoria || 'Sin categoría'}
                         {' · '}
                         {formatNumber(row.unidades_vendidas)} unidades vendidas
+                        {aporte(row) > 0 &&
+                          ` · aportó ${formatNumber(Math.round(aporte(row)))} docenas`}
                         {row.ultima_venta && ` · última ${formatDate(row.ultima_venta)}`}
                       </p>
                       {!row.pendiente && !editando && (

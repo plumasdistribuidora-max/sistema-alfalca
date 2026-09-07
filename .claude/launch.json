@@ -3,12 +3,12 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "sh",
       "runtimeArgs": [
-        "run",
-        "dev"
+        "-c",
+        "PORT=3001 npm run dev"
       ],
-      "port": 3000
+      "port": 5173
     }
   ]
 }

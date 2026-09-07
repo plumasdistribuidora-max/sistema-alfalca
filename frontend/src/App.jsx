@@ -74,7 +74,7 @@ export default function App() {
             <Route path="ventas/productos/catalogo"      element={soloRed(<CatalogoPage />)} />
             <Route path="red"                            element={soloRed(<RedDashboard />)} />
             <Route path="stock"                          element={soloRed(<StockInteligente />)} />
-            <Route path="finanzas"                       element={soloRed(<FinanzasPage />)} />
+            <Route path="finanzas"                       element={soloDueno(<FinanzasPage />)} />
             <Route path="admin/maestros/docenas"         element={soloDueno(<MaestroDocenasPage />)} />
           </Route>
         </Routes>

@@ -8,6 +8,11 @@ const { generarConclusiones } = require('../utils/conclusiones');
 const router = express.Router();
 const TZ = 'America/Argentina/Mendoza';
 
+// La plata es solo del dueño. El Encargado General ve la red — ventas, docenas, tiendas —
+// pero no el EERR ni los KPI financieros. Va acá arriba, antes de las rutas, porque
+// esconder la solapa del menú no alcanza: con su token puede pegarle igual al endpoint.
+router.use(['/eerr', '/finanzas'], requireAuth, requireAdmin);
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function n(v)             { return Number(v) || 0; }

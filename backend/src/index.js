@@ -12,11 +12,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const { requireAuth, requireRol, ROLES } = require('./middleware/auth');
+const { requireAuth, requireAdmin, requireRol, ROLES } = require('./middleware/auth');
 
 // Los módulos de red se cierran acá, a nivel de router. Esconderlos del menú no alcanza:
 // sin esto, un empleado de tienda con su token puede pegarle a /api/red y ver toda la red.
 const soloRed = [requireAuth, requireRol(ROLES.ENCARGADO_GENERAL)];
+
+// Cash Flow es parte de Finanzas: solo el dueño. El EERR y los KPI viven adentro de
+// /api/red y se cierran en su propio router.
+const soloDueno = [requireAuth, requireAdmin];
 
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/locales',   require('./routes/locales'));
@@ -31,7 +35,7 @@ app.use('/api/red',       soloRed, require('./routes/red'));
 app.use('/api/stock',     soloRed, require('./routes/stock'));
 app.use('/api/imports',   soloRed, require('./routes/imports'));
 app.use('/api/maestros',  soloRed, require('./routes/maestros'));
-app.use('/api/cashflow',  soloRed, require('./routes/cashflow'));
+app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 

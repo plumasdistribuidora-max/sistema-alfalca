@@ -1,0 +1,1542 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Cómo usar el sistema Alfalca, pantalla por pantalla.">
+<link rel="icon" href="/favicon.svg">
+<style>
+  :root{ color-scheme: light dark; }
+  html{ -webkit-text-size-adjust: 100%; }
+  body{ margin: 0; }
+  img{ max-width: 100%; }
+  [hidden]{ display: none !important; }
+</style>
+<title>Manual de Alfalca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────────────────
+   Manual de Alfalca — hereda la identidad del sistema:
+   violeta AHG #4C1D95, Nunito para títulos, Inter para texto.
+   El acento cálido (dulce de leche) es propio del manual.
+   ───────────────────────────────────────────────────────── */
+
+:root{
+  --papel:      #FAF7F2;
+  --papel-2:    #FFFFFF;
+  --papel-3:    #F2EDE6;
+  --tinta:      #241D2E;
+  --tinta-2:    #5B5266;
+  --tinta-3:    #8A8194;
+  --linea:      #E4DCD2;
+  --linea-2:    #D3C9BC;
+
+  --violeta:    #4C1D95;
+  --violeta-2:  #7C3AED;
+  --lila:       #C4B5FD;
+  --lila-suave: #F1ECFE;
+
+  --dulce:      #B4661C;
+  --dulce-suave:#FBEEDD;
+
+  --verde:      #15803D;
+  --verde-suave:#E7F5EC;
+  --ambar:      #A45A09;
+  --ambar-suave:#FCF0DC;
+  --rojo:       #B3261E;
+  --rojo-suave: #FBEAE8;
+
+  --sombra:     0 1px 2px rgba(36,29,46,.05), 0 8px 24px -12px rgba(36,29,46,.18);
+  --sombra-alta:0 2px 4px rgba(36,29,46,.06), 0 18px 40px -18px rgba(36,29,46,.28);
+
+  --display: 'Nunito', 'Trebuchet MS', system-ui, sans-serif;
+  --texto:   'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --ancho: 1180px;
+  --radio: 14px;
+}
+
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --papel:      #17121D;
+    --papel-2:    #201A28;
+    --papel-3:    #2A2233;
+    --tinta:      #F2EDF7;
+    --tinta-2:    #B9AFC6;
+    --tinta-3:    #8B8195;
+    --linea:      #322A3D;
+    --linea-2:    #43384F;
+
+    --violeta:    #A78BFA;
+    --violeta-2:  #C4B5FD;
+    --lila:       #6D4FC4;
+    --lila-suave: #292040;
+
+    --dulce:      #E8A55C;
+    --dulce-suave:#3A2A18;
+
+    --verde:      #6EE7A5;
+    --verde-suave:#152D22;
+    --ambar:      #F0B45E;
+    --ambar-suave:#332616;
+    --rojo:       #F79289;
+    --rojo-suave: #351D1D;
+
+    --sombra:     0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+    --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 18px 40px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --papel:      #17121D;
+  --papel-2:    #201A28;
+  --papel-3:    #2A2233;
+  --tinta:      #F2EDF7;
+  --tinta-2:    #B9AFC6;
+  --tinta-3:    #8B8195;
+  --linea:      #322A3D;
+  --linea-2:    #43384F;
+
+  --violeta:    #A78BFA;
+  --violeta-2:  #C4B5FD;
+  --lila:       #6D4FC4;
+  --lila-suave: #292040;
+
+  --dulce:      #E8A55C;
+  --dulce-suave:#3A2A18;
+
+  --verde:      #6EE7A5;
+  --verde-suave:#152D22;
+  --ambar:      #F0B45E;
+  --ambar-suave:#332616;
+  --rojo:       #F79289;
+  --rojo-suave: #351D1D;
+
+  --sombra:     0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 18px 40px -18px rgba(0,0,0,.8);
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--texto);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Tipografía base ─────────────────────────────── */
+h1,h2,h3,h4{ font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.18; }
+p{ margin: 0; }
+a{ color: var(--violeta); }
+
+.eyebrow{
+  font-size: 11px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--tinta-3);
+}
+
+/* ── Portada ─────────────────────────────────────── */
+.portada{
+  background: var(--violeta);
+  color: #fff;
+  padding: 56px 28px 52px;
+}
+.portada-in{ max-width: var(--ancho); margin: 0 auto; display: grid; gap: 26px; }
+.marca{ display: flex; align-items: center; gap: 14px; }
+.iso{
+  width: 46px; height: 46px; border-radius: 50%;
+  background: #fff; color: var(--violeta);
+  display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: .04em;
+  flex: 0 0 auto;
+}
+:root[data-theme="dark"] .iso, :root:not([data-theme="light"]) .iso{ color: #4C1D95; }
+.marca-txt strong{ display:block; font-family: var(--display); font-size: 15px; font-weight: 800; }
+.marca-txt span{ display:block; font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+
+.portada h1{
+  font-size: clamp(38px, 6.4vw, 66px);
+  font-weight: 800; letter-spacing: -.02em; max-width: 14ch;
+}
+.portada .bajada{
+  font-size: clamp(17px, 2.1vw, 20px);
+  color: rgba(255,255,255,.86); max-width: 56ch;
+}
+.portada .nota{
+  font-size: 14px; color: rgba(255,255,255,.62); max-width: 60ch;
+  border-top: 1px solid rgba(255,255,255,.2); padding-top: 18px;
+}
+
+/* ── Estructura ──────────────────────────────────── */
+.envoltorio{
+  max-width: var(--ancho); margin: 0 auto; padding: 0 28px 90px;
+  display: grid; grid-template-columns: 236px minmax(0,1fr); gap: 44px;
+  align-items: start;
+}
+@media (max-width: 940px){
+  .envoltorio{ grid-template-columns: minmax(0,1fr); gap: 28px; padding-bottom: 60px; }
+}
+
+/* ── Índice lateral (imita el menú del sistema) ──── */
+.indice{
+  position: sticky; top: 20px; margin-top: 34px;
+  background: var(--violeta); border-radius: var(--radio);
+  padding: 16px 12px; box-shadow: var(--sombra);
+}
+@media (max-width: 940px){ .indice{ position: static; margin-top: 26px; } }
+.indice .tit{
+  font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255,255,255,.45); padding: 12px 12px 5px;
+}
+.indice .tit:first-child{ padding-top: 4px; }
+.indice a{
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border-radius: 9px;
+  color: rgba(255,255,255,.76); text-decoration: none;
+  font-size: 13.5px; font-weight: 500;
+}
+.indice a:hover{ background: rgba(255,255,255,.12); color: #fff; }
+.indice a:focus-visible{ outline: 2px solid #fff; outline-offset: 1px; }
+.indice a .ic{ width: 17px; text-align: center; opacity: .8; font-size: 13px; }
+
+/* ── Secciones ───────────────────────────────────── */
+.cuerpo{ display: grid; gap: 0; }
+.seccion{ padding: 44px 0 6px; scroll-margin-top: 18px; }
+.seccion + .seccion{ border-top: 1px solid var(--linea); }
+.seccion > * + *{ margin-top: 18px; }
+
+.seccion h2{
+  font-size: clamp(26px, 3.4vw, 34px); font-weight: 800; letter-spacing: -.015em;
+}
+.seccion h3{
+  font-size: 20px; font-weight: 700; margin-top: 34px; color: var(--tinta);
+}
+.seccion h4{ font-size: 15.5px; font-weight: 700; }
+.seccion p{ max-width: 68ch; color: var(--tinta-2); }
+.seccion p strong{ color: var(--tinta); font-weight: 600; }
+.para-quien{
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--lila-suave); color: var(--violeta);
+  border-radius: 999px; padding: 5px 13px;
+  font-size: 12.5px; font-weight: 600;
+}
+
+/* ── Pasos numerados ─────────────────────────────── */
+/* El marcador va posicionado, no como columna de grid: así el texto suelto
+   del <li> fluye normal en vez de caer en una columna angosta. */
+ol.pasos{ list-style: none; margin: 0; padding: 0; display: grid; gap: 13px; counter-reset: p; }
+ol.pasos li{
+  counter-increment: p;
+  position: relative; padding-left: 44px; min-height: 30px;
+  max-width: 74ch; color: var(--tinta-2);
+}
+ol.pasos li::before{
+  content: counter(p);
+  position: absolute; left: 0; top: 0;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--violeta); color: #fff;
+  display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 14px;
+}
+:root[data-theme="dark"] ol.pasos li::before,
+:root:not([data-theme="light"]) ol.pasos li::before{ color: #1B1424; }
+ol.pasos li > div{ padding-top: 2px; }
+ol.pasos strong{ color: var(--tinta); font-weight: 600; }
+
+/* ── Listas simples ──────────────────────────────── */
+ul.simple{ list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; max-width: 74ch; }
+ul.simple li{
+  position: relative; padding-left: 22px;
+  color: var(--tinta-2);
+}
+ul.simple li::before{
+  content: ""; position: absolute; left: 4px; top: .62em;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lila);
+}
+/* Si el renglón ya arranca con su propio ícono, sobra el punto. */
+ul.simple li:has(> .marca-n:first-child){ padding-left: 24px; text-indent: -24px; }
+ul.simple li:has(> .marca-n:first-child)::before{ content: none; }
+ul.simple strong{ color: var(--tinta); font-weight: 600; }
+
+/* ── Avisos ──────────────────────────────────────── */
+.aviso{
+  border-radius: 12px; padding: 15px 17px;
+  display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 12px;
+  font-size: 14.5px; line-height: 1.55; max-width: 72ch;
+}
+.aviso .mk{ font-size: 15px; line-height: 1.5; }
+.aviso p{ color: inherit; max-width: none; }
+.aviso strong{ color: inherit; font-weight: 700; }
+.aviso.ojo{  background: var(--ambar-suave); color: var(--ambar); }
+.aviso.tip{  background: var(--lila-suave);  color: var(--violeta); }
+.aviso.stop{ background: var(--rojo-suave);  color: var(--rojo); }
+
+/* ── Tablas del manual ───────────────────────────── */
+.tabla-caja{ overflow-x: auto; border: 1px solid var(--linea); border-radius: 12px; background: var(--papel-2); }
+table.manual{ width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 520px; }
+table.manual th{
+  text-align: left; padding: 11px 15px;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--tinta-3); background: var(--papel-3);
+  border-bottom: 1px solid var(--linea);
+}
+table.manual td{ padding: 12px 15px; border-bottom: 1px solid var(--linea); color: var(--tinta-2); vertical-align: top; }
+table.manual tr:last-child td{ border-bottom: 0; }
+table.manual td strong{ color: var(--tinta); font-weight: 600; }
+table.manual .num{ text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Glosario ────────────────────────────────────── */
+dl.glosario{ margin: 0; display: grid; gap: 0; border-top: 1px solid var(--linea); }
+dl.glosario > div{
+  display: grid; grid-template-columns: 210px minmax(0,1fr); gap: 22px;
+  padding: 14px 2px; border-bottom: 1px solid var(--linea);
+}
+@media (max-width: 620px){ dl.glosario > div{ grid-template-columns: minmax(0,1fr); gap: 4px; } }
+dl.glosario dt{ font-family: var(--display); font-weight: 700; font-size: 15.5px; color: var(--tinta); }
+dl.glosario dd{ margin: 0; color: var(--tinta-2); font-size: 14.5px; }
+
+/* ═══════════════════════════════════════════════════
+   MAQUETAS DE PANTALLA
+   Representan la app real, que es siempre clara.
+   Usan su propio juego de colores fijo (--m-*), para
+   que no cambien con el tema del manual.
+   ═══════════════════════════════════════════════════ */
+.figura{ margin: 26px 0 6px; display: grid; gap: 12px; }
+.figura figcaption{
+  font-size: 13px; color: var(--tinta-3); max-width: 70ch;
+}
+.figura figcaption b{ color: var(--tinta-2); font-weight: 600; }
+
+.mock{
+  --m-bg:#FAFAF7; --m-card:#FFFFFF; --m-txt:#1F2937; --m-txt2:#6B6472; --m-txt3:#9C94A6;
+  --m-line:#E7E2EC; --m-vio:#4C1D95; --m-vio2:#7C3AED; --m-lila:#EDE9FE;
+  --m-verde:#15803D; --m-vsuave:#DCFCE7; --m-amb:#92400E; --m-asuave:#FEF3C7;
+  --m-rojo:#B91C1C; --m-rsuave:#FEE2E2; --m-gris:#F4F2F0;
+  background: var(--m-bg); color: var(--m-txt);
+  border: 1px solid var(--linea-2); border-radius: var(--radio);
+  box-shadow: var(--sombra-alta);
+  overflow: hidden;
+  font-size: 12px; line-height: 1.45;
+}
+.mock *{ border-color: var(--m-line); }
+.mock-bar{
+  background: var(--m-gris); border-bottom: 1px solid var(--m-line);
+  padding: 7px 12px; display: flex; align-items: center; gap: 6px;
+}
+.mock-bar i{ width: 8px; height: 8px; border-radius: 50%; background: #D6D0DA; display: block; }
+.mock-bar span{ margin-left: 8px; font-size: 10.5px; color: var(--m-txt3); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.mock-cuerpo{ display: grid; grid-template-columns: 148px minmax(0,1fr); }
+@media (max-width: 640px){ .mock-cuerpo{ grid-template-columns: minmax(0,1fr); } .mock-cuerpo .m-side{ display:none; } }
+.m-side{ background: var(--m-vio); padding: 12px 8px; color: #fff; }
+.m-side .m-marca{ display:flex; align-items:center; gap:8px; padding: 2px 6px 12px; border-bottom: 1px solid rgba(255,255,255,.12); margin-bottom: 8px; }
+.m-side .m-iso{ width: 22px; height: 22px; border-radius: 50%; background:#fff; color: var(--m-vio); display:grid; place-items:center; font-family: var(--display); font-weight: 800; font-size: 8px; }
+.m-side .m-marca b{ font-family: var(--display); font-size: 11.5px; font-weight: 800; display:block; line-height:1.1; }
+.m-side .m-marca em{ font-style: normal; font-size: 7.5px; letter-spacing:.14em; text-transform: uppercase; color: rgba(255,255,255,.55); }
+.m-side .m-tit{ font-size: 8px; letter-spacing:.14em; text-transform: uppercase; color: rgba(255,255,255,.42); padding: 10px 8px 3px; font-weight: 700; }
+.m-side .m-it{ display:flex; align-items:center; gap:8px; padding: 5px 8px; border-radius: 7px; color: rgba(255,255,255,.75); font-size: 11.5px; }
+.m-side .m-it.on{ background: rgba(255,255,255,.2); color:#fff; font-weight: 600; }
+.m-side .m-it .ic{ width: 12px; text-align:center; font-size: 10px; opacity:.85; }
+.m-side .m-sub{ padding-left: 26px; font-size: 11px; }
+
+.m-main{ padding: 14px; display: grid; gap: 11px; min-width: 0; }
+.m-hdr{ background: var(--m-vio); color:#fff; border-radius: 11px; padding: 13px 16px; }
+.m-hdr .m-eye{ font-size: 8px; letter-spacing:.16em; text-transform: uppercase; color: rgba(255,255,255,.5); font-weight: 700; }
+.m-hdr h5{ margin: 2px 0 0; font-family: var(--display); font-size: 16px; font-weight: 800; }
+.m-hdr p{ margin: 1px 0 0; font-size: 11px; color: rgba(255,255,255,.7); }
+.m-tabs{ display:flex; gap: 3px; margin: 10px -4px -13px; }
+.m-tabs b{ padding: 6px 14px; font-size: 11px; font-weight: 600; border-radius: 9px 9px 0 0; color: rgba(255,255,255,.55); }
+.m-tabs b.on{ background: var(--m-bg); color: var(--m-vio); }
+
+.m-card{ background: var(--m-card); border: 1px solid var(--m-line); border-radius: 11px; padding: 13px 15px; }
+.m-card.acento{ border: 2px solid var(--m-vio); }
+.m-fila{ display:flex; align-items:center; gap: 10px; }
+.m-fila.entre{ justify-content: space-between; }
+.m-grid{ display:grid; gap: 9px; }
+.m-g2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+.m-g3{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+.m-g4{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+@media (max-width: 640px){ .m-g4{ grid-template-columns: repeat(2, minmax(0,1fr)); } .m-g3{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+.m-kpi{ background: var(--m-card); border:1px solid var(--m-line); border-radius: 11px; padding: 11px 13px; }
+.m-kpi .k{ font-size: 8px; letter-spacing:.13em; text-transform: uppercase; color: var(--m-txt3); font-weight: 700; }
+.m-kpi .v{ font-family: var(--display); font-weight: 800; font-size: 19px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.m-kpi .s{ font-size: 10px; color: var(--m-txt3); }
+.m-kpi.viola{ background: var(--m-vio); border-color: var(--m-vio); color:#fff; }
+.m-kpi.viola .k, .m-kpi.viola .s{ color: rgba(255,255,255,.65); }
+.m-kpi.buena{ background: var(--m-vsuave); border-color: #A7E9BE; }
+.m-kpi.buena .v{ color: var(--m-verde); }
+.m-kpi.mala{ background: var(--m-rsuave); border-color:#F3B9B4; }
+.m-kpi.mala .v{ color: var(--m-rojo); }
+
+.m-pill{ font-size: 9.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.m-pill.gris{ background: var(--m-gris); color: var(--m-txt3); border-color: var(--m-line); }
+.m-pill.amb{ background: var(--m-asuave); color: var(--m-amb); border-color:#F0D08A; }
+.m-pill.ver{ background: var(--m-vsuave); color: var(--m-verde); border-color:#A7E9BE; }
+.m-pill.roj{ background: var(--m-rsuave); color: var(--m-rojo); border-color:#F3B9B4; }
+.m-pill.vio{ background: var(--m-lila); color: var(--m-vio); border-color:#D6CCFB; }
+
+.m-btn{ background: var(--m-vio); color:#fff; border-radius: 8px; padding: 6px 15px; font-size: 11.5px; font-weight: 700; display:inline-block; }
+.m-btn.sec{ background: transparent; color: var(--m-vio); border: 1px solid var(--m-vio); }
+.m-input{ background: var(--m-card); border:1px solid var(--m-line); border-radius: 8px; padding: 6px 10px; font-size: 11.5px; color: var(--m-txt2); }
+.m-slot{ display:flex; align-items:center; gap: 10px; border:1px solid var(--m-line); border-radius: 9px; padding: 7px 11px; background: var(--m-card); }
+.m-slot .et{ font-size: 10px; font-weight: 700; color: var(--m-txt3); width: 92px; flex:0 0 auto; }
+.m-slot .qn{ flex:1; min-width:0; }
+.m-slot.vacio{ border-style: dashed; background: transparent; }
+.m-slot.vacio .qn{ color: var(--m-txt3); }
+
+table.m-tabla{ width:100%; border-collapse: collapse; font-size: 11px; }
+table.m-tabla th{ text-align:left; padding: 6px 9px; font-size: 8.5px; letter-spacing:.1em; text-transform: uppercase; color: var(--m-txt3); font-weight:700; border-bottom:1px solid var(--m-line); background: var(--m-gris); }
+table.m-tabla td{ padding: 6px 9px; border-bottom: 1px solid var(--m-line); }
+table.m-tabla td.n{ text-align:right; font-variant-numeric: tabular-nums; }
+table.m-tabla tr:last-child td{ border-bottom: 0; }
+.m-tit{ font-family: var(--display); font-weight: 700; font-size: 13px; }
+.m-sub{ font-size: 10px; color: var(--m-txt3); }
+.m-cascada{ display:grid; gap: 5px; }
+.m-cascada .lin{ display:grid; grid-template-columns: 16px minmax(0,1fr) auto; gap: 9px; align-items:center; background: var(--m-card); border:1px solid var(--m-line); border-radius: 9px; padding: 8px 12px; }
+.m-cascada .op{ font-family: var(--display); font-weight:800; color: var(--m-txt3); text-align:center; }
+.m-cascada .lin.res{ border-color: var(--m-vio); background: var(--m-lila); }
+.m-cascada b{ font-size: 12px; }
+.m-cascada em{ font-style: normal; font-size: 9.5px; color: var(--m-txt3); display:block; }
+.m-cascada .mto{ font-family: var(--display); font-weight:800; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* Teléfono */
+.tel{
+  width: 264px; max-width: 100%;
+  border: 8px solid #2B2431; border-radius: 30px; overflow: hidden;
+  box-shadow: var(--sombra-alta); background: #FAFAF7;
+}
+.tel .m-main{ padding: 11px; gap: 9px; }
+.figura.dos{ display:grid; grid-template-columns: auto minmax(0,1fr); gap: 26px; align-items:start; }
+@media (max-width: 720px){ .figura.dos{ grid-template-columns: minmax(0,1fr); } }
+
+/* Referencias numeradas sobre las maquetas */
+.refs{ display:grid; gap: 10px; margin-top: 4px; padding: 0; counter-reset: r; max-width: 74ch; }
+.refs li{
+  list-style:none; position: relative; padding-left: 33px; min-height: 22px;
+  font-size: 14.5px; color: var(--tinta-2); counter-increment: r;
+}
+.refs li::before{
+  content: counter(r);
+  position: absolute; left: 0; top: 1px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--dulce-suave); color: var(--dulce);
+  border: 1px solid currentColor;
+  display:grid; place-items:center; font-size: 11px; font-weight: 700;
+  font-family: var(--display);
+}
+.refs li strong{ color: var(--tinta); font-weight: 600; }
+.marca-n{
+  display:inline-grid; place-items:center; width: 16px; height: 16px; border-radius: 50%;
+  background: #B4661C; color:#fff; font-size: 9.5px; font-weight: 800;
+  font-family: var(--display); vertical-align: 1px; margin-right: 2px; flex: 0 0 auto;
+  text-indent: 0; /* que la sangría francesa del renglón no corra el símbolo de adentro */
+}
+
+/* Pie */
+.pie{
+  border-top: 1px solid var(--linea); margin-top: 8px; padding: 26px 0 0;
+  font-size: 13.5px; color: var(--tinta-3); max-width: 70ch;
+}
+
+@media (prefers-reduced-motion: reduce){ *{ animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="portada">
+  <div class="portada-in">
+    <div class="marca">
+      <div class="iso">AHG</div>
+      <div class="marca-txt">
+        <strong>Alfalca</strong>
+        <span>Holding Group</span>
+      </div>
+    </div>
+    <h1>Manual de Alfalca</h1>
+    <p class="bajada">
+      Cómo usar el sistema, pantalla por pantalla. Escrito para que lo entienda
+      cualquiera: el que carga el reporte del turno desde el celular y el que mira
+      los números del mes.
+    </p>
+    <p class="nota">
+      Cinco unidades: Amigorena, 9 de Julio, Peatonal y Sheraton (tiendas de alfajores)
+      y Café Peatonal (cafetería). Cada uno entra con su usuario y ve solo lo que le toca.
+    </p>
+  </div>
+</header>
+
+<div class="envoltorio">
+
+  <nav class="indice" aria-label="Índice del manual">
+    <p class="tit">Para empezar</p>
+    <a href="#entrar"><span class="ic">→</span>Cómo entrar</a>
+    <a href="#quien-ve"><span class="ic">◐</span>Quién ve qué</a>
+    <a href="#menu"><span class="ic">☰</span>El menú</a>
+
+    <p class="tit">El día</p>
+    <a href="#mi-reporte"><span class="ic">◈</span>Mi reporte de hoy</a>
+    <a href="#reportes"><span class="ic">☰</span>Reportes del día</a>
+    <a href="#cierre"><span class="ic">✓</span>Cerrar el día</a>
+
+    <p class="tit">Análisis</p>
+    <a href="#importar"><span class="ic">↑</span>Importar Excel</a>
+    <a href="#dashboard"><span class="ic">⊙</span>Dashboard de tiendas</a>
+    <a href="#stock"><span class="ic">▣</span>Stock inteligente</a>
+    <a href="#finanzas"><span class="ic">⊛</span>Finanzas</a>
+
+    <p class="tit">Equipo</p>
+    <a href="#equipo"><span class="ic">◐</span>Empleados y horas</a>
+    <a href="#calendario"><span class="ic">⌛</span>Calendario</a>
+    <a href="#usuarios"><span class="ic">◈</span>Usuarios y accesos</a>
+
+    <p class="tit">Configuración</p>
+    <a href="#formularios"><span class="ic">▤</span>Formularios</a>
+    <a href="#docenas"><span class="ic">◆</span>Maestro de docenas</a>
+    <a href="#locales"><span class="ic">⌂</span>Locales</a>
+
+    <p class="tit">Ayuda</p>
+    <a href="#glosario"><span class="ic">?</span>Qué quiere decir</a>
+    <a href="#problemas"><span class="ic">!</span>Si algo no anda</a>
+  </nav>
+
+  <main class="cuerpo">
+
+    <!-- ══════════ CÓMO ENTRAR ══════════ -->
+    <section class="seccion" id="entrar">
+      <p class="eyebrow">Para empezar</p>
+      <h2>Cómo entrar</h2>
+      <p>
+        El sistema se abre en el navegador del celular o de la computadora. No hay
+        que instalar nada.
+      </p>
+
+      <figure class="figura dos">
+        <div class="mock" style="max-width:340px">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca</span></div>
+          <div style="padding:34px 26px; display:grid; gap:14px; justify-items:center; background:#FAFAF7">
+            <div style="width:46px;height:46px;border-radius:50%;background:#4C1D95;color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:14px">AHG</div>
+            <div style="text-align:center">
+              <div style="font-family:var(--display);font-weight:800;font-size:15px;color:#1F2937">Alfalca Holding Group</div>
+              <div style="font-size:10.5px;color:#9C94A6">Ingresá con tu cuenta</div>
+            </div>
+            <div class="m-card" style="width:100%; display:grid; gap:9px">
+              <div>
+                <div style="font-size:9.5px;font-weight:600;color:#6B6472;margin-bottom:3px">Email</div>
+                <div class="m-input" style="color:#B9B2C0">usuario@alfalca.com.ar</div>
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:600;color:#6B6472;margin-bottom:3px">Contraseña</div>
+                <div class="m-input">••••••••</div>
+              </div>
+              <div class="m-btn" style="text-align:center">Ingresar</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <ol class="pasos">
+            <li><div>Abrí el sistema en el navegador.</div></li>
+            <li><div>Escribí tu <strong>mail</strong> y tu <strong>contraseña</strong>.</div></li>
+            <li><div>Tocá <strong>Ingresar</strong>. Listo: quedás adentro por una semana, no hace falta entrar de nuevo cada día.</div></li>
+          </ol>
+          <div class="aviso ojo" style="margin-top:18px">
+            <span class="mk">⚠</span>
+            <p>Si dice <strong>error al ingresar</strong>, casi siempre es el mail mal escrito o la contraseña.
+            Nadie más te la puede ver: si te la olvidaste, el dueño te pone una nueva desde
+            <strong>Usuarios y accesos</strong>.</p>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <!-- ══════════ QUIÉN VE QUÉ ══════════ -->
+    <section class="seccion" id="quien-ve">
+      <h2>Quién ve qué</h2>
+      <p>
+        El sistema no es igual para todos. Según tu rol te muestra unas pantallas y te
+        esconde el resto. Si no ves algo que este manual explica, no está roto: no es
+        para tu rol.
+      </p>
+
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead>
+            <tr><th>Rol</th><th>Qué ve</th><th>Qué hace todos los días</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Dueño</strong></td>
+              <td>Todo, más la parte de configuración</td>
+              <td>Mira los números y ajusta cómo funciona el sistema</td>
+            </tr>
+            <tr>
+              <td><strong>Encargado General</strong></td>
+              <td>Todo menos <strong>Finanzas</strong> y la configuración</td>
+              <td>Revisa los reportes que llegan y cierra el día</td>
+            </tr>
+            <tr>
+              <td><strong>Empleado de tienda</strong></td>
+              <td>Solo <em>Mi reporte de hoy</em></td>
+              <td>Carga el reporte de su turno en la tienda</td>
+            </tr>
+            <tr>
+              <td><strong>Encargada de café</strong></td>
+              <td>Solo <em>Mi reporte de hoy</em></td>
+              <td>Carga el reporte del turno del sector café</td>
+            </tr>
+            <tr>
+              <td><strong>Encargada de cocina</strong></td>
+              <td>Solo <em>Mi reporte de hoy</em></td>
+              <td>Carga el reporte del turno de cocina</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p>De un turno de café de siete personas, normalmente solo dos cargan reporte.
+        Al resto se le cuentan las horas igual, pero no entran al sistema.</p>
+      </div>
+
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p><strong>Finanzas es solo del dueño.</strong> El Encargado General ve toda la red
+        —ventas, docenas, tiendas, stock— pero no el estado de resultados, ni el cash flow,
+        ni los KPI de plata. No es que esté escondido del menú nada más: el sistema
+        directamente no le contesta si intenta entrar por la dirección.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ EL MENÚ ══════════ -->
+    <section class="seccion" id="menu">
+      <h2>El menú</h2>
+      <p>
+        Es la barra violeta de la izquierda. Está agrupada por para qué sirve cada cosa,
+        no por orden alfabético.
+      </p>
+
+      <figure class="figura dos">
+        <div class="mock" style="max-width:200px">
+          <div class="m-side" style="min-height:400px">
+            <div class="m-marca">
+              <div class="m-iso">AHG</div>
+              <div><b>Alfalca</b><em>Holding Group</em></div>
+            </div>
+            <p class="m-tit">El día</p>
+            <div class="m-it on"><span class="ic">☰</span>Reportes</div>
+            <p class="m-tit">Análisis</p>
+            <div class="m-it"><span class="ic">⊙</span>Tiendas <span style="margin-left:auto;font-size:8px">▾</span></div>
+            <div class="m-it m-sub">Dashboard</div>
+            <div class="m-it m-sub">Importar Excel</div>
+            <div class="m-it m-sub">Historial Excel</div>
+            <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
+            <div class="m-it"><span class="ic">⊛</span>Finanzas</div>
+            <p class="m-tit">Equipo</p>
+            <div class="m-it"><span class="ic">◈</span>Empleados y horas</div>
+            <div class="m-it"><span class="ic">⌛</span>Calendario de trabajo</div>
+            <div class="m-it"><span class="ic">◐</span>Usuarios y accesos</div>
+            <p class="m-tit">Configuración</p>
+            <div class="m-it"><span class="ic">▤</span>Formularios</div>
+            <div class="m-it"><span class="ic">⊟</span>Maestro de docenas</div>
+            <div class="m-it"><span class="ic">⌂</span>Locales</div>
+            <p class="m-tit">Ayuda</p>
+            <div class="m-it"><span class="ic">⊚</span>Manual de uso</div>
+          </div>
+        </div>
+        <div>
+          <ul class="simple">
+            <li><strong>El día</strong> — lo que pasa hoy: los reportes de los turnos y el cierre.</li>
+            <li><strong>Análisis</strong> — lo que ya pasó: ventas, stock y plata. <em>Finanzas</em> le aparece solo al dueño.</li>
+            <li><strong>Equipo</strong> — la gente: quién trabaja, cuántas horas y quién entra al sistema.</li>
+            <li><strong>Configuración</strong> — cómo funciona el sistema por dentro. Solo el dueño.</li>
+            <li><strong>Ayuda</strong> — este manual. Lo ve todo el mundo, desde cualquier rol, y se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
+          </ul>
+          <p style="margin-top:16px">
+            En el celular el menú arranca cerrado: se abre con el botón <strong>☰</strong> de arriba
+            a la izquierda.
+          </p>
+          <p style="margin-top:12px">
+            Abajo de todo, el menú siempre te dice con qué usuario estás adentro.
+          </p>
+        </div>
+      </figure>
+    </section>
+
+    <!-- ══════════ MI REPORTE ══════════ -->
+    <section class="seccion" id="mi-reporte">
+      <p class="para-quien">Para el que trabaja el turno</p>
+      <h2>Mi reporte de hoy</h2>
+      <p>
+        Es la única pantalla que ves si trabajás en una tienda, en el café o en cocina.
+        Entrás y ya está el formulario del día abierto: no hay que buscar nada ni elegir fecha.
+      </p>
+
+      <figure class="figura dos">
+        <div class="tel">
+          <div class="m-main" style="background:#FAFAF7">
+            <div class="m-hdr" style="padding:11px 14px">
+              <div class="m-eye">Lunes, 7 de septiembre</div>
+              <h5 style="font-size:14px">Reporte de tienda</h5>
+              <p>Sofía · Peatonal Tienda de Alfajores</p>
+            </div>
+            <div class="m-card" style="display:grid;gap:10px">
+              <div>
+                <div style="font-size:10px;font-weight:700;margin-bottom:5px">Turno <span style="color:#B91C1C">*</span></div>
+                <div style="display:flex;gap:6px">
+                  <div style="flex:1;text-align:center;padding:6px;border-radius:7px;background:#4C1D95;color:#fff;font-size:10.5px;font-weight:700">Mañana</div>
+                  <div style="flex:1;text-align:center;padding:6px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10.5px;font-weight:700">Tarde</div>
+                </div>
+              </div>
+              <div style="border-top:1px solid #E7E2EC;padding-top:9px;display:grid;gap:9px">
+                <div>
+                  <div style="font-size:10px;font-weight:700">Venta del turno <span style="color:#B91C1C">*</span></div>
+                  <div class="m-input" style="margin-top:3px;color:#1F2937;font-variant-numeric:tabular-nums">$ 1.503.270</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700">Horas del equipo</div>
+                  <div style="display:flex;gap:5px;margin-top:3px">
+                    <div class="m-input" style="flex:1">Sofía · vendedor</div>
+                    <div class="m-input" style="width:44px;text-align:right">8</div>
+                  </div>
+                  <div style="margin-top:5px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#4C1D95;font-weight:700">+ Agregar persona</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700">Foto de la caja <span style="color:#B91C1C">*</span></div>
+                  <div style="margin-top:3px;display:flex;gap:5px">
+                    <div style="width:40px;height:40px;border-radius:7px;background:#EDE9FE"></div>
+                    <div style="width:40px;height:40px;border-radius:7px;border:1px dashed #D6CCFB;display:grid;place-items:center;color:#4C1D95">+</div>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700">Facturas que entraron</div>
+                  <div style="margin-top:3px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#4C1D95;font-weight:700">+ Agregar factura</div>
+                </div>
+              </div>
+            </div>
+            <div class="m-fila" style="gap:8px">
+              <span style="font-size:9.5px;color:#9C94A6">Guardado</span>
+              <div class="m-btn" style="flex:1;text-align:center">Enviar al Encargado</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <ol class="pasos">
+            <li><div><strong>Elegí el turno</strong> — mañana o tarde. Hasta que no lo elijas, el resto del formulario no se abre.</div></li>
+            <li><div><strong>Contestá las preguntas.</strong> Las que tienen asterisco rojo son obligatorias.</div></li>
+            <li><div><strong>Cargá las horas del equipo:</strong> elegís a la persona de la lista y ponés cuántas horas hizo. Solo aparecen los que trabajan en tu local.</div></li>
+            <li><div><strong>Sacá las fotos que te pida.</strong> Se achican solas antes de subirse, así que andan aunque la señal esté floja.</div></li>
+            <li><div><strong>Si entró una factura</strong>, tocá <em>+ Agregar factura</em> y cargá proveedor, número, los renglones y el total.</div></li>
+            <li><div>Tocá <strong>Enviar al Encargado</strong>. Cuando aparece la pantalla verde con el tilde, terminaste.</div></li>
+          </ol>
+
+          <div class="aviso tip" style="margin-top:20px">
+            <span class="mk">◆</span>
+            <p><strong>No hace falta guardar.</strong> Mientras escribís, el sistema va guardando solo.
+            Abajo dice <em>Guardando…</em> y después <em>Guardado</em>. Si se te corta la sesión,
+            volvés a entrar y está todo como lo dejaste.</p>
+          </div>
+        </div>
+      </figure>
+
+      <h3>Si algo falta, te lo dice</h3>
+      <p>
+        Cuando tocás <em>Enviar</em> y quedó algo obligatorio sin completar, aparece un cartel
+        amarillo arriba con la lista exacta de qué falta. Completás eso y volvés a enviar.
+      </p>
+
+      <h3>La factura te avisa si no cierra</h3>
+      <p>
+        Al cargar una factura ponés los renglones (producto, cantidad y precio por unidad) y
+        aparte el total. Si la suma de los renglones no da igual al total, el sistema te
+        muestra la diferencia en ámbar. No te frena: te avisa, para que revises antes de mandarla.
+      </p>
+
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p>Si el encargado te devuelve el reporte, lo vas a ver de nuevo abierto, con el
+        comentario de qué tenés que corregir. Lo arreglás y lo volvés a enviar.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ REPORTES DEL DÍA ══════════ -->
+    <section class="seccion" id="reportes">
+      <p class="para-quien">Para el Encargado General y el dueño</p>
+      <h2>Reportes del día</h2>
+      <p>
+        Es la primera pantalla del menú. Muestra, para un día, todos los turnos que
+        <em>deberían</em> haber cargado reporte, hayan cargado o no.
+      </p>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · reportes</span></div>
+          <div class="mock-cuerpo">
+            <div class="m-side">
+              <div class="m-marca"><div class="m-iso">AHG</div><div><b>Alfalca</b><em>Holding Group</em></div></div>
+              <p class="m-tit">El día</p>
+              <div class="m-it on"><span class="ic">☰</span>Reportes</div>
+              <p class="m-tit">Análisis</p>
+              <div class="m-it"><span class="ic">⊙</span>Tiendas</div>
+              <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
+              <div class="m-it"><span class="ic">⊛</span>Finanzas</div>
+            </div>
+            <div class="m-main">
+              <div class="m-hdr">
+                <div class="m-eye">Alfalca · Reportes</div>
+                <h5>Lunes, 7 de septiembre</h5>
+              </div>
+
+              <div class="m-fila entre">
+                <div class="m-fila" style="gap:6px">
+                  <span class="m-btn sec" style="padding:4px 9px">◀</span>
+                  <span class="m-input" style="font-variant-numeric:tabular-nums">07/09/2026</span>
+                  <span class="m-btn sec" style="padding:4px 9px">▶</span>
+                </div>
+                <div style="font-size:11px;color:#6B6472">
+                  4 de 6 reportes · <b style="color:#92400E">faltan 2</b>
+                  <span class="marca-n" style="margin-left:6px">1</span>
+                </div>
+              </div>
+
+              <div class="m-card acento">
+                <div class="m-fila entre" style="flex-wrap:wrap;gap:10px">
+                  <div>
+                    <div style="font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#9C94A6;font-weight:700">Reporte del Encargado General</div>
+                    <div class="m-tit" style="font-size:14px">Consolidado del día</div>
+                    <div class="m-sub">No se puede cerrar hasta que lleguen los 2 reportes que faltan.</div>
+                  </div>
+                  <div class="m-fila" style="gap:8px">
+                    <span class="m-pill gris">Sin empezar</span>
+                    <span class="m-btn">Abrir <span class="marca-n" style="margin-left:3px">2</span></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="m-card" style="display:grid;gap:7px">
+                <div class="m-fila entre">
+                  <span class="m-tit">Peatonal Tienda de Alfajores</span>
+                  <span style="font-size:10px;font-weight:700;color:#15803D">2 de 2</span>
+                </div>
+                <div class="m-slot">
+                  <span class="et">Tienda · Mañana</span>
+                  <span class="qn">Sofía <span style="color:#9C94A6">· vendedor</span></span>
+                  <span style="font-size:9.5px;color:#9C94A6">2 fotos · 1 fact.</span>
+                  <span class="m-pill ver">Aprobado</span>
+                </div>
+                <div class="m-slot">
+                  <span class="et">Tienda · Tarde</span>
+                  <span class="qn">Julián <span style="color:#9C94A6">· encargado</span></span>
+                  <span style="font-size:9.5px;color:#9C94A6">1 foto</span>
+                  <span class="m-pill amb">Presentado <span class="marca-n" style="margin-left:2px">3</span></span>
+                </div>
+              </div>
+
+              <div class="m-card" style="display:grid;gap:7px">
+                <div class="m-fila entre">
+                  <span class="m-tit">Café Peatonal</span>
+                  <span style="font-size:10px;font-weight:700;color:#92400E">1 de 2</span>
+                </div>
+                <div class="m-slot">
+                  <span class="et">Café · Mañana</span>
+                  <span class="qn">Camila <span style="color:#9C94A6">· encargado</span></span>
+                  <span class="m-pill roj">Devuelto</span>
+                </div>
+                <div class="m-slot vacio">
+                  <span class="et">Café · Tarde</span>
+                  <span class="qn">nadie lo cargó</span>
+                  <span class="m-pill gris">Sin cargar</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>
+          <b>Pantalla de Reportes.</b> Cada renglón es un turno que tendría que haber cargado.
+        </figcaption>
+      </figure>
+
+      <ol class="refs">
+        <li><strong>El contador del día.</strong> Cuántos reportes llegaron sobre cuántos se esperaban. Si faltan, lo dice en ámbar.</li>
+        <li><strong>El consolidado.</strong> El reporte del Encargado. Se abre desde acá — está explicado en la sección siguiente.</li>
+        <li><strong>El estado de cada turno.</strong> Tocás el renglón y se abre el reporte para leerlo.</li>
+      </ol>
+
+      <h3>Los cinco estados</h3>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Estado</th><th>Qué significa</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Sin cargar</strong></td><td>Nadie tocó nada todavía.</td></tr>
+            <tr><td><strong>Empezado</strong></td><td>Lo empezaron pero no lo mandaron. Vos todavía no lo podés abrir.</td></tr>
+            <tr><td><strong>Presentado</strong></td><td>Llegó y está esperando que lo revises.</td></tr>
+            <tr><td><strong>Devuelto</strong></td><td>Lo mandaste para atrás con un comentario. La persona lo tiene que corregir.</td></tr>
+            <tr><td><strong>Aprobado</strong></td><td>Listo. Ya no se toca.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Revisar un reporte</h3>
+      <p>
+        Tocás el renglón y se abre una ventana con todo lo que cargó esa persona: las
+        respuestas, las facturas con su detalle y las fotos. Abajo tenés dos botones.
+      </p>
+      <ul class="simple">
+        <li><strong>Aprobar</strong> — queda cerrado y cuenta para el consolidado.</li>
+        <li><strong>Devolver</strong> — vuelve a la persona para que lo corrija. <strong>Tenés que escribir el comentario</strong>: sin comentario no te deja devolverlo.</li>
+      </ul>
+    </section>
+
+    <!-- ══════════ CIERRE ══════════ -->
+    <section class="seccion" id="cierre">
+      <p class="para-quien">Para el Encargado General</p>
+      <h2>Cerrar el día</h2>
+      <p>
+        Es el reporte del Encargado: junta lo de todos los turnos, lo compara contra el
+        Excel del sistema y lo manda a los dueños. Se abre con el botón <em>Abrir</em>
+        del recuadro violeta.
+      </p>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · consolidado del día</span></div>
+          <div class="m-main" style="padding:16px">
+            <div class="m-grid m-g4">
+              <div class="m-kpi"><div class="k">Venta del día</div><div class="v">$ 7.257.760</div><div class="s">243 tickets</div></div>
+              <div class="m-kpi"><div class="k">Ticket promedio</div><div class="v">$ 29.867</div></div>
+              <div class="m-kpi"><div class="k">Horas</div><div class="v">86,5</div><div class="s">$ 1.038.000 de personal</div></div>
+              <div class="m-kpi buena"><div class="k">Horas / ventas</div><div class="v">14,3%</div><div class="s">meta: menos de 16%</div></div>
+            </div>
+
+            <div class="m-card">
+              <div class="m-tit">Ventas y KPI por local <span class="marca-n" style="margin-left:4px">1</span></div>
+              <div class="m-sub" style="margin-bottom:8px">
+                <b>Sistema</b> es el Excel que importaste. <b>Reportado</b> es lo que cargó cada turno mirando la caja.
+              </div>
+              <div style="overflow-x:auto">
+                <table class="m-tabla">
+                  <thead><tr><th>Local</th><th class="n">Sistema</th><th class="n">Reportado</th><th class="n">Dif.</th><th class="n">Horas</th><th class="n">Hs / vta</th></tr></thead>
+                  <tbody>
+                    <tr><td>Peatonal<div class="m-sub">2 de 2 turnos</div></td><td class="n">1.503.270</td><td class="n">1.503.270</td><td class="n" style="color:#15803D;font-weight:800">✓</td><td class="n">18,0</td><td class="n" style="color:#15803D;font-weight:700">11,9%</td></tr>
+                    <tr><td>9 de Julio<div class="m-sub">2 de 2 turnos</div></td><td class="n">1.277.930</td><td class="n">1.265.430</td><td class="n" style="color:#B91C1C;font-weight:800">−12.500</td><td class="n">16,0</td><td class="n" style="color:#15803D;font-weight:700">12,5%</td></tr>
+                    <tr><td>Café<div class="m-sub">1 de 2 turnos</div></td><td class="n">3.034.110</td><td class="n">1.610.220</td><td class="n" style="color:#92400E;font-size:9.5px;font-weight:600">faltan turnos</td><td class="n">38,5</td><td class="n" style="color:#B91C1C;font-weight:700">18,2%</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="margin-top:9px;border-left:2px solid #DC2626;padding-left:10px">
+                <div style="font-size:9.5px;font-weight:700;color:#B91C1C">9 de Julio: el turno reportó $ 1.265.430 y el sistema trae $ 1.277.930 — explicá la diferencia <span class="marca-n" style="margin-left:3px">2</span></div>
+                <div class="m-input" style="margin-top:4px;color:#6B6472">Se anuló un ticket después del cierre de caja de la tarde.</div>
+              </div>
+            </div>
+
+            <div class="m-card" style="background:#FEF3C7;border-color:#F0D08A">
+              <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#92400E;margin-bottom:5px">Vencimientos · 2 <span class="marca-n" style="margin-left:3px">3</span></div>
+              <div style="font-size:11px;color:#1F2937"><span style="color:#9C94A6">Peatonal · Mañana</span> — Alfajor de maicena (3 días)</div>
+              <div style="font-size:11px;color:#1F2937"><span style="color:#9C94A6">Café · Mañana</span> — Leche entera (1 día)</div>
+            </div>
+
+            <div class="m-card" style="display:grid;gap:8px">
+              <div class="m-tit">Cierre del día</div>
+              <div style="font-size:11px;color:#1F2937">☑ Control de vencimientos realizado y chequeado</div>
+              <div style="font-size:11px;color:#1F2937">☑ Control de tienda realizado</div>
+              <div class="m-fila" style="gap:9px">
+                <span style="font-size:9.5px;color:#9C94A6">Guardado</span>
+                <div class="m-btn" style="flex:1;text-align:center">Cerrar el día y enviar a los dueños <span class="marca-n" style="margin-left:3px">4</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>El consolidado del día.</b> Los números son un ejemplo, no datos reales.</figcaption>
+      </figure>
+
+      <ol class="refs">
+        <li><strong>Sistema contra Reportado.</strong> Son dos fuentes distintas: una viene del Excel del punto de venta, la otra la escribió a mano el turno mirando la caja. Cuando coinciden aparece un tilde verde.</li>
+        <li><strong>La explicación.</strong> Si un local no cierra, se abre un recuadro rojo para que escribas por qué. Sin eso el día no se cierra.</li>
+        <li><strong>Lo que reportaron los turnos.</strong> Vencimientos, mantenimiento, faltantes de insumos, faltas y tardanzas, y quejas — todo junto acá, sin tener que abrir reporte por reporte.</li>
+        <li><strong>El botón de cerrar.</strong> Recién cuando está todo, el día se cierra y les llega a los dueños.</li>
+      </ol>
+
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p><strong>No se puede cerrar el día si falta un reporte.</strong> Si alguien no cargó,
+        primero hay que resolver eso. Y una vez cerrado, <strong>solo el dueño lo puede reabrir</strong>.</p>
+      </div>
+
+      <h3>Los cuatro números de arriba</h3>
+      <ul class="simple">
+        <li><strong>Venta del día</strong> — lo que vendió toda la red, según el sistema.</li>
+        <li><strong>Ticket promedio</strong> — cuánto gastó en promedio cada cliente.</li>
+        <li><strong>Horas</strong> — las horas que cargaron los turnos, y cuánto costaron en plata.</li>
+        <li><strong>Horas / ventas</strong> — cuánto pesa el sueldo sobre lo que se vendió. <strong>La meta es menos del 16%</strong>: verde si está bien, rojo si se pasó.</li>
+      </ul>
+      <p>
+        Si algún puesto todavía no tiene cargado el valor de la hora, aparece un aviso ámbar:
+        esas horas no entran en el cálculo hasta que lo cargues en <em>Empleados y horas</em>.
+      </p>
+    </section>
+
+    <!-- ══════════ IMPORTAR ══════════ -->
+    <section class="seccion" id="importar">
+      <p class="eyebrow">Análisis · Tiendas</p>
+      <h2>Importar el Excel de ventas</h2>
+      <p>
+        Todo lo que el sistema sabe de ventas entra por acá. Es el Excel que exporta el
+        punto de venta de cada local.
+      </p>
+
+      <ol class="pasos">
+        <li><div><strong>Elegí el local.</strong> Ojo con Peatonal y Café Peatonal: están en la misma dirección pero son dos locales distintos.</div></li>
+        <li><div><strong>Arrastrá el archivo</strong> <em>.xlsx</em> o <em>.xls</em>, o tocá el recuadro para buscarlo.</div></li>
+        <li><div><strong>Confirmar e importar.</strong> Aparece una barra de progreso y después el resultado.</div></li>
+      </ol>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · importar ventas</span></div>
+          <div class="m-main" style="padding:16px">
+            <div class="m-fila" style="gap:9px">
+              <span style="font-size:19px;color:#15803D">✓</span>
+              <div>
+                <div class="m-tit">Import completado</div>
+                <div class="m-sub">Peatonal Tienda de Alfajores · 2026-09-01 → 2026-09-07</div>
+              </div>
+            </div>
+            <div class="m-grid m-g4">
+              <div class="m-kpi"><div class="v">243</div><div class="s">Tickets</div></div>
+              <div class="m-kpi buena"><div class="v">198</div><div class="s">Insertados</div></div>
+              <div class="m-kpi"><div class="v">45</div><div class="s">Actualizados</div></div>
+              <div class="m-kpi"><div class="v">44,96</div><div class="s">Docenas del período</div></div>
+            </div>
+            <div class="m-card" style="background:#FEF3C7;border-color:#F0D08A">
+              <div style="font-weight:700;color:#92400E;font-size:12px">3 productos vendidos sin docenas definidas</div>
+              <div style="font-size:11px;color:#92400E;margin-top:3px">
+                Están sumando <b>0 docenas</b> hasta que les asignes un valor. Cuando lo cargues, el histórico se recalcula solo.
+              </div>
+              <div style="font-size:11px;color:#78350F;margin-top:5px">• Caja x6 surtida <span style="font-size:9.5px;color:#B08340">(nuevo)</span><br>• Alfajor triple chocolate<br>• Estuche navideño</div>
+              <div class="m-btn" style="margin-top:8px">Asignar docenas ahora →</div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Resultado de un import.</b> El cartel ámbar aparece solo si hay productos nuevos sin docenas.</figcaption>
+      </figure>
+
+      <h3>Qué tiene que tener el archivo</h3>
+      <ul class="simple">
+        <li>El encabezado real va en la <strong>fila 4</strong> — las tres primeras son datos del punto de venta.</li>
+        <li>Columnas mínimas: Id, Fecha, Estado, Medio de Pago, Total, Fiscal y Camarero / Repartidor.</li>
+        <li><strong>Solo los tickets con estado "Cerrada" cuentan como venta.</strong> Los anulados y abiertos se ignoran.</li>
+      </ul>
+
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p><strong>Podés importar el mismo período dos veces sin miedo.</strong> El sistema reconoce cada
+        ticket y en vez de duplicarlo lo actualiza. Por eso el resultado separa
+        <em>insertados</em> (nuevos) de <em>actualizados</em> (ya estaban).</p>
+      </div>
+
+      <h3>Historial Excel</h3>
+      <p>
+        La lista de todo lo que se importó: qué archivo, quién lo subió, cuándo, de qué
+        período y cuántos tickets trajo. El archivo original queda guardado y se puede volver a bajar.
+      </p>
+      <div class="aviso stop">
+        <span class="mk">✕</span>
+        <p><strong>Cuidado con el borrado destructivo.</strong> Hay dos opciones: <em>quitar del historial</em>
+        (saca el registro y deja las ventas) y <em>borrar</em>, que elimina para siempre los tickets del
+        período, sus ítems, pagos, descuentos, datos fiscales y el archivo guardado.
+        Lo segundo no se puede deshacer.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ DASHBOARD ══════════ -->
+    <section class="seccion" id="dashboard">
+      <p class="eyebrow">Análisis · Tiendas</p>
+      <h2>Dashboard de tiendas</h2>
+      <p>
+        Es la foto de cómo viene la red. Tiene tres solapas arriba y todas usan las ventas
+        que entraron por el Excel.
+      </p>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · red de tiendas</span></div>
+          <div class="m-main" style="padding:16px">
+            <div class="m-hdr" style="padding-bottom:0">
+              <div class="m-fila entre">
+                <div>
+                  <div class="m-eye">2026 · 5 unidades</div>
+                  <h5>Alfalca · Red de tiendas</h5>
+                </div>
+                <span class="m-pill ver" style="background:#DCFCE7">Actualizado 3 sep, 14:54</span>
+              </div>
+              <div class="m-tabs"><b class="on">Resumen</b><b>Tiendas</b><b>Análisis</b></div>
+            </div>
+
+            <div class="m-grid m-g3" style="margin-top:4px">
+              <div class="m-kpi"><div class="k">Facturación total red</div><div class="v">$ 923.006.832</div><div class="s">5 unidades</div></div>
+              <div class="m-kpi"><div class="k">Período analizado</div><div class="v">9 meses</div><div class="s">Año 2026 · enero a la fecha</div></div>
+              <div class="m-kpi"><div class="k">Docenas totales</div><div class="v">23.199,28</div><div class="s">$ 28.318/docena en tiendas</div></div>
+            </div>
+
+            <div class="m-card">
+              <div class="m-tit">Comparativo por tienda</div>
+              <div class="m-sub" style="margin-bottom:7px">1–7 sep 2026 · ranking por facturación</div>
+              <div class="m-fila" style="gap:4px;flex-wrap:wrap">
+                <span class="m-pill vio" style="background:#4C1D95;color:#fff;border-color:#4C1D95">Mes en curso</span>
+                <span class="m-pill gris">Mes pasado</span>
+                <span class="m-pill gris">Últimos 30 días</span>
+                <span class="m-pill gris">Año completo</span>
+              </div>
+              <div style="margin-top:9px;overflow-x:auto">
+                <table class="m-tabla">
+                  <thead><tr><th>Tienda</th><th class="n">Facturación</th><th class="n">Tickets</th><th class="n">Ticket prom.</th><th class="n">Docenas</th></tr></thead>
+                  <tbody>
+                    <tr><td>🥇 Café</td><td class="n">$ 3.034.110</td><td class="n">162</td><td class="n">$ 18.729</td><td class="n">—</td></tr>
+                    <tr><td>🥈 Peatonal</td><td class="n">$ 1.503.270</td><td class="n">45</td><td class="n">$ 33.406</td><td class="n">44,96</td></tr>
+                    <tr><td>🥉 9 de Julio</td><td class="n">$ 1.277.930</td><td class="n">54</td><td class="n">$ 23.665</td><td class="n">36,15</td></tr>
+                    <tr><td>4 · Amigorena</td><td class="n">$ 807.700</td><td class="n">28</td><td class="n">$ 28.846</td><td class="n">34,80</td></tr>
+                    <tr><td>5 · Sheraton</td><td class="n">$ 634.750</td><td class="n">26</td><td class="n">$ 24.413</td><td class="n">25,33</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Solapa Resumen.</b> Ejemplo con datos de muestra.</figcaption>
+      </figure>
+
+      <h3>Qué hay en cada solapa</h3>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Solapa</th><th>Para qué sirve</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Resumen</strong></td>
+              <td>El ranking de tiendas del período que elijas, comparado contra el mes anterior, el promedio del año y el año pasado. Abajo, las ventas y las docenas mes por mes, y cuánto aporta cada tienda al total.</td>
+            </tr>
+            <tr>
+              <td><strong>Tiendas</strong></td>
+              <td>Filtrás por tienda y por mes tocando las etiquetas, y la tabla se arma con lo que quede seleccionado.</td>
+            </tr>
+            <tr>
+              <td><strong>Análisis</strong></td>
+              <td>El totalizador mes por mes con la variación contra el mes anterior (se puede ver en plata o en docenas), y el detalle semana a semana de cada tienda.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p>Los períodos comparados son de largo distinto a propósito. Si el mes recién empieza,
+        vas a ver bajas enormes contra el mes pasado completo: no es que se cayó la venta,
+        es que estás comparando 7 días contra 30.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ STOCK ══════════ -->
+    <section class="seccion" id="stock">
+      <p class="eyebrow">Análisis</p>
+      <h2>Stock inteligente</h2>
+      <p>
+        Te dice cuántos bultos pedirle a Entre Dos, sabor por sabor. No adivina: mira lo que
+        realmente vendiste, cómo se mueve ese mes del año, y le resta lo que tenés en el depósito.
+      </p>
+
+      <ol class="pasos">
+        <li><div>Elegí el <strong>local</strong> y cuántos <strong>días querés cubrir</strong> (3, 7, 10 o 14).</div></li>
+        <li><div>Marcá la <strong>situación</strong>: normal, sube (×1,2) o finde largo (×1,6).</div></li>
+        <li><div>Elegí si vas a <strong>contar en bultos o en docenas</strong>.</div></li>
+        <li><div><strong>Andá al depósito y contá.</strong> Cargás lo que hay de cada sabor y el pedido sugerido se recalcula mientras escribís.</div></li>
+        <li><div><strong>Calcular pedido</strong> y, si querés, <strong>exportar</strong> el CSV para mandárselo a la fábrica.</div></li>
+      </ol>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · stock inteligente</span></div>
+          <div class="m-main" style="padding:16px">
+            <div>
+              <div class="m-tit" style="font-size:15px">Stock inteligente · Pedido sugerido</div>
+              <div class="m-sub">Calculá qué variedades pedir según tu venta real, estacionalidad y stock actual.</div>
+            </div>
+            <div class="m-card m-fila" style="gap:14px;flex-wrap:wrap">
+              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Local</div><div class="m-input" style="margin-top:3px">Peatonal</div></div>
+              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Días a cubrir</div><div class="m-input" style="margin-top:3px">7 días</div></div>
+              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Situación</div><div class="m-input" style="margin-top:3px">Finde largo ×1.6</div></div>
+              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Cargar en</div>
+                <div class="m-fila" style="margin-top:3px;gap:0">
+                  <span class="m-btn" style="border-radius:8px 0 0 8px;padding:5px 12px">Bultos</span>
+                  <span class="m-btn sec" style="border-radius:0 8px 8px 0;padding:5px 12px">Docenas</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:10.5px;color:#6B6472">
+              Proyección hacia <b>Octubre</b> · velocidad base <b>62,4 doc/sem</b> · estacional <b>×1.08</b> · tendencia <b>×0.97</b>
+              <span style="color:#4C1D95;font-weight:700;margin-left:6px">¿Cómo se calcula? →</span>
+            </div>
+            <div class="m-grid m-g3">
+              <div class="m-kpi viola"><div class="k">Demanda proyectada</div><div class="v">104,72</div><div class="s">docenas totales</div></div>
+              <div class="m-kpi"><div class="k">Stock actual</div><div class="v">38,00</div><div class="s">docenas contadas</div></div>
+              <div class="m-kpi"><div class="k">A pedir</div><div class="v">14</div><div class="s">bultos totales</div></div>
+            </div>
+            <div class="m-card" style="padding:0;overflow:hidden">
+              <div style="padding:12px 14px 8px">
+                <div class="m-tit">Conteo y pedido por sabor</div>
+                <div class="m-sub">Ingresá el stock actual en bultos. El pedido se actualiza en tiempo real.</div>
+              </div>
+              <div style="overflow-x:auto">
+                <table class="m-tabla">
+                  <thead><tr><th>Sabor</th><th class="n">Demanda (doc)</th><th class="n">Conteo</th><th class="n">A pedir (bultos)</th><th>Alerta</th></tr></thead>
+                  <tbody>
+                    <tr><td>Maicena</td><td class="n">31,20</td><td class="n"><span class="m-input" style="padding:2px 7px">4</span></td><td class="n"><b>3</b></td><td><span class="m-pill amb">▲ Bajo</span></td></tr>
+                    <tr><td>Chocolate</td><td class="n">28,40</td><td class="n"><span class="m-input" style="padding:2px 7px">1</span></td><td class="n"><b>5</b></td><td><span class="m-pill roj">✕ Quiebre</span></td></tr>
+                    <tr><td>Fruta</td><td class="n">24,10</td><td class="n"><span class="m-input" style="padding:2px 7px">9</span></td><td class="n"><b>0</b></td><td><span class="m-pill ver">✓ OK</span></td></tr>
+                    <tr><td>Nuez</td><td class="n">21,02</td><td class="n"><span class="m-input" style="padding:2px 7px">3</span></td><td class="n"><b>6</b></td><td><span class="m-pill amb">▲ Bajo</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Stock inteligente.</b> Cargás el conteo y la columna <b>A pedir</b> se arma sola.</figcaption>
+      </figure>
+
+      <h3>Las tres alertas</h3>
+      <ul class="simple">
+        <li><span class="marca-n" style="background:#B91C1C">✕</span> <strong>Quiebre</strong> — tenés menos del 30% de lo que vas a necesitar. Te quedás sin ese sabor.</li>
+        <li><span class="marca-n" style="background:#A45A09">▲</span> <strong>Bajo</strong> — entre el 30% y el 60%. Llegás justo.</li>
+        <li><span class="marca-n" style="background:#15803D">✓</span> <strong>OK</strong> — tenés de sobra para los días que elegiste.</li>
+      </ul>
+
+      <h3>Cómo saca el número</h3>
+      <p>
+        El botón <em>¿Cómo se calcula?</em> abre la explicación completa. Son cuatro cosas
+        multiplicadas entre sí:
+      </p>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Factor</th><th>De dónde sale</th></tr></thead>
+          <tbody>
+            <tr><td><strong>1 · Velocidad base</strong></td><td>Cuántas docenas por semana vendiste de verdad, con más peso en las semanas recientes.</td></tr>
+            <tr><td><strong>2 · Estacionalidad</strong></td><td>Si el mes que viene históricamente vende más o menos que este.</td></tr>
+            <tr><td><strong>3 · Tendencia del mercado</strong></td><td>Un ×0,97 fijo, conservador: el consumo de alfajores viene cayendo.</td></tr>
+            <tr><td><strong>4 · Tu ajuste</strong></td><td>La situación que marcaste vos: normal, sube o finde largo.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Después reparte ese total entre los sabores según tu mix de compras, lo pasa a bultos
+        y le resta lo que contaste. <strong>Vos solo cargás el conteo</strong>: la velocidad y el
+        mix se actualizan solos cada vez que importás ventas.
+      </p>
+    </section>
+
+    <!-- ══════════ FINANZAS ══════════ -->
+    <section class="seccion" id="finanzas">
+      <p class="eyebrow">Análisis</p>
+      <p class="para-quien">Solo el dueño</p>
+      <h2>Finanzas</h2>
+      <p>
+        Tres solapas: <strong>EERR</strong> (cómo cerró el mes), <strong>Cash Flow</strong>
+        (cómo viene la plata en los próximos días) y <strong>KPI</strong> (cinco números con semáforo).
+      </p>
+
+      <h3>EERR — el estado de resultados</h3>
+      <p>
+        Elegís un local y un mes, y el sistema arma la cascada: arranca en lo que se vendió y
+        va restando hasta llegar a lo que quedó.
+      </p>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · finanzas · eerr</span></div>
+          <div class="m-main" style="padding:16px">
+            <div class="m-hdr" style="padding-bottom:0">
+              <div class="m-eye">Estado de resultados · Cash Flow · KPI</div>
+              <h5>Alfalca · Finanzas</h5>
+              <div class="m-tabs"><b class="on">EERR</b><b>Cash Flow</b><b>KPI</b></div>
+            </div>
+            <div class="m-fila" style="gap:9px;margin-top:4px">
+              <span class="m-input" style="flex:1">Peatonal</span>
+              <span class="m-input" style="flex:1">Agosto 2026</span>
+            </div>
+            <div class="m-cascada">
+              <div class="lin"><span class="op"></span><span><b>Venta Neta</b><em>Entre Dos 90% · Alimendos 10% · IVA descontado</em></span><span class="mto">$ 14.180.400</span></div>
+              <div class="lin"><span class="op">−</span><span><b>CMV</b><em>Costo de lo que vendiste</em></span><span class="mto">$ 6.735.690</span></div>
+              <div class="lin"><span class="op">=</span><span><b>Margen Bruto</b><em>Venta Neta − CMV</em></span><span class="mto">$ 7.444.710</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Gastos Operativos</b><em>Comerciales + estructura</em></span><span class="mto">$ 4.120.000</span></div>
+              <div class="lin"><span class="op">=</span><span><b>EBITDA</b><em>Margen Bruto − Gastos Operativos</em></span><span class="mto">$ 3.324.710</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Impuestos</b><em>IIBB · 931 · Ganancias</em></span><span class="mto">$ 1.190.000</span></div>
+              <div class="lin res"><span class="op">=</span><span><b>Resultado Neto</b><em>EBITDA − Impuestos</em></span><span class="mto">$ 2.134.710</span></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>EERR de un mes.</b> Los gastos y los impuestos se cargan a mano; el resto sale de las ventas importadas.</figcaption>
+      </figure>
+
+      <p>
+        La cafetería tiene su propia versión de esta pantalla, con el desglose por categoría
+        de producto y la distribución entre socios.
+      </p>
+
+      <h3>Cash Flow — la plata de los próximos días</h3>
+      <ul class="simple">
+        <li><strong>Caja disponible</strong> — lo que hay hoy.</li>
+        <li><strong>Proyección GetNet</strong> — lo que va a ir entrando de las tarjetas, día por día.</li>
+        <li><strong>Alcanza hasta</strong> — hasta qué fecha te da la caja con los egresos que cargaste.</li>
+        <li><strong>Piso de seguridad</strong> — el mínimo que no querés perforar. Si la proyección lo cruza, te avisa.</li>
+        <li><strong>Egresos</strong> — los pagos que sabés que vienen: sueldos, luz, proveedores. Se cargan con concepto y monto.</li>
+      </ul>
+
+      <h3>KPI — los cinco números con semáforo</h3>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Indicador</th><th>Qué mide</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Margen Bruto</strong></td><td>Lo que queda después de pagar el producto.</td></tr>
+            <tr><td><strong>Margen EBITDA</strong></td><td>Lo que queda de la operación, antes de impuestos.</td></tr>
+            <tr><td><strong>Cobertura de breakeven</strong></td><td>Las ventas como porcentaje del punto de equilibrio. 100% = empatás.</td></tr>
+            <tr><td><strong>Sueldos / Venta</strong></td><td>Cuánto pesan los sueldos. <strong>Acá menos es mejor.</strong></td></tr>
+            <tr><td><strong>Días de Caja</strong></td><td>Cuántos días aguanta la caja con el gasto diario promedio.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Cada uno se pinta verde, ámbar o rojo según los umbrales, que se pueden cambiar desde
+        el mismo panel. Arriba aparecen las alertas del período y abajo la evolución de los
+        últimos seis meses.
+      </p>
+    </section>
+
+    <!-- ══════════ EQUIPO ══════════ -->
+    <section class="seccion" id="equipo">
+      <p class="eyebrow">Equipo</p>
+      <h2>Empleados y horas</h2>
+      <p>
+        El listado de toda la gente. Acá se da de alta a alguien nuevo y se carga cuánto
+        vale su hora.
+      </p>
+      <p>
+        De cada persona se guarda: <strong>nombre</strong>, <strong>local</strong>,
+        <strong>área</strong> (tienda, café, cocina o general), <strong>puesto</strong>,
+        <strong>valor hora</strong> y si <strong>carga el reporte de su turno</strong>.
+      </p>
+
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p>El <strong>valor hora</strong> es lo que hace que el cierre del día pueda calcular
+        cuánto costó el personal. Si un puesto no lo tiene cargado, esas horas quedan afuera
+        del número y el sistema te lo avisa en ámbar.</p>
+      </div>
+
+      <p>
+        Estar en la lista de empleados <strong>no</strong> es lo mismo que tener usuario. Son dos
+        cosas distintas: el empleado suma horas, el usuario entra al sistema. Alguien puede
+        trabajar y no entrar nunca.
+      </p>
+    </section>
+
+    <section class="seccion" id="calendario">
+      <h2>Calendario de trabajo</h2>
+      <p>
+        Una grilla por local: los puestos en las filas, los días del mes en las columnas.
+        Tocás una celda y elegís quién cubre ese turno.
+      </p>
+      <ul class="simple">
+        <li><strong>Copiar semana</strong> — arriba de cada semana hay un <em>copiar →</em> que la repite en la siguiente. Si la grilla se repite casi igual, armás el mes en un minuto.</li>
+        <li><strong>Exportar</strong> — te lo bajás para imprimir o mandar.</li>
+        <li>Un asterisco marca a alguien que <strong>vino de otro local</strong> a cubrir.</li>
+      </ul>
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p>Si asignás un turno a alguien que <strong>no puede cargar el reporte</strong>, la celda queda
+        en ámbar con un ⚠ y aparece un aviso arriba. Se arregla marcando a esa persona como que
+        carga reporte en <em>Empleados</em>, y creándole un usuario en <em>Usuarios y accesos</em>.</p>
+      </div>
+    </section>
+
+    <section class="seccion" id="usuarios">
+      <h2>Usuarios y accesos</h2>
+      <p>Acá se decide quién entra al sistema y qué ve.</p>
+      <ol class="pasos">
+        <li><div><strong>Elegí el empleado</strong> de la lista, o dejá "sin empleado asociado" si es un dueño o el encargado general.</div></li>
+        <li><div>Poné <strong>nombre, email y una contraseña inicial</strong> (mínimo 8 caracteres).</div></li>
+        <li><div>Elegí el <strong>rol</strong>. Es lo que define qué pantallas ve.</div></li>
+        <li><div>Marcá los <strong>locales a los que accede</strong>.</div></li>
+      </ol>
+      <p>
+        Desde el mismo listado se puede <strong>cambiarle la contraseña</strong> a alguien que se
+        la olvidó, o <strong>quitarle el acceso</strong> sin borrarlo — queda inactivo y no puede entrar,
+        pero su historial sigue estando.
+      </p>
+    </section>
+
+    <!-- ══════════ CONFIGURACIÓN ══════════ -->
+    <section class="seccion" id="formularios">
+      <p class="eyebrow">Configuración · solo el dueño</p>
+      <h2>Formularios</h2>
+      <p>
+        Es lo que se le pregunta a cada uno al cerrar el turno. Hay un formulario para
+        tienda, uno para café y uno para cocina.
+      </p>
+      <p>
+        Cambiás una pregunta acá y <strong>se ve en el celular de la gente enseguida</strong>, sin
+        tocar el sistema. Los reportes ya cargados quedan como están: cada uno guarda la
+        versión del formulario con la que se llenó.
+      </p>
+      <h3>Los tipos de pregunta</h3>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Tipo</th><th>Qué muestra en el celular</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Texto corto / largo</strong></td><td>Un renglón o un recuadro para escribir.</td></tr>
+            <tr><td><strong>Número · con decimales · plata</strong></td><td>Teclado numérico. "Plata" formatea con puntos de miles.</td></tr>
+            <tr><td><strong>Elegir una opción</strong></td><td>Botones, uno al lado del otro.</td></tr>
+            <tr><td><strong>Sí o no</strong></td><td>Dos botones.</td></tr>
+            <tr><td><strong>Sí o no, con detalle</strong></td><td>Si contesta que sí, se abre una lista para cargar el detalle.</td></tr>
+            <tr><td><strong>Checklist</strong></td><td>Una lista de ítems para tildar.</td></tr>
+            <tr><td><strong>Horas del equipo</strong></td><td>La gente del local con un casillero de horas al lado.</td></tr>
+            <tr><td><strong>Fotos</strong></td><td>Botón de cámara, con un máximo configurable.</td></tr>
+            <tr><td><strong>Facturas</strong></td><td>El formulario de factura con proveedor, renglones y total.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="seccion" id="docenas">
+      <h2>Maestro de docenas</h2>
+      <p>
+        Todo el análisis de la red se mide en <strong>docenas</strong>, no en unidades sueltas.
+        Acá vive el equivalente en docenas de cada producto del catálogo. Ya no hay Excel: lo
+        que definís acá se aplica a las ventas nuevas y también recalcula el histórico de ese producto.
+      </p>
+
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p>Un producto <strong>pendiente</strong> suma <strong>0 docenas</strong>. Si aparecen pendientes
+        después de un import, los reportes de docenas van a quedar cortos hasta que los definas.</p>
+      </div>
+
+      <h3>Los tres estados</h3>
+      <ul class="simple">
+        <li><strong>Pendiente</strong> — nadie le dijo todavía cuánto vale. Suma cero.</li>
+        <li><strong>Suma docenas</strong> — tiene un valor cargado (una docena, media docena, dos docenas…).</li>
+        <li><strong>No suma</strong> — vale <strong>0</strong> a propósito: un café, un insumo, un estuche vacío, algo de Alimendos.</li>
+      </ul>
+
+      <h3>Cómo cargar muchos de una</h3>
+      <ol class="pasos">
+        <li><div>Filtrá por <strong>Pendientes</strong> y elegí una categoría, o buscá un texto que agrupe productos que valen lo mismo — por ejemplo <em>"media docena"</em>.</div></li>
+        <li><div><strong>Tildá los que corresponda</strong> y destildá los que no (un insumo, un estuche que se coló en la búsqueda).</div></li>
+        <li><div>Asignales el valor <strong>de una sola vez</strong>.</div></li>
+      </ol>
+
+      <div class="aviso stop">
+        <span class="mk">✕</span>
+        <p><strong>Nunca asignes un valor por categoría entera.</strong> Dentro de una misma categoría
+        hay productos que valen distinto. Siempre producto por producto, aunque los cargues en tanda.</p>
+      </div>
+    </section>
+
+    <section class="seccion" id="locales">
+      <h2>Locales</h2>
+      <p>
+        La lista de las cinco unidades, con su código, nombre, tipo (alfajores o cafetería)
+        y dirección. Casi nunca se toca.
+      </p>
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p><strong>Peatonal y Café Peatonal comparten la dirección pero son dos locales distintos</strong>,
+        con ventas, reportes y estado de resultados separados. Cuando importes un Excel, fijate bien cuál elegís.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ GLOSARIO ══════════ -->
+    <section class="seccion" id="glosario">
+      <p class="eyebrow">Ayuda</p>
+      <h2>Qué quiere decir</h2>
+      <p>Las palabras que aparecen en las pantallas, en criollo.</p>
+
+      <dl class="glosario">
+        <div><dt>Docena</dt><dd>La unidad con la que se mide todo. Cada producto tiene su equivalencia: una caja de seis puede valer media docena, un pack de veinticuatro vale dos.</dd></div>
+        <div><dt>Ticket</dt><dd>Una venta. Un cliente que pagó.</dd></div>
+        <div><dt>Ticket promedio</dt><dd>Cuánto gastó en promedio cada cliente: la facturación dividida por la cantidad de tickets.</dd></div>
+        <div><dt>Cerrada</dt><dd>El estado de un ticket que se cobró de verdad. Solo esos cuentan como venta.</dd></div>
+        <div><dt>Venta Neta</dt><dd>Lo que vendiste, sacándole el IVA a la parte fiscal.</dd></div>
+        <div><dt>CMV</dt><dd>Costo de la Mercadería Vendida: lo que te costó a vos el producto que vendiste.</dd></div>
+        <div><dt>Margen Bruto</dt><dd>La venta neta menos el CMV. Lo que queda antes de pagar todo lo demás.</dd></div>
+        <div><dt>EBITDA</dt><dd>Lo que deja la operación después de los gastos, pero antes de impuestos.</dd></div>
+        <div><dt>Resultado Neto</dt><dd>Lo que queda al final, con impuestos pagados.</dd></div>
+        <div><dt>Breakeven</dt><dd>El punto de equilibrio: cuánto tenés que vender para no perder ni ganar.</dd></div>
+        <div><dt>Días de caja</dt><dd>Cuántos días podés seguir funcionando con la plata que tenés hoy.</dd></div>
+        <div><dt>Bulto</dt><dd>La caja en la que viene el producto de fábrica. Cada bulto equivale a una cantidad fija de docenas.</dd></div>
+        <div><dt>Quiebre</dt><dd>Quedarte sin producto para vender.</dd></div>
+        <div><dt>Consolidado</dt><dd>El reporte del Encargado que junta todos los turnos del día y cierra la jornada.</dd></div>
+      </dl>
+    </section>
+
+    <!-- ══════════ PROBLEMAS ══════════ -->
+    <section class="seccion" id="problemas">
+      <h2>Si algo no anda</h2>
+
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Lo que ves</th><th>Qué hacer</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>"Error al ingresar"</strong></td>
+              <td>Revisá el mail letra por letra. Si sigue, pedí que te pongan una contraseña nueva desde <em>Usuarios y accesos</em>.</td>
+            </tr>
+            <tr>
+              <td><strong>No veo la mitad del menú</strong></td>
+              <td>Es tu rol, no un error. Cada rol ve lo suyo — mirá <a href="#quien-ve">Quién ve qué</a>.</td>
+            </tr>
+            <tr>
+              <td><strong>Me sacó del sistema solo</strong></td>
+              <td>La sesión dura una semana. Volvé a entrar; lo que estabas cargando quedó guardado.</td>
+            </tr>
+            <tr>
+              <td><strong>No me deja enviar el reporte</strong></td>
+              <td>Falta algo obligatorio. El cartel amarillo de arriba te dice exactamente qué.</td>
+            </tr>
+            <tr>
+              <td><strong>No me deja cerrar el día</strong></td>
+              <td>O falta que llegue algún reporte, o hay un local cuya diferencia no explicaste.</td>
+            </tr>
+            <tr>
+              <td><strong>El sistema y lo reportado no coinciden</strong></td>
+              <td>Es información, no un error: son dos fuentes distintas. Escribí la explicación en el recuadro rojo.</td>
+            </tr>
+            <tr>
+              <td><strong>Importé y las docenas dan cero</strong></td>
+              <td>Hay productos pendientes en el <a href="#docenas">Maestro de docenas</a>. Cargales el valor y el histórico se recalcula solo.</td>
+            </tr>
+            <tr>
+              <td><strong>Las horas no suman al costo</strong></td>
+              <td>Ese puesto no tiene valor hora cargado. Se pone en <em>Empleados y horas</em>.</td>
+            </tr>
+            <tr>
+              <td><strong>Importé dos veces el mismo archivo</strong></td>
+              <td>No pasa nada. El sistema actualiza en vez de duplicar.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="pie">
+        Este manual describe el sistema tal como funciona hoy. Todos los montos y nombres
+        que aparecen en las pantallas de ejemplo son inventados para ilustrar — no son datos
+        reales de la empresa.
+      </p>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

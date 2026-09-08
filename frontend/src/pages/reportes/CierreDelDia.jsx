@@ -3,6 +3,7 @@ import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import { esDueno } from '../../utils/roles';
 import { soloNumero } from './campos';
+import { plata, fechaCorta, fechaLarga, medioLabel } from '../proveedores/comunes';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -47,6 +48,85 @@ function Novedades({ titulo, items, render, tono = 'amber' }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// Las facturas de proveedores del día. No se llama "vencimientos" a propósito: en
+// este informe esa palabra ya es la mercadería vencida en tienda.
+function FacturasProveedores({ p }) {
+  if (!p) return null;
+  const hayAlgo = p.pagos.length || p.vencidas.length || p.semana.length;
+  if (!hayAlgo) return null;
+
+  return (
+    <div className="card p-5 space-y-4">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+          Facturas de proveedores
+        </h2>
+        <span className="text-xs text-ahg-text/40">
+          se debe {plata(p.deuda_total)} en {p.facturas_abiertas} facturas
+        </span>
+      </div>
+
+      {p.pagos.length > 0 && (
+        <div className="pl-3 border-l-2 border-green-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-1.5">
+            Se pagó hoy · {plata(p.pagado_hoy)}
+          </p>
+          <ul className="space-y-1 text-sm">
+            {p.pagos.map((x, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="flex-1">
+                  <strong>{x.proveedor}</strong>
+                  <span className="text-ahg-text/50"> · {x.factura_numero || 'sin número'} · {medioLabel(x.medio)}
+                    {x.comprobante ? ` · ${x.comprobante}` : ''}</span>
+                </span>
+                <span className="tabular-nums font-semibold">{plata(x.monto)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {p.vencidas.length > 0 && (
+        <div className="pl-3 border-l-2 border-red-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-700 mb-1.5">
+            Vencidas · {p.vencidas.length} · {plata(p.total_vencido)}
+          </p>
+          <ul className="space-y-1 text-sm">
+            {p.vencidas.map((f, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="flex-1">
+                  <strong>{f.proveedor}</strong>
+                  <span className="text-ahg-text/50"> · {f.numero || 'sin número'} · {f.local_nombre} · venció el {fechaCorta(f.vencimiento)}</span>
+                </span>
+                <span className="tabular-nums font-semibold text-red-700">{plata(f.saldo)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {p.semana.length > 0 && (
+        <div className="pl-3 border-l-2 border-amber-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1.5">
+            Vencen esta semana · {p.semana.length} · {plata(p.total_semana)}
+          </p>
+          <ul className="space-y-1 text-sm">
+            {p.semana.map((f, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="flex-1">
+                  <strong>{f.proveedor}</strong>
+                  <span className="text-ahg-text/50"> · {f.numero || 'sin número'} · {fechaLarga(f.vencimiento)}</span>
+                </span>
+                <span className="tabular-nums font-semibold">{plata(f.saldo)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,6 +369,8 @@ export default function CierreDelDia({ fecha, onCambio }) {
           <Novedades titulo="Quejas" items={d.novedades.quejas} render={it => it.texto} />
         </div>
       )}
+
+      <FacturasProveedores p={d.proveedores} />
 
       {/* Cierre */}
       <div className="card p-5 space-y-4">

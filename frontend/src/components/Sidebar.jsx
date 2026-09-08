@@ -24,6 +24,7 @@ const ICON = {
   catalogo:   '▤',
   maestros:   '⊟',
   manual:     '⊚',
+  proveedores:'⊡',
 };
 
 const TIENDA_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
@@ -129,7 +130,8 @@ export default function Sidebar({ open, onClose }) {
           {esDeRed(user) && (
             <>
               <SectionLabel label="El día" />
-              <NavItem to="/reportes" icon={ICON.listado} label="Reportes" />
+              <NavItem to="/reportes"    icon={ICON.listado}     label="Reportes" />
+              <NavItem to="/proveedores" icon={ICON.proveedores} label="Proveedores" />
 
               <SectionLabel label="Análisis" />
 

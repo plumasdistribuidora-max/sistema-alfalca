@@ -483,6 +483,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <a href="#mi-reporte"><span class="ic">◈</span>Mi reporte de hoy</a>
     <a href="#reportes"><span class="ic">☰</span>Reportes del día</a>
     <a href="#cierre"><span class="ic">✓</span>Cerrar el día</a>
+    <a href="#proveedores"><span class="ic">⊡</span>Proveedores</a>
 
     <p class="tit">Análisis</p>
     <a href="#importar"><span class="ic">↑</span>Importar Excel</a>
@@ -732,7 +733,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <li><div><strong>Contestá las preguntas.</strong> Las que tienen asterisco rojo son obligatorias.</div></li>
             <li><div><strong>Cargá las horas del equipo:</strong> elegís a la persona de la lista y ponés cuántas horas hizo. Solo aparecen los que trabajan en tu local.</div></li>
             <li><div><strong>Sacá las fotos que te pida.</strong> Se achican solas antes de subirse, así que andan aunque la señal esté floja.</div></li>
-            <li><div><strong>Si entró una factura</strong>, tocá <em>+ Agregar factura</em> y cargá proveedor, número, los renglones y el total.</div></li>
+            <li><div><strong>Si entró una factura</strong>, tocá <em>+ Agregar factura</em>, <strong>elegí el proveedor de la lista</strong> y cargá número, renglones y total.</div></li>
             <li><div>Tocá <strong>Enviar al Encargado</strong>. Cuando aparece la pantalla verde con el tilde, terminaste.</div></li>
           </ol>
 
@@ -749,6 +750,14 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p>
         Cuando tocás <em>Enviar</em> y quedó algo obligatorio sin completar, aparece un cartel
         amarillo arriba con la lista exacta de qué falta. Completás eso y volvés a enviar.
+      </p>
+
+      <h3>El proveedor se elige, no se escribe</h3>
+      <p>
+        En la factura, el proveedor sale de una lista que arma el encargado. No se escribe a
+        mano: así el mismo proveedor no queda cargado de tres formas distintas y después se
+        puede ver todo lo que se le debe junto. <strong>Si el proveedor no está en la lista,
+        avisale al encargado</strong> para que lo dé de alta; le lleva medio minuto.
       </p>
 
       <h3>La factura te avisa si no cierra</h3>
@@ -968,6 +977,18 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         primero hay que resolver eso. Y una vez cerrado, <strong>solo el dueño lo puede reabrir</strong>.</p>
       </div>
 
+      <h3>Facturas de proveedores</h3>
+      <p>
+        Antes del cierre aparece un bloque con las facturas: <strong>lo que se pagó ese
+        día</strong> (a quién, por cuánto y con qué), <strong>lo que está vencido</strong> y
+        <strong>lo que vence antes del domingo</strong>. No se escribe: se arma solo con lo que
+        hay cargado en Proveedores, y viaja con el cierre a los dueños.
+      </p>
+      <p>
+        Ojo con la palabra: en esta pantalla <em>Vencimientos</em>, más abajo, son los
+        <strong>productos vencidos en la tienda</strong>. Las facturas van en su propio bloque.
+      </p>
+
       <h3>Los cuatro números de arriba</h3>
       <ul class="simple">
         <li><strong>Venta del día</strong> — lo que vendió toda la red, según el sistema.</li>
@@ -979,6 +1000,82 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         Si algún puesto todavía no tiene cargado el valor de la hora, aparece un aviso ámbar:
         esas horas no entran en el cálculo hasta que lo cargues en <em>Empleados y horas</em>.
       </p>
+    </section>
+
+    <!-- ══════════ PROVEEDORES ══════════ -->
+    <section class="seccion" id="proveedores">
+      <p class="para-quien">Para el Encargado General y el dueño</p>
+      <h2>Proveedores</h2>
+      <p>
+        Todas las facturas que cargan los turnos caen acá solas. Esta pantalla es la que
+        contesta tres preguntas: <strong>a quién le debo</strong>, <strong>qué está
+        vencido</strong> y <strong>qué conviene pagar esta semana</strong>. Tiene cuatro solapas.
+      </p>
+
+      <h3>Proveedores — la lista, que se carga una sola vez</h3>
+      <p>
+        Empezá por acá. Cada proveedor se da de alta una vez y queda para siempre. De esa
+        ficha salen tres cosas que después usa todo el resto:
+      </p>
+      <ul class="simple">
+        <li><strong>La forma de pago habitual</strong> — Santander, Mercado Pago, Galicia, efectivo o cheque. Es la que viene marcada cuando le anotás un pago, para no elegirla cada vez.</li>
+        <li><strong>Los días en que cobra</strong> — si a un proveedor solo le pagás los martes y viernes, marcás esos dos. El sistema te avisa si estás por pagarle un día que no cobra.</li>
+        <li><strong>El plazo</strong> — contado, 15, 30 días. Con eso se calcula solo el vencimiento de cada factura que carga el turno, sin que nadie tenga que ponerlo.</li>
+      </ul>
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p>Un proveedor que ya tiene facturas cargadas no se borra: queda <strong>desactivado</strong>.
+        Deja de aparecerle al turno, pero el histórico de lo que le compraste se mantiene.</p>
+      </div>
+
+      <h3>Facturas pendientes — todo lo que se debe</h3>
+      <p>
+        Arriba, cuatro números: la deuda total, lo vencido, lo que vence esta semana y cuántos
+        proveedores tienen saldo. Abajo, la lista, ordenada por vencimiento: primero lo más
+        urgente. Cada fila dice de dónde salió la factura — del <em>formulario</em> de un turno
+        o cargada <em>a mano</em> — y quién la cargó.
+      </p>
+      <ol class="pasos">
+        <li><div><strong>Para anotar un pago</strong>, tocá <em>Anotar pago</em> en la fila de la factura. Viene puesto el saldo completo y la forma de pago del proveedor.</div></li>
+        <li><div><strong>Si pagaste solo una parte</strong>, cambiá el monto: abajo te dice cuánto queda pendiente y la factura sigue en la lista con el saldo.</div></li>
+        <li><div><strong>Si la fecha que elegís no es día de cobro</strong> de ese proveedor, te lo avisa en ámbar y te dice cuál es el próximo. No te frena.</div></li>
+      </ol>
+      <p>
+        El botón <em>+ Cargar factura a mano</em> es para lo que no pasa por el formulario del
+        turno: alquiler, servicios, una compra puntual. El vencimiento se completa solo con el
+        plazo del proveedor.
+      </p>
+
+      <h3>¿Qué pago? — la lista de pagos de la semana</h3>
+      <p>
+        Elegís hasta qué día querés cubrir — lo vencido a hoy, los próximos 7 días, o una fecha
+        a mano — y el sistema arma la lista <strong>agrupada por proveedor</strong>: a cada uno,
+        cuánto le debés y qué facturas son. Vienen todas tildadas; destildás las que no vas a
+        pagar y abajo se va actualizando el total.
+      </p>
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p>Si un proveedor no cobra antes de la fecha que elegiste, su bloque queda marcado en
+        ámbar y te dice cuál es su próximo día de cobro. Sirve para no armar una transferencia
+        que no van a poder recibir.</p>
+      </div>
+      <p>
+        Cuando está la lista como la querés, <em>Anotar estos pagos</em> los registra todos
+        juntos, cada uno con la forma de pago de su proveedor.
+      </p>
+
+      <h3>Pagos hechos — el registro</h3>
+      <p>
+        Todo lo que se pagó, con fecha, factura, medio, número de transferencia o cheque y
+        quién lo anotó. Un pago cargado con el medio equivocado <strong>se borra y se vuelve a
+        anotar</strong>: la factura vuelve a quedar con ese saldo pendiente.
+      </p>
+
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p><strong>Los pagos los anota el encargado.</strong> El dueño ve todo y decide qué
+        pagar, pero el que carga es siempre el mismo, así no quedan pagos anotados dos veces.</p>
+      </div>
     </section>
 
     <!-- ══════════ IMPORTAR ══════════ -->

@@ -27,6 +27,10 @@ app.use('/api/locales',   require('./routes/locales'));
 app.use('/api/usuarios',  require('./routes/usuarios'));
 app.use('/api/empleados', require('./routes/empleados'));
 app.use('/api/reportes',  require('./routes/reportes'));
+// Proveedores no se cierra acá: la lista la necesita el formulario del turno para
+// elegir el proveedor. Las altas, las facturas a mano y los pagos se cierran
+// endpoint por endpoint adentro del router.
+app.use('/api/proveedores', require('./routes/proveedores'));
 app.use('/api/consolidado', soloRed, require('./routes/consolidado'));
 app.use('/api/calendario', soloRed, require('./routes/calendario'));
 app.use('/api/ventas',    soloRed, require('./routes/ventas'));

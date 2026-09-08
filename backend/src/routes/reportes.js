@@ -106,7 +106,7 @@ async function adjuntosDe(reporteId) {
 
 async function facturasDe(reporteId) {
   const { rows } = await pool.query(`
-    SELECT f.id, f.proveedor, f.numero, f.fecha, f.total,
+    SELECT f.id, f.proveedor, f.proveedor_id, f.numero, f.fecha, f.vencimiento, f.total,
            COALESCE(json_agg(json_build_object(
              'producto', i.producto, 'cantidad', i.cantidad, 'precio_unit', i.precio_unit
            ) ORDER BY i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
@@ -425,8 +425,20 @@ router.delete('/adjuntos/:id', requireAuth, async (req, res) => {
 router.post('/:id/facturas', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { proveedor, numero, fecha, total, items } = req.body;
-    if (!proveedor?.trim()) return res.status(400).json({ ok: false, error: 'Falta el proveedor' });
+    const { proveedor_id, numero, fecha, total, items } = req.body;
+    if (!proveedor_id) {
+      return res.status(400).json({ ok: false, error: 'Elegí el proveedor de la lista' });
+    }
+
+    // El proveedor ya no es texto libre: viene de la lista que carga el encargado.
+    // De su ficha sale también el vencimiento, que es lo que después ordena los pagos.
+    const prov = await pool.query(
+      'SELECT nombre, plazo_dias FROM proveedores WHERE id = $1 AND activo = true',
+      [proveedor_id]
+    );
+    if (!prov.rows.length) {
+      return res.status(400).json({ ok: false, error: 'Ese proveedor ya no está en la lista' });
+    }
 
     const { rows } = await pool.query('SELECT * FROM reportes WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Reporte no encontrado' });
@@ -436,13 +448,27 @@ router.post('/:id/facturas', requireAuth, async (req, res) => {
       return res.status(409).json({ ok: false, error: 'El reporte ya fue enviado' });
     }
 
+    // reporte.fecha viene como Date desde pg y la del body como 'YYYY-MM-DD':
+    // se normalizan las dos antes de sumarle el plazo.
+    const fechaFactura = fecha
+      ? String(fecha).slice(0, 10)
+      : [
+          reporte.fecha.getFullYear(),
+          String(reporte.fecha.getMonth() + 1).padStart(2, '0'),
+          String(reporte.fecha.getDate()).padStart(2, '0'),
+        ].join('-');
+
+    const vence = new Date(`${fechaFactura}T00:00:00`);
+    vence.setDate(vence.getDate() + prov.rows[0].plazo_dias);
+    const vencimiento = `${vence.getFullYear()}-${String(vence.getMonth() + 1).padStart(2, '0')}-${String(vence.getDate()).padStart(2, '0')}`;
+
     await client.query('BEGIN');
     const f = await client.query(`
-      INSERT INTO facturas (local_id, reporte_id, proveedor, numero, fecha, total, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
+      INSERT INTO facturas (local_id, reporte_id, proveedor, proveedor_id, numero, fecha, vencimiento, total, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
     `, [
-      reporte.local_id, reporte.id, proveedor.trim(), numero?.trim() || null,
-      fecha || reporte.fecha, Number(total) || 0, req.user.id,
+      reporte.local_id, reporte.id, prov.rows[0].nombre, proveedor_id, numero?.trim() || null,
+      fechaFactura, vencimiento, Number(total) || 0, req.user.id,
     ]);
 
     for (const it of (items || [])) {

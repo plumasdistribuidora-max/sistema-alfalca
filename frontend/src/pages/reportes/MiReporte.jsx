@@ -29,8 +29,8 @@ function comprimir(file, maxLado = 1600, calidad = 0.8) {
   });
 }
 
-function ModalFactura({ onGuardar, onCerrar }) {
-  const [f, setF] = useState({ proveedor: '', numero: '', total: '', items: [{}] });
+function ModalFactura({ proveedores, onGuardar, onCerrar }) {
+  const [f, setF] = useState({ proveedor_id: '', numero: '', total: '', items: [{}] });
   const [guardando, setGuardando] = useState(false);
 
   const subtotal = f.items.reduce(
@@ -56,8 +56,16 @@ function ModalFactura({ onGuardar, onCerrar }) {
 
         <div>
           <label className="label">Proveedor</label>
-          <input className="input" required value={f.proveedor}
-                 onChange={e => setF(x => ({ ...x, proveedor: e.target.value }))} />
+          <select className="input" required value={f.proveedor_id}
+                  onChange={e => setF(x => ({ ...x, proveedor_id: e.target.value }))}>
+            <option value="">Elegí el proveedor…</option>
+            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+          <p className="text-xs text-ahg-text/50 mt-1">
+            {proveedores.length
+              ? 'Si el proveedor no está en la lista, avisale al encargado para que lo cargue.'
+              : 'Todavía no hay proveedores cargados. Avisale al encargado.'}
+          </p>
         </div>
         <div>
           <label className="label">Número de factura</label>
@@ -142,6 +150,7 @@ export default function MiReporte() {
   const [faltan,     setFaltan]     = useState([]);
   const [enviado,    setEnviado]    = useState(false);
   const [modalFactura, setModalFactura] = useState(false);
+  const [proveedores, setProveedores] = useState([]);
 
   const debounce = useRef(null);
 
@@ -168,6 +177,14 @@ export default function MiReporte() {
   }
 
   useEffect(() => { cargar(); }, []);
+
+  // La lista de proveedores para el desplegable de facturas. Si falla, el modal
+  // queda sin opciones y avisa; el resto del reporte se sigue pudiendo cargar.
+  useEffect(() => {
+    api.get('/proveedores/lista')
+      .then(r => setProveedores(r.data.data))
+      .catch(() => {});
+  }, []);
 
   const guardar = useCallback(async (nuevoTurno, nuevasRespuestas) => {
     if (!nuevoTurno) return null;
@@ -379,7 +396,7 @@ export default function MiReporte() {
       )}
 
       {modalFactura && (
-        <ModalFactura onGuardar={agregarFactura} onCerrar={() => setModalFactura(false)} />
+        <ModalFactura proveedores={proveedores} onGuardar={agregarFactura} onCerrar={() => setModalFactura(false)} />
       )}
     </div>
   );

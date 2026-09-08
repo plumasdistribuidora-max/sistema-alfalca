@@ -39,6 +39,57 @@ function horasDe(reporte) {
   return [];
 }
 
+// Las facturas de proveedores que le tienen que llegar al dueño con el cierre: lo que
+// se pagó ese día, lo que ya venció y lo que vence antes del domingo. Se arma solo:
+// el encargado no transcribe nada de esto.
+async function facturasDelDia(fecha) {
+  const pagos = (await pool.query(`
+    SELECT pg.monto, pg.medio, pg.comprobante,
+           f.numero AS factura_numero,
+           COALESCE(p.nombre, f.proveedor) AS proveedor
+    FROM pagos_proveedor pg
+    JOIN facturas f ON f.id = pg.factura_id
+    LEFT JOIN proveedores p ON p.id = f.proveedor_id
+    WHERE pg.fecha = $1
+    ORDER BY pg.id
+  `, [fecha])).rows;
+
+  // El domingo de esa semana: hasta ahí llega "vence esta semana".
+  const d = new Date(`${fecha}T00:00:00`);
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  const finSemana = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const abiertas = (await pool.query(`
+    SELECT f.numero, f.vencimiento::text AS vencimiento, f.local_id,
+           COALESCE(p.nombre, f.proveedor) AS proveedor,
+           p.medio_pago,
+           l.nombre AS local_nombre,
+           f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) AS saldo
+    FROM facturas f
+    LEFT JOIN proveedores p ON p.id = f.proveedor_id
+    LEFT JOIN locales     l ON l.id = f.local_id
+    WHERE f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) > 0
+    ORDER BY f.vencimiento, f.id
+  `)).rows.map(r => ({ ...r, saldo: n(r.saldo) }));
+
+  const vencidas = abiertas.filter(f => f.vencimiento && f.vencimiento < fecha);
+  const semana   = abiertas.filter(f => f.vencimiento && f.vencimiento >= fecha && f.vencimiento <= finSemana);
+
+  const sumar = lista => lista.reduce((s, f) => s + f.saldo, 0);
+
+  return {
+    pagos,
+    pagado_hoy: pagos.reduce((s, p) => s + n(p.monto), 0),
+    vencidas,
+    total_vencido: sumar(vencidas),
+    semana,
+    total_semana: sumar(semana),
+    fin_semana: finSemana,
+    deuda_total: sumar(abiertas),
+    facturas_abiertas: abiertas.length,
+  };
+}
+
 // Arma el consolidado del día: lo que ya sabe el sistema más lo que cargó cada turno.
 // El encargado no transcribe nada de esto — lo verifica.
 async function armarDia(fecha) {
@@ -214,7 +265,11 @@ async function armarDia(fecha) {
     : null;
   totales.ticket_promedio = totales.tickets > 0 ? totales.ventas_sistema / totales.tickets : null;
 
-  return { fecha, locales: filas, totales, novedades, consolidado: guardado };
+  return {
+    fecha, locales: filas, totales, novedades,
+    proveedores: await facturasDelDia(fecha),
+    consolidado: guardado,
+  };
 }
 
 // ── GET / ─────────────────────────────────────────────────────────────────────

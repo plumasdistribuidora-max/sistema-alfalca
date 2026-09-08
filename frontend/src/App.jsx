@@ -22,6 +22,7 @@ import UsuariosPage           from './pages/admin/UsuariosPage';
 import MiReporte              from './pages/reportes/MiReporte';
 import Reportes               from './pages/reportes/Reportes';
 import FormulariosPage        from './pages/admin/FormulariosPage';
+import ProveedoresPage        from './pages/proveedores/ProveedoresPage';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="locales"              element={soloDueno(<Locales />)} />
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Reportes />)} />
+            <Route path="proveedores"          element={soloRed(<ProveedoresPage />)} />
             <Route path="formularios"          element={soloRed(<FormulariosPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />
             <Route path="empleados"            element={soloRed(<EmpleadosPage />)} />

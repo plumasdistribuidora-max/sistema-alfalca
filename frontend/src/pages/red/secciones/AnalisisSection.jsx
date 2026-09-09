@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import api from '../../../api';
 import { fmtNum, fmtDoc, fmtARS, colorDeTienda, shortName, yearRange } from '../redUtils';
+import PorHoraSection from './PorHoraSection';
 
 function Skeleton({ className = '' }) {
   return <div className={`bg-stone-200 rounded-xl animate-pulse ${className}`} />;
@@ -172,6 +173,9 @@ export default function AnalisisSection() {
   const [semanal, setSemanal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modoTot, setModoTot] = useState('facturacion'); // 'facturacion' | 'docenas'
+  // El análisis por hora se pide aparte: tiene su propio período y su propia consulta,
+  // así que no se trae hasta que alguien lo abre.
+  const [verPorHora, setVerPorHora] = useState(false);
 
   useEffect(() => {
     const { desde, hasta } = yearRange();
@@ -307,6 +311,32 @@ export default function AnalisisSection() {
           {semanal.tiendas.map(t => <BloqueSemanal key={t.local_id} tienda={t} />)}
         </div>
       )}
+
+      {/* Análisis por hora */}
+      <div className="pt-2 space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
+              Hora por hora
+            </h2>
+            <p className="text-xs text-stone-400 mt-0.5">
+              A qué hora vende cada local, para decidir el horario de apertura
+            </p>
+          </div>
+          <button
+            onClick={() => setVerPorHora(v => !v)}
+            className={`ml-auto px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+              verPorHora
+                ? 'bg-white text-violet-800 border-violet-300 hover:bg-violet-50'
+                : 'bg-violet-800 text-white border-violet-800 hover:bg-violet-700'
+            }`}
+          >
+            {verPorHora ? 'Ocultar el análisis por hora' : '+ Agregar análisis por hora'}
+          </button>
+        </div>
+
+        {verPorHora && <PorHoraSection />}
+      </div>
 
     </div>
   );

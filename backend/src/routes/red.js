@@ -960,6 +960,169 @@ router.get('/semanal', requireAuth, async (req, res) => {
   }
 });
 
+// ── E bis) GET /por-hora ─────────────────────────────────────────────────────
+// A qué hora vende cada local, para decidir el horario de apertura. La hora es la
+// de apertura del ticket (cuándo entró la gente), no la del cierre: en la cafetería
+// una mesa se abre a las 13 y se cierra a las 14:30, y lo que importa es la entrada.
+
+// La franja contigua más corta que junta el 80% de la venta del día. Es la que
+// contesta "de qué hora a qué hora vale la pena tener el local abierto".
+function franjaConcentrada(horas, campo, porcentaje = 0.8) {
+  const total = horas.reduce((s, h) => s + h[campo], 0);
+  if (total <= 0) return null;
+  const objetivo = total * porcentaje;
+
+  let mejor = null;
+  let ini = 0;
+  let suma = 0;
+
+  for (let fin = 0; fin < horas.length; fin++) {
+    suma += horas[fin][campo];
+    // Se achica la ventana por la izquierda mientras siga alcanzando el objetivo.
+    while (suma - horas[ini][campo] >= objetivo) {
+      suma -= horas[ini][campo];
+      ini++;
+    }
+    if (suma >= objetivo) {
+      const largo = fin - ini + 1;
+      if (!mejor || largo < mejor.largo) {
+        mejor = { largo, desde_hora: horas[ini].hora, hasta_hora: horas[fin].hora };
+      }
+    }
+  }
+  return mejor;
+}
+
+router.get('/por-hora', requireAuth, async (req, res) => {
+  try {
+    const range = parseRange(req);
+    if (!range) return res.status(400).json({ ok: false, error: 'Fechas inválidas (YYYY-MM-DD)' });
+    const [desde, hasta] = range;
+
+    const { rows } = await pool.query(`
+      WITH base AS (
+        SELECT vt.local_id,
+               vt.fecha,
+               -- El Excel de Fudo trae la hora de Mendoza y el import la guardó
+               -- etiquetada como UTC, así que el timestamp ya ES el reloj de pared
+               -- del local: leerlo en UTC lo devuelve tal cual. Convertirlo a la
+               -- zona de Mendoza le restaría 3 horas y daría tiendas abriendo a las
+               -- 6 de la mañana. Verificado contra los datos: el primer ticket del
+               -- día cae 9:07-10:46 y el último 19:58-20:59.
+               (vt.creacion AT TIME ZONE 'UTC') AS momento,
+               vt.total
+        FROM ventas_tickets vt
+        JOIN locales l ON l.id = vt.local_id AND l.activo = true
+        WHERE vt.estado = 'cerrada'
+          AND vt.creacion IS NOT NULL
+          AND vt.fecha BETWEEN $1::date AND $2::date
+      ),
+      por_hora AS (
+        SELECT local_id,
+               EXTRACT(HOUR FROM momento)::int AS hora,
+               SUM(total)   AS facturacion,
+               COUNT(*)::int AS tickets
+        FROM base GROUP BY local_id, 2
+      ),
+      -- Días que el local estuvo abierto de verdad, para el promedio por día: si
+      -- se dividiera por los días del período, un lunes cerrado bajaría todas las horas.
+      dias AS (
+        SELECT local_id, COUNT(DISTINCT fecha)::int AS dias_abiertos
+        FROM base GROUP BY local_id
+      ),
+      -- Tickets cerrados a los que el Excel no les trajo la hora: no entran en el
+      -- análisis, así que se cuentan aparte para poder avisarlo.
+      sin_hora AS (
+        SELECT vt.local_id, COUNT(*)::int AS n, COALESCE(SUM(vt.total), 0) AS monto
+        FROM ventas_tickets vt
+        WHERE vt.estado = 'cerrada' AND vt.creacion IS NULL
+          AND vt.fecha BETWEEN $1::date AND $2::date
+        GROUP BY vt.local_id
+      )
+      SELECT l.id, l.nombre, l.tipo,
+             h.hora, h.facturacion, h.tickets,
+             d.dias_abiertos,
+             COALESCE(s.n, 0)     AS sin_hora,
+             COALESCE(s.monto, 0) AS sin_hora_monto
+      FROM por_hora h
+      JOIN locales l ON l.id = h.local_id
+      JOIN dias    d ON d.local_id = h.local_id
+      LEFT JOIN sin_hora s ON s.local_id = h.local_id
+      ORDER BY l.nombre, h.hora
+    `, [desde, hasta]);
+
+    const porLocal = new Map();
+    for (const r of rows) {
+      const id = Number(r.id);
+      if (!porLocal.has(id)) {
+        porLocal.set(id, {
+          local_id: id,
+          tienda: r.nombre,
+          tipo: r.tipo,
+          dias_abiertos: n(r.dias_abiertos),
+          sin_hora: n(r.sin_hora),
+          sin_hora_monto: Math.round(n(r.sin_hora_monto)),
+          // Las 24 horas siempre presentes: una hora sin venta es información, no
+          // un hueco, y es justamente la que dice que no conviene abrir.
+          horas: Array.from({ length: 24 }, (_, hora) => ({
+            hora, facturacion: 0, tickets: 0,
+          })),
+        });
+      }
+      const t = porLocal.get(id);
+      const h = t.horas[n(r.hora)];
+      h.facturacion = Math.round(n(r.facturacion));
+      h.tickets     = n(r.tickets);
+    }
+
+    const tiendas = [...porLocal.values()].map(t => {
+      const totalFact = t.horas.reduce((s, h) => s + h.facturacion, 0);
+      const totalTk   = t.horas.reduce((s, h) => s + h.tickets, 0);
+      const dias      = t.dias_abiertos || 1;
+
+      t.horas.forEach(h => {
+        h.ticket_promedio    = h.tickets > 0 ? Math.round(h.facturacion / h.tickets) : 0;
+        h.prom_dia_facturacion = Math.round(h.facturacion / dias);
+        h.prom_dia_tickets     = Math.round((h.tickets / dias) * 10) / 10;
+        h.pct                  = pct(h.facturacion, totalFact);
+      });
+
+      const conVenta = t.horas.filter(h => h.tickets > 0);
+      const pico     = conVenta.length
+        ? conVenta.reduce((best, h) => (h.facturacion > best.facturacion ? h : best), conVenta[0])
+        : null;
+
+      const franja = franjaConcentrada(t.horas, 'facturacion');
+      const antes   = franja ? t.horas.filter(h => h.hora < franja.desde_hora) : [];
+      const despues = franja ? t.horas.filter(h => h.hora > franja.hasta_hora) : [];
+
+      return {
+        ...t,
+        total_facturacion: totalFact,
+        total_tickets: totalTk,
+        ticket_promedio: totalTk > 0 ? Math.round(totalFact / totalTk) : 0,
+        prom_dia_facturacion: Math.round(totalFact / dias),
+        prom_dia_tickets: Math.round((totalTk / dias) * 10) / 10,
+        primera_hora: conVenta.length ? conVenta[0].hora : null,
+        ultima_hora:  conVenta.length ? conVenta[conVenta.length - 1].hora : null,
+        hora_pico: pico ? pico.hora : null,
+        franja,
+        // Lo que se vende fuera de la franja principal: el número con el que se
+        // decide si conviene abrir más temprano o cerrar más tarde.
+        antes_franja:   { facturacion: antes.reduce((s, h) => s + h.facturacion, 0),   pct: pct(antes.reduce((s, h) => s + h.facturacion, 0), totalFact) },
+        despues_franja: { facturacion: despues.reduce((s, h) => s + h.facturacion, 0), pct: pct(despues.reduce((s, h) => s + h.facturacion, 0), totalFact) },
+      };
+    });
+
+    tiendas.sort((a, b) => b.total_facturacion - a.total_facturacion);
+
+    res.json({ ok: true, data: { periodo: { desde, hasta }, tiendas } });
+  } catch (err) {
+    console.error('[red/por-hora]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── F) GET /analisis ─────────────────────────────────────────────────────────
 
 router.get('/analisis', requireAuth, async (req, res) => {

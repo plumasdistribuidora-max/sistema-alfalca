@@ -12,16 +12,12 @@ function barColor(indice) {
   return '#7C3AED';
 }
 
-function localShort(nombre) {
-  return (nombre || '').replace(' Tienda de Alfajores', '').replace(' Cafetería', '');
-}
-
 function fmtNum(v) {
   return (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function ComoSeCalculaModal({ proyeccion, onClose }) {
-  const { local, parametros: p, factores: f, demanda_total_doc, grafico_estacionalidad } = proyeccion;
+  const { grupo, parametros: p, factores: f, demanda_total_doc, grafico_estacionalidad } = proyeccion;
 
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose(); }
@@ -48,7 +44,7 @@ export default function ComoSeCalculaModal({ proyeccion, onClose }) {
               ¿Cómo se calcula el pedido?
             </h3>
             <p className="text-xs text-stone-400 mt-0.5">
-              Para <strong>{localShort(local.nombre)}</strong> · {p.dias} días hacia {mesNombre}
+              Para <strong>las {grupo.cantidad} tiendas juntas</strong> · {p.dias} días hacia {mesNombre}
             </p>
           </div>
           <button
@@ -76,8 +72,8 @@ export default function ComoSeCalculaModal({ proyeccion, onClose }) {
                 {f.velocidad_base_semanal} <span className="text-sm font-normal opacity-70">doc/sem</span>
               </p>
               <p className="text-xs text-violet-700">
-                Promedio ponderado de las últimas {f.semanas_historia} semanas de venta real (POS), con más peso a lo reciente.
-                {f.fuente_velocidad === 'red' && <strong> (usando velocidad de la red — historia insuficiente en este local)</strong>}
+                Promedio ponderado de las últimas {f.semanas_historia} semanas de venta real (POS) de las {grupo.cantidad} tiendas sumadas, con más peso a lo reciente.
+                {!f.historia_suficiente && <strong> (hay poca historia cargada: solo {f.semanas_historia} semanas)</strong>}
               </p>
             </div>
 

@@ -1268,16 +1268,21 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p class="eyebrow">Análisis</p>
       <h2>Stock inteligente</h2>
       <p>
-        Te dice cuántos bultos pedirle a Entre Dos, sabor por sabor. No adivina: mira lo que
-        realmente vendiste, cómo se mueve ese mes del año, y le resta lo que tenés en el depósito.
+        Te dice cuánto pedirle a Entre Dos, sabor por sabor. No adivina: mira lo que realmente
+        vendiste, cómo se mueve ese mes del año, y le resta lo que tenés hoy.
+      </p>
+      <p>
+        El pedido es <strong>uno solo para todas las tiendas juntas</strong>, porque así se le
+        compra a la fábrica. Todo se piensa y se carga <strong>en docenas</strong>; los bultos
+        aparecen recién al final, en la columna del pedido.
       </p>
 
       <ol class="pasos">
-        <li><div>Elegí el <strong>local</strong> y cuántos <strong>días querés cubrir</strong> (3, 7, 10 o 14).</div></li>
+        <li><div>Elegí cuántos <strong>días querés cubrir</strong> (3, 7, 10 o 14).</div></li>
         <li><div>Marcá la <strong>situación</strong>: normal, sube (×1,2) o finde largo (×1,6).</div></li>
-        <li><div>Elegí si vas a <strong>contar en bultos o en docenas</strong>.</div></li>
-        <li><div><strong>Andá al depósito y contá.</strong> Cargás lo que hay de cada sabor y el pedido sugerido se recalcula mientras escribís.</div></li>
-        <li><div><strong>Calcular pedido</strong> y, si querés, <strong>exportar</strong> el CSV para mandárselo a la fábrica.</div></li>
+        <li><div>Elegí cómo vas a contar: <strong>todo junto</strong>, si ya tenés el total del grupo, o <strong>tienda por tienda</strong>, y el sistema las suma.</div></li>
+        <li><div><strong>Contá y cargá, en docenas.</strong> El pedido se recalcula mientras escribís.</div></li>
+        <li><div><strong>Guardá el pedido</strong> y, si querés, <strong>exportá</strong> el CSV para mandárselo a la fábrica.</div></li>
       </ol>
 
       <figure class="figura">
@@ -1289,10 +1294,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div class="m-sub">Calculá qué variedades pedir según tu venta real, estacionalidad y stock actual.</div>
             </div>
             <div class="m-card m-fila" style="gap:14px;flex-wrap:wrap">
-              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Local</div><div class="m-input" style="margin-top:3px">Peatonal</div></div>
+              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Contar el stock</div><div class="m-input" style="margin-top:3px">Todo junto</div></div>
               <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Días a cubrir</div><div class="m-input" style="margin-top:3px">7 días</div></div>
               <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Situación</div><div class="m-input" style="margin-top:3px">Finde largo ×1.6</div></div>
-              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Cargar en</div>
+              <div><div class="k" style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9C94A6;font-weight:700">Unidad</div>
                 <div class="m-fila" style="margin-top:3px;gap:0">
                   <span class="m-btn" style="border-radius:8px 0 0 8px;padding:5px 12px">Bultos</span>
                   <span class="m-btn sec" style="border-radius:0 8px 8px 0;padding:5px 12px">Docenas</span>
@@ -1315,19 +1320,19 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               </div>
               <div style="overflow-x:auto">
                 <table class="m-tabla">
-                  <thead><tr><th>Sabor</th><th class="n">Demanda (doc)</th><th class="n">Conteo</th><th class="n">A pedir (bultos)</th><th>Alerta</th></tr></thead>
+                  <thead><tr><th>Sabor</th><th class="n">Demanda (doc)</th><th class="n">Stock (doc)</th><th class="n">A pedir (doc)</th><th class="n">Equivale a</th><th>Alerta</th></tr></thead>
                   <tbody>
-                    <tr><td>Maicena</td><td class="n">31,20</td><td class="n"><span class="m-input" style="padding:2px 7px">4</span></td><td class="n"><b>3</b></td><td><span class="m-pill amb">▲ Bajo</span></td></tr>
-                    <tr><td>Chocolate</td><td class="n">28,40</td><td class="n"><span class="m-input" style="padding:2px 7px">1</span></td><td class="n"><b>5</b></td><td><span class="m-pill roj">✕ Quiebre</span></td></tr>
-                    <tr><td>Fruta</td><td class="n">24,10</td><td class="n"><span class="m-input" style="padding:2px 7px">9</span></td><td class="n"><b>0</b></td><td><span class="m-pill ver">✓ OK</span></td></tr>
-                    <tr><td>Nuez</td><td class="n">21,02</td><td class="n"><span class="m-input" style="padding:2px 7px">3</span></td><td class="n"><b>6</b></td><td><span class="m-pill amb">▲ Bajo</span></td></tr>
+                    <tr><td>Chocolate Negro</td><td class="n">106,01</td><td class="n"><span class="m-input" style="padding:2px 7px">40</span></td><td class="n"><b>66,01</b></td><td class="n">12 bultos</td><td><span class="m-pill amb">▲ Bajo</span></td></tr>
+                    <tr><td>Mini Doypack</td><td class="n">69,91</td><td class="n"><span class="m-input" style="padding:2px 7px">10</span></td><td class="n"><b>59,91</b></td><td class="n">5 bultos</td><td><span class="m-pill roj">✕ Quiebre</span></td></tr>
+                    <tr><td>Frambuesa</td><td class="n">30,94</td><td class="n"><span class="m-input" style="padding:2px 7px">36</span></td><td class="n"><b>—</b></td><td class="n">—</td><td><span class="m-pill ver">✓ OK</span></td></tr>
+                    <tr><td>Merengue</td><td class="n">16,05</td><td class="n"><span class="m-input" style="padding:2px 7px">3</span></td><td class="n"><b>13,05</b></td><td class="n">4 bultos</td><td><span class="m-pill roj">✕ Quiebre</span></td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
         </div>
-        <figcaption><b>Stock inteligente.</b> Cargás el conteo y la columna <b>A pedir</b> se arma sola.</figcaption>
+        <figcaption><b>Stock inteligente.</b> Cargás el conteo en docenas y las dos columnas del pedido se arman solas.</figcaption>
       </figure>
 
       <h3>Las tres alertas</h3>
@@ -1339,14 +1344,21 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <h3>Cómo saca el número</h3>
       <p>
-        El botón <em>¿Cómo se calcula?</em> abre la explicación completa. Son cuatro cosas
+        <strong>Tocá cualquier fila</strong> y se abre el paso a paso de ese sabor, con los
+        números de esa pantalla: cuánto vende el grupo por semana, cómo queda estirado a los días
+        que elegiste, los ajustes por temporada y por caída del consumo, qué parte le toca a ese
+        sabor según el mix, cuánto le restás de stock, y cómo esas docenas terminan siendo
+        bultos. Ahí también te avisa si el bulto entero te deja producto de más.
+      </p>
+      <p>
+        El botón <em>¿Cómo se calcula?</em>, arriba, explica el método general. Son cuatro cosas
         multiplicadas entre sí:
       </p>
       <div class="tabla-caja">
         <table class="manual">
           <thead><tr><th>Factor</th><th>De dónde sale</th></tr></thead>
           <tbody>
-            <tr><td><strong>1 · Velocidad base</strong></td><td>Cuántas docenas por semana vendiste de verdad, con más peso en las semanas recientes.</td></tr>
+            <tr><td><strong>1 · Velocidad base</strong></td><td>Cuántas docenas por semana venden las tiendas sumadas, con más peso en las semanas recientes.</td></tr>
             <tr><td><strong>2 · Estacionalidad</strong></td><td>Si el mes que viene históricamente vende más o menos que este.</td></tr>
             <tr><td><strong>3 · Tendencia del mercado</strong></td><td>Un ×0,97 fijo, conservador: el consumo de alfajores viene cayendo.</td></tr>
             <tr><td><strong>4 · Tu ajuste</strong></td><td>La situación que marcaste vos: normal, sube o finde largo.</td></tr>

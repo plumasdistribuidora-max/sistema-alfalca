@@ -97,6 +97,7 @@ function armarMensaje({ d, form, fecha, user }) {
   if (form.mantenimiento?.trim()) { if (!nv.mantenimiento.length) { L.push(''); L.push('*Mantenimiento*'); } L.push(`  Encargado: ${form.mantenimiento.trim()}`); }
   seccion('Faltantes de insumos', nv.faltantes, it => `${it.insumo}${it.proveedor ? ` (${it.proveedor})` : ''}`);
   seccion('Faltas y tardanzas', nv.ausencias, it => `${it.empleado} — ${it.motivo}`);
+  if (form.faltas_tardanzas?.trim()) { if (!nv.ausencias.length) { L.push(''); L.push('*Faltas y tardanzas*'); } L.push(`  Encargado: ${form.faltas_tardanzas.trim()}`); }
   seccion('Quejas', nv.quejas, it => it.texto);
 
   const p = d.proveedores;
@@ -239,7 +240,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
   const [form, setForm] = useState({
     explicaciones: {},
     vencimientos_ok: false, acciones_vencimientos: '',
-    mantenimiento: '', control_tienda_ok: false,
+    mantenimiento: '', faltas_tardanzas: '', control_tienda_ok: false,
   });
 
   const debounce = useRef(null);
@@ -256,6 +257,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
           vencimientos_ok:       c?.vencimientos_ok ?? false,
           acciones_vencimientos: c?.acciones_vencimientos || '',
           mantenimiento:         c?.mantenimiento || '',
+          faltas_tardanzas:      c?.faltas_tardanzas || '',
           control_tienda_ok:     c?.control_tienda_ok ?? false,
         });
         setError(''); setFaltan([]);
@@ -423,6 +425,38 @@ export default function CierreDelDia({ fecha, onCambio }) {
                   </td>
                 </tr>
               ))}
+              {/* Total de la red. La diferencia solo vale si todos los locales están completos:
+                  si a uno le falta un turno, lo reportado no es comparable. */}
+              {(() => {
+                const conTurnos = d.locales.filter(l => l.turnos_esperados > 0);
+                const todosCompletos = conTurnos.length > 0 && conTurnos.every(l => l.completo);
+                const dif = todosCompletos ? t.ventas_reportadas - t.ventas_sistema : null;
+                return (
+                  <tr className="border-t-2 border-ahg-primary/40 bg-ahg-bg font-semibold">
+                    <td className="table-td">
+                      Total locales
+                      <span className="block text-xs font-normal text-ahg-text/40">{t.tickets} tickets</span>
+                    </td>
+                    <td className="table-td text-right tabular-nums">{money.format(t.ventas_sistema)}</td>
+                    <td className="table-td text-right tabular-nums">
+                      {todosCompletos ? money.format(t.ventas_reportadas) : <span className="text-ahg-text/30">—</span>}
+                    </td>
+                    <td className="table-td text-right tabular-nums">
+                      {dif == null ? <span className="text-amber-600 text-xs font-medium">faltan turnos</span>
+                        : Math.abs(dif) < 1 ? <span className="text-green-600">✓</span>
+                        : <span className="text-red-600 font-bold">{dif > 0 ? '+' : '−'}{money.format(Math.abs(dif))}</span>}
+                    </td>
+                    <td className="table-td text-right tabular-nums">{t.horas ? t.horas.toFixed(1) : '—'}</td>
+                    <td className="table-td text-right tabular-nums">{t.gasto_personal ? money.format(t.gasto_personal) : '—'}</td>
+                    <td className="table-td text-right tabular-nums">
+                      {t.horas_sobre_ventas == null ? <span className="text-ahg-text/30 font-normal">—</span>
+                        : <span className={t.horas_sobre_ventas <= 16 ? 'text-green-600' : 'text-red-600'}>
+                            {t.horas_sobre_ventas.toFixed(1)}%
+                          </span>}
+                    </td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
@@ -498,6 +532,14 @@ export default function CierreDelDia({ fecha, onCambio }) {
           <textarea className="input" rows={2} disabled={cerrado}
                     value={form.mantenimiento}
                     onChange={e => cambiar({ mantenimiento: e.target.value })} />
+        </div>
+
+        <div>
+          <label className="label">Faltas y tardanzas</label>
+          <textarea className="input" rows={2} disabled={cerrado}
+                    placeholder="Lo que viste vos, además de lo que reportaron los turnos"
+                    value={form.faltas_tardanzas}
+                    onChange={e => cambiar({ faltas_tardanzas: e.target.value })} />
         </div>
 
         {cerrado ? (

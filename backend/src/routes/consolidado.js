@@ -294,7 +294,7 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
   try {
     const {
       fecha, explicaciones, vencimientos_ok,
-      acciones_vencimientos, mantenimiento, control_tienda_ok,
+      acciones_vencimientos, mantenimiento, faltas_tardanzas, control_tienda_ok,
     } = req.body;
 
     const f = fecha || hoyStr();
@@ -307,13 +307,14 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
     const { rows } = await pool.query(`
       INSERT INTO consolidados
         (fecha, usuario_id, explicaciones, vencimientos_ok,
-         acciones_vencimientos, mantenimiento, control_tienda_ok)
-      VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7)
+         acciones_vencimientos, mantenimiento, faltas_tardanzas, control_tienda_ok)
+      VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,$8)
       ON CONFLICT (fecha) DO UPDATE SET
         explicaciones         = EXCLUDED.explicaciones,
         vencimientos_ok       = EXCLUDED.vencimientos_ok,
         acciones_vencimientos = EXCLUDED.acciones_vencimientos,
         mantenimiento         = EXCLUDED.mantenimiento,
+        faltas_tardanzas      = EXCLUDED.faltas_tardanzas,
         control_tienda_ok     = EXCLUDED.control_tienda_ok,
         updated_at            = NOW()
       RETURNING *
@@ -321,7 +322,7 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
       f, req.user.id,
       JSON.stringify(explicaciones || {}),
       !!vencimientos_ok, acciones_vencimientos || null,
-      mantenimiento || null, !!control_tienda_ok,
+      mantenimiento || null, faltas_tardanzas || null, !!control_tienda_ok,
     ]);
 
     res.json({ ok: true, data: rows[0] });

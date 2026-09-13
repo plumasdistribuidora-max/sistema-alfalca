@@ -52,6 +52,102 @@ function Novedades({ titulo, items, render, tono = 'amber' }) {
   );
 }
 
+// El texto que el encargado le manda a los dueños al cerrar. Va en texto plano con
+// los asteriscos de WhatsApp: lo que importa es que se lea en el celular sin abrir
+// nada, y que diga primero lo que hay que saber (venta, personal, qué no cerró).
+function armarMensaje({ d, form, fecha, user }) {
+  const t = d.totales;
+  const n = v => `$ ${money.format(v)}`;
+  const pct = v => v == null ? 's/d' : `${v.toFixed(1)}%`;
+  const corto = nombre => nombre.replace(' Tienda de Alfajores', '').replace(' Cafetería', '');
+  const L = [];
+
+  L.push(`*Cierre del día — ${FECHA_LARGA.format(new Date(`${fecha}T12:00:00`))}*`);
+  L.push(`Venta: ${n(t.ventas_sistema)} · ${t.tickets} tickets · ticket prom. ${t.ticket_promedio ? n(t.ticket_promedio) : 's/d'}`);
+  L.push(`Personal: ${t.horas.toFixed(1)} h${t.gasto_personal ? ` · ${n(t.gasto_personal)}` : ''}`
+    + (t.horas_sobre_ventas != null ? ` · ${pct(t.horas_sobre_ventas)} de la venta ${t.horas_sobre_ventas <= 16 ? '✅' : '🔴'} (meta 16%)` : ''));
+  if (t.horas_sin_valor > 0) L.push(`⚠️ ${t.horas_sin_valor.toFixed(1)} h sin valor hora cargado (no cuentan en personal)`);
+
+  L.push('');
+  L.push('*Por local*');
+  for (const l of d.locales) {
+    if (!l.ventas_sistema && !l.reportes.length) continue;
+    const cierra = l.diferencia == null ? '' : Math.abs(l.diferencia) < 1 ? ' · cierra ✅' : ` · NO cierra 🔴 (${l.diferencia > 0 ? '+' : '−'}${money.format(Math.abs(l.diferencia))})`;
+    const kpi = l.horas_sobre_ventas != null
+      ? ` · personal ${pct(l.horas_sobre_ventas)}${l.objetivo != null ? (l.horas_sobre_ventas <= l.objetivo ? ' ✅' : ' 🔴') : ''}`
+      : '';
+    L.push(`• ${corto(l.nombre)}: ${n(l.ventas_sistema)} · ${l.tickets_sistema} tk · ${l.horas ? l.horas.toFixed(1) + ' h' : 'sin horas'}${kpi}${cierra}`);
+  }
+  for (const l of d.locales) {
+    if (l.diferencia == null || Math.abs(l.diferencia) < 1) continue;
+    const exp = form.explicaciones?.[l.local_id]?.trim();
+    L.push(`  ${corto(l.nombre)} no cerró: reportaron ${n(l.ventas_reportadas)} contra ${n(l.ventas_sistema)} del sistema.${exp ? ` ${exp}` : ''}`);
+  }
+
+  const nv = d.novedades;
+  const seccion = (titulo, items, f) => {
+    if (!items?.length) return;
+    L.push('');
+    L.push(`*${titulo}*`);
+    for (const it of items) L.push(`• ${corto(it.local)} (${it.turno.toLowerCase()}): ${f(it)}`);
+  };
+  seccion('Vencimientos', nv.vencimientos, it => `${it.producto || ''}${it.dias ? ` — ${it.dias} días` : ''}`);
+  if (nv.vencimientos.length && form.acciones_vencimientos?.trim()) L.push(`  Acciones: ${form.acciones_vencimientos.trim()}`);
+  seccion('Mantenimiento', nv.mantenimiento, it => it.texto);
+  if (form.mantenimiento?.trim()) { if (!nv.mantenimiento.length) { L.push(''); L.push('*Mantenimiento*'); } L.push(`  Encargado: ${form.mantenimiento.trim()}`); }
+  seccion('Faltantes de insumos', nv.faltantes, it => `${it.insumo}${it.proveedor ? ` (${it.proveedor})` : ''}`);
+  seccion('Faltas y tardanzas', nv.ausencias, it => `${it.empleado} — ${it.motivo}`);
+  seccion('Quejas', nv.quejas, it => it.texto);
+
+  const p = d.proveedores;
+  if (p && (p.pagos.length || p.vencidas.length)) {
+    L.push('');
+    L.push('*Proveedores*');
+    if (p.pagos.length) L.push(`• Pagado hoy: ${n(p.pagado_hoy)} (${p.pagos.length} factura${p.pagos.length === 1 ? '' : 's'})`);
+    if (p.vencidas.length) L.push(`• 🔴 Vencidas sin pagar: ${p.vencidas.length} por ${n(p.total_vencido)}`);
+    L.push(`• Deuda total: ${n(p.deuda_total)} en ${p.facturas_abiertas} facturas`);
+  }
+
+  L.push('');
+  L.push(`Controles: vencimientos ${form.vencimientos_ok ? '✅' : '❌'} · tienda ${form.control_tienda_ok ? '✅' : '❌'}`);
+  L.push(`Cerrado por ${user?.nombre || 'el encargado'}`);
+  return L.join('\n');
+}
+
+function MensajeDuenos({ texto }) {
+  const [copiado, setCopiado] = useState(false);
+  const ref = useRef(null);
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch {
+      // Sin permiso de portapapeles (http, navegador viejo): se selecciona el texto
+      // y se copia con el comando clásico.
+      ref.current?.select();
+      document.execCommand('copy');
+    }
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2500);
+  }
+
+  return (
+    <div className="card p-5 space-y-3 border-ahg-primary/40">
+      <div>
+        <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Mensaje para los dueños</h2>
+        <p className="text-xs text-ahg-text/50">Ya está armado. Copialo y pegalo en el grupo, o abrilo directo en WhatsApp.</p>
+      </div>
+      <textarea ref={ref} readOnly value={texto} rows={Math.min(22, texto.split('\n').length + 1)}
+                className="input text-sm font-mono leading-relaxed whitespace-pre" />
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={copiar} className="btn-primary flex-1">{copiado ? '✓ Copiado' : 'Copiar mensaje'}</button>
+        <a href={`https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer"
+           className="btn-secondary flex-1 text-center">Abrir en WhatsApp</a>
+      </div>
+    </div>
+  );
+}
+
 // Las facturas de proveedores del día. No se llama "vencimientos" a propósito: en
 // este informe esa palabra ya es la mercadería vencida en tienda.
 function FacturasProveedores({ p }) {
@@ -407,7 +503,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
         {cerrado ? (
           <div className="flex items-center gap-3 flex-wrap">
             <p className="text-sm text-green-700 flex-1">
-              Día cerrado. Ya lo pueden ver los dueños.
+              Día cerrado. Ya lo pueden ver los dueños — y abajo tenés el mensaje para mandarles.
             </p>
             {esDueno(user) && (
               <button onClick={reabrir} className="btn-secondary">Reabrir el día</button>
@@ -422,6 +518,8 @@ export default function CierreDelDia({ fecha, onCambio }) {
           </div>
         )}
       </div>
+
+      {cerrado && <MensajeDuenos texto={armarMensaje({ d, form, fecha, user })} />}
     </div>
   );
 }

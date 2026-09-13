@@ -45,15 +45,20 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 
 router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { nombre, tipo, direccion, activo } = req.body;
+    const { nombre, tipo, direccion, activo, objetivo_horas_ventas } = req.body;
+    const objetivo = objetivo_horas_ventas === undefined || objetivo_horas_ventas === '' ? null : Number(objetivo_horas_ventas);
+    if (objetivo !== null && !(objetivo > 0 && objetivo < 100)) {
+      return res.status(400).json({ ok: false, error: 'El objetivo de horas sobre ventas es un porcentaje entre 1 y 99' });
+    }
     const { rows } = await pool.query(`
       UPDATE locales SET
         nombre    = COALESCE($1, nombre),
         tipo      = COALESCE($2::tipo_local, tipo),
         direccion = COALESCE($3, direccion),
-        activo    = COALESCE($4, activo)
+        activo    = COALESCE($4, activo),
+        objetivo_horas_ventas = COALESCE($6, objetivo_horas_ventas)
       WHERE id = $5 RETURNING *
-    `, [nombre, tipo, direccion, activo, req.params.id]);
+    `, [nombre, tipo, direccion, activo, req.params.id, objetivo]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
     res.json({ ok: true, data: rows[0] });
   } catch (err) {

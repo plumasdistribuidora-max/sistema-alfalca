@@ -260,6 +260,12 @@ async function armarDia(fecha) {
     horas: 0, gasto_personal: 0, horas_sin_valor: 0,
   });
 
+  // Objetivo de la red: el de cada local pesado por su venta. Un café con objetivo 22 y
+  // tiendas con 12 no se pueden comparar contra un número fijo.
+  totales.objetivo = totales.ventas_sistema > 0
+    ? filas.reduce((s, l) => s + (l.objetivo || 0) * l.ventas_sistema, 0) / totales.ventas_sistema
+    : null;
+
   totales.horas_sobre_ventas = (totales.ventas_sistema > 0 && totales.gasto_personal > 0)
     ? (totales.gasto_personal / totales.ventas_sistema) * 100
     : null;

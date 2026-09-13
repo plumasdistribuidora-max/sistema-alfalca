@@ -65,7 +65,7 @@ function armarMensaje({ d, form, fecha, user }) {
   L.push(`*Cierre del día — ${FECHA_LARGA.format(new Date(`${fecha}T12:00:00`))}*`);
   L.push(`Venta: ${n(t.ventas_sistema)} · ${t.tickets} tickets · ticket prom. ${t.ticket_promedio ? n(t.ticket_promedio) : 's/d'}`);
   L.push(`Personal: ${t.horas.toFixed(1)} h${t.gasto_personal ? ` · ${n(t.gasto_personal)}` : ''}`
-    + (t.horas_sobre_ventas != null ? ` · ${pct(t.horas_sobre_ventas)} de la venta ${t.horas_sobre_ventas <= 16 ? '✅' : '🔴'} (meta 16%)` : ''));
+    + (t.horas_sobre_ventas != null ? ` · ${pct(t.horas_sobre_ventas)} de la venta ${t.horas_sobre_ventas <= t.objetivo ? '✅' : '🔴'} (meta ${pct(t.objetivo)})` : ''));
   if (t.horas_sin_valor > 0) L.push(`⚠️ ${t.horas_sin_valor.toFixed(1)} h sin valor hora cargado (no cuentan en personal)`);
 
   L.push('');
@@ -74,7 +74,7 @@ function armarMensaje({ d, form, fecha, user }) {
     if (!l.ventas_sistema && !l.reportes.length) continue;
     const cierra = l.diferencia == null ? '' : Math.abs(l.diferencia) < 1 ? ' · cierra ✅' : ` · NO cierra 🔴 (${l.diferencia > 0 ? '+' : '−'}${money.format(Math.abs(l.diferencia))})`;
     const kpi = l.horas_sobre_ventas != null
-      ? ` · personal ${pct(l.horas_sobre_ventas)}${l.objetivo != null ? (l.horas_sobre_ventas <= l.objetivo ? ' ✅' : ' 🔴') : ''}`
+      ? ` · personal ${pct(l.horas_sobre_ventas)}${l.objetivo != null ? (l.horas_sobre_ventas <= l.objetivo ? ' ✅' : ' 🔴') + ` (meta ${pct(l.objetivo)})` : ''}`
       : '';
     L.push(`• ${corto(l.nombre)}: ${n(l.ventas_sistema)} · ${l.tickets_sistema} tk · ${l.horas ? l.horas.toFixed(1) + ' h' : 'sin horas'}${kpi}${cierra}`);
   }
@@ -326,7 +326,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
 
   const t = d.totales;
   const kpiTono = t.horas_sobre_ventas == null ? 'normal'
-    : t.horas_sobre_ventas <= 16 ? 'bueno' : 'alerta';
+    : t.horas_sobre_ventas <= t.objetivo ? 'bueno' : 'alerta';
 
   return (
     <div className="space-y-5">
@@ -351,7 +351,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
              detalle={t.gasto_personal ? `$ ${money.format(t.gasto_personal)} de personal` : 'sin valor hora'} />
         <Kpi titulo="Horas / ventas"
              valor={t.horas_sobre_ventas != null ? `${t.horas_sobre_ventas.toFixed(1)}%` : '—'}
-             detalle={t.horas_sobre_ventas != null ? 'meta: menos de 16%' : 'falta el valor hora'}
+             detalle={t.horas_sobre_ventas != null ? `meta: menos de ${t.objetivo?.toFixed(1)}% (tiendas y café pesados por venta)` : 'falta el valor hora'}
              tono={kpiTono} />
       </div>
 
@@ -385,6 +385,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
                 <th className="table-th text-right">Horas</th>
                 <th className="table-th text-right">Personal</th>
                 <th className="table-th text-right">Hs / vta</th>
+                <th className="table-th text-right">Meta</th>
               </tr>
             </thead>
             <tbody>
@@ -423,6 +424,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
                           {l.horas_sobre_ventas.toFixed(1)}%
                         </span>}
                   </td>
+                  <td className="table-td text-right tabular-nums text-ahg-text/50">{l.objetivo != null ? `${l.objetivo.toFixed(0)}%` : '—'}</td>
                 </tr>
               ))}
               {/* Total de la red. La diferencia solo vale si todos los locales están completos:
@@ -450,10 +452,11 @@ export default function CierreDelDia({ fecha, onCambio }) {
                     <td className="table-td text-right tabular-nums">{t.gasto_personal ? money.format(t.gasto_personal) : '—'}</td>
                     <td className="table-td text-right tabular-nums">
                       {t.horas_sobre_ventas == null ? <span className="text-ahg-text/30 font-normal">—</span>
-                        : <span className={t.horas_sobre_ventas <= 16 ? 'text-green-600' : 'text-red-600'}>
+                        : <span className={t.horas_sobre_ventas <= t.objetivo ? 'text-green-600' : 'text-red-600'}>
                             {t.horas_sobre_ventas.toFixed(1)}%
                           </span>}
                     </td>
+                    <td className="table-td text-right tabular-nums text-ahg-text/50">{t.objetivo != null ? `${t.objetivo.toFixed(1)}%` : '—'}</td>
                   </tr>
                 );
               })()}

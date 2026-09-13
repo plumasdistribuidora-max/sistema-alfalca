@@ -53,6 +53,15 @@ function Modal({ local, onClose, onSaved }) {
             <label className="label">Dirección</label>
             <input className="input" value={form.direccion || ''} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))} />
           </div>
+          <div>
+            <label className="label">Objetivo de horas sobre ventas (%)</label>
+            <input className="input" type="number" min="1" max="99" step="0.5"
+                   value={form.objetivo_horas_ventas ?? ''}
+                   onChange={e => setForm(f => ({ ...f, objetivo_horas_ventas: e.target.value }))} />
+            <p className="text-xs text-ahg-text/50 mt-1">
+              Cuánto puede pesar el costo de las horas sobre la venta del día. Referencia: 12% en una tienda, 22% en el café.
+            </p>
+          </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" className="btn-primary flex-1" disabled={loading}>
@@ -104,6 +113,7 @@ export default function Locales() {
                 <th className="table-th">Código</th>
                 <th className="table-th">Tipo</th>
                 <th className="table-th">Dirección</th>
+                <th className="table-th text-right">Meta hs/vta</th>
                 <th className="table-th">Estado</th>
                 {isAdmin && <th className="table-th">Acciones</th>}
               </tr>
@@ -119,6 +129,7 @@ export default function Locales() {
                     </span>
                   </td>
                   <td className="table-td text-stone-500">{l.direccion || '-'}</td>
+                  <td className="table-td text-right tabular-nums">{l.objetivo_horas_ventas ? `${Number(l.objetivo_horas_ventas)}%` : '-'}</td>
                   <td className="table-td">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${l.activo ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
                       {l.activo ? 'Activo' : 'Inactivo'}

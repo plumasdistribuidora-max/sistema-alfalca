@@ -702,6 +702,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p>
         Es la única pantalla que ves si trabajás en una tienda, en el café o en cocina.
         Entrás y ya está el formulario del día abierto: no hay que buscar nada ni elegir fecha.
+        Arriba de todo decís <strong>en qué local trabajaste</strong>: arranca elegido el tuyo,
+        pero si cubriste un turno en otra tienda lo cambiás ahí y el reporte sale a nombre de esa tienda.
       </p>
 
       <figure class="figura dos">
@@ -713,6 +715,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <p>Sofía · Peatonal Tienda de Alfajores</p>
             </div>
             <div class="m-card" style="display:grid;gap:10px">
+              <div>
+                <div style="font-size:10px;font-weight:700;margin-bottom:3px">¿Dónde trabajaste?</div>
+                <div class="m-input" style="color:#1F2937;display:flex;justify-content:space-between"><span>Peatonal Tienda de Alfajores</span><span style="color:#9C94A6">▾</span></div>
+              </div>
               <div>
                 <div style="font-size:10px;font-weight:700;margin-bottom:5px">Turno <span style="color:#B91C1C">*</span></div>
                 <div style="display:flex;gap:6px">
@@ -755,9 +761,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
         <div>
           <ol class="pasos">
+            <li><div><strong>Fijate el local.</strong> Ya viene elegido el tuyo. Si hoy trabajaste en otro, cambialo en <em>¿Dónde trabajaste?</em>. Los del café ven además la opción del café o la cocina, según su puesto.</div></li>
             <li><div><strong>Elegí el turno</strong> — mañana o tarde. Hasta que no lo elijas, el resto del formulario no se abre.</div></li>
             <li><div><strong>Contestá las preguntas.</strong> Las que tienen asterisco rojo son obligatorias.</div></li>
-            <li><div><strong>Cargá las horas del equipo:</strong> elegís a la persona de la lista y ponés cuántas horas hizo. Solo aparecen los que trabajan en tu local.</div></li>
+            <li><div><strong>Cargá las horas del equipo:</strong> elegís a la persona de la lista y ponés cuántas horas hizo. Primero aparecen los de ese local; los de otros locales están más abajo, con el nombre del local entre paréntesis.</div></li>
             <li><div><strong>Sacá las fotos que te pida.</strong> Se achican solas antes de subirse, así que andan aunque la señal esté floja.</div></li>
             <li><div><strong>Si entró una factura</strong>, tocá <em>+ Agregar factura</em>, <strong>elegí el proveedor de la lista</strong> y cargá número, renglones y total.</div></li>
             <li><div>Tocá <strong>Enviar al Encargado</strong>. Cuando aparece la pantalla verde con el tilde, terminaste.</div></li>
@@ -768,6 +775,13 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <p><strong>No hace falta guardar.</strong> Mientras escribís, el sistema va guardando solo.
             Abajo dice <em>Guardando…</em> y después <em>Guardado</em>. Si se te corta la sesión,
             volvés a entrar y está todo como lo dejaste.</p>
+          </div>
+
+          <div class="aviso tip" style="margin-top:12px">
+            <span class="mk">◆</span>
+            <p><strong>Dos locales el mismo día:</strong> cargás y enviás el primero, y en la pantalla
+            verde te pregunta si trabajaste también en otro. Lo elegís y arranca el segundo reporte,
+            que es aparte. Cada reporte es de un local y un turno.</p>
           </div>
         </div>
       </figure>
@@ -1507,8 +1521,16 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </ol>
       <p>
         Desde el mismo listado se puede <strong>cambiarle la contraseña</strong> a alguien que se
-        la olvidó, o <strong>quitarle el acceso</strong> sin borrarlo — queda inactivo y no puede entrar,
-        pero su historial sigue estando.
+        la olvidó, <strong>corregirle el email</strong> con <em>Editar</em> si quedó mal escrito,
+        o <strong>quitarle el acceso</strong> sin borrarlo — queda inactivo y no puede entrar,
+        pero su historial sigue estando. Un empleado dado de baja queda libre para que se le cree
+        un usuario nuevo, o se lo puede <em>Reactivar</em> desde el listado marcando
+        <em>Mostrar también los dados de baja</em>.
+      </p>
+      <p>
+        El local que se marca acá es <strong>el de siempre</strong> de esa persona: es el que aparece
+        elegido cuando abre su reporte. No la ata a ese local — cualquiera de tienda puede reportar
+        en cualquier tienda desde el formulario.
       </p>
     </section>
 

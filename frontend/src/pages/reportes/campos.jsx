@@ -113,7 +113,7 @@ function HorasEquipo({ valor, equipo, onChange }) {
               .filter(e => !usados.has(String(e.id)) || String(e.id) === String(fila.empleado_id))
               .map(e => (
                 <option key={e.id} value={e.id}>
-                  {e.nombre}{e.puesto ? ` · ${e.puesto}` : ''}
+                  {e.nombre}{e.puesto ? ` · ${e.puesto}` : ''}{e.del_local === false ? ` (${e.local_nombre})` : ''}
                 </option>
               ))}
           </select>

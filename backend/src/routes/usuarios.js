@@ -87,7 +87,7 @@ router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
     res.status(201).json({ ok: true, data: creado.rows[0] });
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ ok: false, error: 'Ese empleado ya tiene un usuario asignado' });
+      return res.status(409).json({ ok: false, error: 'Ese empleado ya tiene un usuario activo' });
     }
     console.error('[usuarios POST]', err);
     res.status(500).json({ ok: false, error: 'Error al crear el usuario' });
@@ -98,7 +98,7 @@ router.post('/', requireAuth, puedeAdministrar, async (req, res) => {
 
 router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
   try {
-    const { nombre, rol, locales_permitidos, empleado_id, activo } = req.body;
+    const { email, nombre, rol, locales_permitidos, empleado_id, activo } = req.body;
 
     if (rol) {
       const errorRol = validarRol(rol, req.user.rol);
@@ -116,17 +116,29 @@ router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'No podés desactivar tu propio usuario' });
     }
 
+    // El mail se puede corregir: es lo que la persona escribe para entrar, y un error
+    // de tipeo al darla de alta no debería obligar a crearla de nuevo.
+    let emailNorm = null;
+    if (email) {
+      emailNorm = email.toLowerCase().trim();
+      const otro = await pool.query('SELECT 1 FROM usuarios WHERE email = $1 AND id <> $2', [emailNorm, req.params.id]);
+      if (otro.rowCount) {
+        return res.status(409).json({ ok: false, error: 'Ya hay otro usuario con ese email' });
+      }
+    }
+
     const { rows } = await pool.query(`
       UPDATE usuarios SET
-        nombre             = COALESCE($1, nombre),
-        rol                = COALESCE($2, rol),
-        locales_permitidos = COALESCE($3, locales_permitidos),
-        empleado_id        = COALESCE($4, empleado_id),
-        activo             = COALESCE($5, activo)
-      WHERE id = $6
+        email              = COALESCE($1, email),
+        nombre             = COALESCE($2, nombre),
+        rol                = COALESCE($3, rol),
+        locales_permitidos = COALESCE($4, locales_permitidos),
+        empleado_id        = COALESCE($5, empleado_id),
+        activo             = COALESCE($6, activo)
+      WHERE id = $7
       RETURNING id
     `, [
-      nombre?.trim() || null, rol || null,
+      emailNorm, nombre?.trim() || null, rol || null,
       normalizarLocales(locales_permitidos),
       empleado_id || null,
       typeof activo === 'boolean' ? activo : null,
@@ -137,7 +149,10 @@ router.put('/:id', requireAuth, puedeAdministrar, async (req, res) => {
     res.json({ ok: true, data: actualizado.rows[0] });
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ ok: false, error: 'Ese empleado ya tiene un usuario asignado' });
+      return res.status(409).json({
+        ok: false,
+        error: 'Ese empleado ya tiene otro usuario activo. Dalo de baja primero, o cambiale el empleado a este.',
+      });
     }
     console.error('[usuarios PUT]', err);
     res.status(500).json({ ok: false, error: 'Error al actualizar el usuario' });

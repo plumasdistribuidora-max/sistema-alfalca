@@ -131,6 +131,10 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
   );
 }
 
+// En la lista de locales, el café y la cocina comparten edificio: se distinguen por el
+// nombre del formulario. Las tiendas se distinguen solas por el nombre del local.
+const plantilla_es_sector = o => o.plantilla_codigo !== 'tienda';
+
 export default function MiReporte() {
   const { user } = useAuth();
 
@@ -154,20 +158,23 @@ export default function MiReporte() {
 
   const debounce = useRef(null);
 
-  async function cargar() {
+  // Carga la pantalla para un local y formulario. Sin argumentos, el backend elige:
+  // lo que ya venía cargando hoy, o si no el local propio.
+  async function cargar(opcion) {
     setCargando(true);
+    clearTimeout(debounce.current);
     try {
-      const r = await api.get('/reportes/mio');
+      const params = opcion ? { local_id: opcion.local_id, plantilla: opcion.plantilla_codigo } : {};
+      const r = await api.get('/reportes/mio', { params });
       setData(r.data.data);
       const previo = r.data.data.reportes[0];
-      if (previo) {
-        setTurno(previo.turno);
-        setRespuestas(previo.respuestas || {});
-        setReporteId(previo.id);
-        setAdjuntos(previo.adjuntos || []);
-        setFacturas(previo.facturas || []);
-        if (previo.estado === 'enviado' || previo.estado === 'aprobado') setEnviado(true);
-      }
+      setTurno(previo?.turno || '');
+      setRespuestas(previo?.respuestas || {});
+      setReporteId(previo?.id || null);
+      setAdjuntos(previo?.adjuntos || []);
+      setFacturas(previo?.facturas || []);
+      setFaltan([]);
+      setEnviado(previo?.estado === 'enviado' || previo?.estado === 'aprobado');
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo cargar tu reporte');
@@ -177,6 +184,13 @@ export default function MiReporte() {
   }
 
   useEffect(() => { cargar(); }, []);
+
+  // Cambiar de local es cambiar de reporte: se descarta lo que había en pantalla (ya
+  // quedó guardado como borrador de ese otro local) y se carga el del elegido.
+  function elegirLocal(clave) {
+    const opcion = data.opciones.find(o => `${o.local_id}:${o.plantilla_codigo}` === clave);
+    if (opcion) cargar(opcion);
+  }
 
   // La lista de proveedores para el desplegable de facturas. Si falla, el modal
   // queda sin opciones y avisa; el resto del reporte se sigue pudiendo cargar.
@@ -191,8 +205,10 @@ export default function MiReporte() {
     setGuardando(true);
     try {
       const r = await api.post('/reportes', {
-        turno: nuevoTurno,
-        fecha: data?.fecha,
+        local_id:  data?.local?.id,
+        plantilla: data?.plantilla?.codigo,
+        turno:     nuevoTurno,
+        fecha:     data?.fecha,
         respuestas: nuevasRespuestas,
       });
       setReporteId(r.data.data.id);
@@ -204,7 +220,7 @@ export default function MiReporte() {
     } finally {
       setGuardando(false);
     }
-  }, [data?.fecha]);
+  }, [data?.fecha, data?.local?.id, data?.plantilla?.codigo]);
 
   // Autoguardado: el borrador se va guardando solo mientras completa.
   function cambiar(codigo, valor) {
@@ -294,7 +310,9 @@ export default function MiReporte() {
     }
   }
 
-  if (cargando) return <p className="text-center text-ahg-text/50 py-10">Cargando…</p>;
+  // Solo la primera carga deja la pantalla vacía. Al cambiar de local, el formulario
+  // queda atenuado mientras llega el otro: mejor que un "Cargando…" en blanco.
+  if (cargando && !data) return <p className="text-center text-ahg-text/50 py-10">Cargando…</p>;
 
   if (error && !data) {
     return (
@@ -304,8 +322,12 @@ export default function MiReporte() {
     );
   }
 
-  const { plantilla, local, fecha } = data;
+  const { plantilla, local, fecha, opciones = [], otros = [] } = data;
   const fechaTxt = FECHA_LARGA.format(new Date(`${fecha}T12:00:00`));
+  const claveActual = `${local?.id}:${plantilla.codigo}`;
+  // Con una sola opción no hay nada que elegir: se muestra el local y listo.
+  const eligeLocal = opciones.length > 1;
+  const etiquetaOpcion = o => plantilla_es_sector(o) ? `${o.plantilla_nombre} · ${o.local_nombre}` : o.local_nombre;
   const campoTurno = plantilla.campos.find(c => c.tipo === 'seleccion' && c.codigo === 'turno');
   const resto = plantilla.campos.filter(c => c.codigo !== 'turno');
 
@@ -327,18 +349,31 @@ export default function MiReporte() {
             Reporte enviado
           </h1>
           <p className="text-sm text-green-700 mt-1">
-            Turno {turno.toLowerCase()} del {fechaTxt}. Ya le llegó al encargado.
+            {local?.nombre}, turno {turno.toLowerCase()} del {fechaTxt}. Ya le llegó al encargado.
           </p>
         </div>
-        <button onClick={() => { setEnviado(false); cargar(); }} className="btn-secondary w-full">
+        <button onClick={() => setEnviado(false)} className="btn-secondary w-full">
           Ver mi reporte
         </button>
+        {eligeLocal && (
+          <div className="card p-4">
+            <p className="text-sm text-ahg-text/70 mb-2">¿Trabajaste también en otro local hoy?</p>
+            <select className="input" value="" onChange={e => e.target.value && elegirLocal(e.target.value)}>
+              <option value="">Elegí el local…</option>
+              {opciones.filter(o => `${o.local_id}:${o.plantilla_codigo}` !== claveActual).map(o => (
+                <option key={`${o.local_id}:${o.plantilla_codigo}`} value={`${o.local_id}:${o.plantilla_codigo}`}>
+                  {etiquetaOpcion(o)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="max-w-lg mx-auto pb-24">
+    <div className={`max-w-lg mx-auto pb-24 transition-opacity ${cargando ? 'opacity-50 pointer-events-none' : ''}`}>
       {/* Cabecera con lo que no se tipea */}
       <div className="rounded-2xl px-5 py-4 mb-4" style={{ background: '#4C1D95' }}>
         <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>
@@ -361,7 +396,29 @@ export default function MiReporte() {
         </div>
       )}
 
+      {otros.length > 0 && (
+        <div className="card px-4 py-3 mb-4 border-ahg-accent bg-ahg-accent/10 text-sm text-ahg-text/80">
+          Hoy también cargaste: {otros.map(o => `${o.local_nombre} (${o.turno.toLowerCase()}, ${o.estado})`).join(' · ')}.
+        </div>
+      )}
+
       <div className="card p-5">
+        {eligeLocal && (
+          <div className="mb-4">
+            <label className="label">¿Dónde trabajaste?</label>
+            <select className="input" value={claveActual} onChange={e => elegirLocal(e.target.value)}>
+              {opciones.map(o => (
+                <option key={`${o.local_id}:${o.plantilla_codigo}`} value={`${o.local_id}:${o.plantilla_codigo}`}>
+                  {etiquetaOpcion(o)}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-ahg-text/50 mt-1">
+              Si hoy hiciste turnos en dos locales, cargá uno, envialo, y después elegí el otro.
+            </p>
+          </div>
+        )}
+
         {campoTurno && (
           <Campo campo={campoTurno} valor={turno} onChange={(_, v) => elegirTurno(v)} ctx={ctx} />
         )}

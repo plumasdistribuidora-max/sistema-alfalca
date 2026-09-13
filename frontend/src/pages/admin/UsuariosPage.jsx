@@ -121,7 +121,7 @@ export default function UsuariosPage() {
         locales_permitidos: form.locales_permitidos,
       };
       if (editando) {
-        await api.put(`/usuarios/${editando}`, payload);
+        await api.put(`/usuarios/${editando}`, { ...payload, email: form.email });
         setAviso(`Usuario de ${form.nombre} actualizado`);
       } else {
         await api.post('/usuarios', { ...payload, email: form.email, password: form.password });
@@ -292,22 +292,26 @@ export default function UsuariosPage() {
                      onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
             </div>
 
+            <div>
+              <label className="label">Email</label>
+              <input className="input" type="email" value={form.email} required
+                     onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+              {editando && (
+                <p className="text-xs text-ahg-text/50 mt-1">
+                  Si lo cambiás, la persona entra con el mail nuevo desde la próxima vez.
+                </p>
+              )}
+            </div>
+
             {!editando && (
-              <>
-                <div>
-                  <label className="label">Email</label>
-                  <input className="input" type="email" value={form.email} required
-                         onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Contraseña inicial</label>
-                  <input className="input" type="text" value={form.password} required minLength={8}
-                         onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
-                  <p className="text-xs text-ahg-text/50 mt-1">
-                    Mínimo 8 caracteres. Se la pasás a la persona y la puede cambiar después.
-                  </p>
-                </div>
-              </>
+              <div>
+                <label className="label">Contraseña inicial</label>
+                <input className="input" type="text" value={form.password} required minLength={8}
+                       onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+                <p className="text-xs text-ahg-text/50 mt-1">
+                  Mínimo 8 caracteres. Se la pasás a la persona y la puede cambiar después.
+                </p>
+              </div>
             )}
 
             <div>

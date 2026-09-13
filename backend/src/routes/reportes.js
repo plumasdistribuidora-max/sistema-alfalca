@@ -20,12 +20,63 @@ const upload = multer({
 const ESTADOS = ['borrador', 'enviado', 'observado', 'aprobado'];
 const EDITABLES = ['borrador', 'observado'];
 
-// La plantilla que le toca a cada rol.
+// La plantilla que le toca a cada rol cuando reporta en su propio sector.
 const PLANTILLA_POR_ROL = {
   [ROLES.EMPLEADO_TIENDA]:  'tienda',
   [ROLES.ENCARGADO_CAFE]:   'cafe',
   [ROLES.ENCARGADO_COCINA]: 'cocina',
 };
+
+// Dónde puede reportar cada persona. La gente rota: una vendedora cubre otra tienda, una
+// encargada de café hace un turno en una tienda. Por eso todas las tiendas están abiertas
+// para cualquier rol de turno, y el café y la cocina solo para su propio rol. El local
+// del legajo va primero, así arranca elegido.
+async function opcionesReporte(user) {
+  const codigoPropio = PLANTILLA_POR_ROL[user.rol];
+  if (!codigoPropio) return [];
+
+  const locales = (await pool.query(
+    'SELECT id, nombre, tipo FROM locales WHERE activo = true ORDER BY id'
+  )).rows;
+  const plantillas = (await pool.query(
+    'SELECT codigo, nombre, area FROM reporte_plantillas WHERE activo = true'
+  )).rows;
+  const porCodigo = Object.fromEntries(plantillas.map(p => [p.codigo, p]));
+
+  const opciones = [];
+  const tienda = porCodigo.tienda;
+  if (tienda) {
+    for (const l of locales.filter(l => l.tipo !== 'cafeteria')) {
+      opciones.push({ local_id: l.id, local_nombre: l.nombre, plantilla_codigo: 'tienda', plantilla_nombre: tienda.nombre });
+    }
+  }
+  if (codigoPropio !== 'tienda' && porCodigo[codigoPropio]) {
+    for (const l of locales.filter(l => l.tipo === 'cafeteria')) {
+      opciones.push({ local_id: l.id, local_nombre: l.nombre, plantilla_codigo: codigoPropio, plantilla_nombre: porCodigo[codigoPropio].nombre });
+    }
+  }
+
+  const localPropio = user.locales_permitidos?.[0];
+  opciones.sort((a, b) => {
+    const pa = a.plantilla_codigo === codigoPropio && a.local_id === localPropio ? 0 : 1;
+    const pb = b.plantilla_codigo === codigoPropio && b.local_id === localPropio ? 0 : 1;
+    return pa - pb;
+  });
+  return opciones;
+}
+
+// Compañeros para el campo de horas: primero los del local donde se reporta, después el
+// resto de la red, porque quien cubre un turno en otro local también cuenta horas ahí.
+async function equipoDe(localId) {
+  const { rows } = await pool.query(`
+    SELECT e.id, e.nombre, e.puesto, l.nombre AS local_nombre,
+           (e.local_id_principal = $1) AS del_local
+    FROM empleados e JOIN locales l ON l.id = e.local_id_principal
+    WHERE e.activo = true
+    ORDER BY del_local DESC, e.nombre
+  `, [localId]);
+  return rows;
+}
 
 function hoyStr() {
   const t = new Date();
@@ -212,50 +263,60 @@ router.put('/plantillas/:codigo', requireAuth, requireRol(ROLES.ENCARGADO_GENERA
 
 router.get('/mio', requireAuth, async (req, res) => {
   try {
-    const codigo = PLANTILLA_POR_ROL[req.user.rol];
-    if (!codigo) {
+    if (!PLANTILLA_POR_ROL[req.user.rol]) {
       return res.status(403).json({ ok: false, error: 'Tu rol no carga reportes de turno' });
     }
 
-    const plantilla = await cargarPlantilla(codigo);
-    if (!plantilla) return res.status(404).json({ ok: false, error: 'Todavía no está cargado tu formulario' });
-
-    const localId = req.user.locales_permitidos?.[0];
-    if (!localId) {
-      return res.status(400).json({ ok: false, error: 'Tu usuario no tiene un local asignado. Avisale al encargado.' });
+    const opciones = await opcionesReporte(req.user);
+    if (!opciones.length) {
+      return res.status(404).json({ ok: false, error: 'Todavía no está cargado tu formulario' });
     }
 
     const fecha = req.query.fecha || hoyStr();
 
-    const { rows } = await pool.query(`
-      SELECT * FROM reportes
-      WHERE plantilla_codigo = $1 AND usuario_id = $2 AND fecha = $3
-      ORDER BY id DESC
-    `, [codigo, req.user.id, fecha]);
+    // Todo lo que esta persona ya cargó hoy, en cualquier local: si vuelve a entrar,
+    // la pantalla retoma donde estaba.
+    const hoy = (await pool.query(`
+      SELECT r.*, l.nombre AS local_nombre FROM reportes r
+      JOIN locales l ON l.id = r.local_id
+      WHERE r.usuario_id = $1 AND r.fecha = $2
+      ORDER BY r.id DESC
+    `, [req.user.id, fecha])).rows;
 
-    const local = await pool.query('SELECT id, nombre FROM locales WHERE id = $1', [localId]);
+    // Qué local y formulario mostrar: el que pide la pantalla, si no el que ya venía
+    // cargando hoy, si no el propio.
+    const pedida = opciones.find(o =>
+      String(o.local_id) === String(req.query.local_id) && o.plantilla_codigo === req.query.plantilla
+    );
+    const previa = hoy[0] && opciones.find(o =>
+      o.local_id === hoy[0].local_id && o.plantilla_codigo === hoy[0].plantilla_codigo
+    );
+    const elegida = pedida || previa || opciones[0];
 
-    const conExtras = await Promise.all(rows.map(async r => ({
+    const plantilla = await cargarPlantilla(elegida.plantilla_codigo);
+    if (!plantilla) return res.status(404).json({ ok: false, error: 'Todavía no está cargado tu formulario' });
+
+    const propios = hoy.filter(r =>
+      r.local_id === elegida.local_id && r.plantilla_codigo === elegida.plantilla_codigo
+    );
+    const conExtras = await Promise.all(propios.map(async r => ({
       ...r,
       adjuntos: await adjuntosDe(r.id),
-      facturas: codigo === 'cafe' ? await facturasDe(r.id) : [],
+      facturas: elegida.plantilla_codigo === 'cafe' ? await facturasDe(r.id) : [],
     })));
-
-    // Compañeros del local, para el campo de horas del turno.
-    const equipo = await pool.query(`
-      SELECT id, nombre, puesto FROM empleados
-      WHERE local_id_principal = $1 AND activo = true
-      ORDER BY nombre
-    `, [localId]);
 
     res.json({
       ok: true,
       data: {
         plantilla,
-        local:     local.rows[0] || null,
+        local:     { id: elegida.local_id, nombre: elegida.local_nombre },
+        opciones,
         fecha,
         reportes:  conExtras,
-        equipo:    equipo.rows,
+        // Lo cargado hoy en OTROS locales, para avisar que ya existe.
+        otros:     hoy.filter(r => !propios.includes(r))
+                      .map(r => ({ id: r.id, local_nombre: r.local_nombre, plantilla_codigo: r.plantilla_codigo, turno: r.turno, estado: r.estado })),
+        equipo:    await equipoDe(elegida.local_id),
       },
     });
   } catch (err) {
@@ -288,16 +349,26 @@ router.get('/mis-reportes', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const codigo = PLANTILLA_POR_ROL[req.user.rol];
-    if (!codigo) return res.status(403).json({ ok: false, error: 'Tu rol no carga reportes de turno' });
+    if (!PLANTILLA_POR_ROL[req.user.rol]) {
+      return res.status(403).json({ ok: false, error: 'Tu rol no carga reportes de turno' });
+    }
+
+    const { fecha, turno, respuestas, local_id, plantilla: plantillaPedida } = req.body;
+
+    // El local y el formulario los elige la persona en pantalla, pero solo entre los que
+    // le corresponden. Sin local_id se toma el propio, como antes.
+    const opciones = await opcionesReporte(req.user);
+    const elegida = local_id
+      ? opciones.find(o => String(o.local_id) === String(local_id) && (!plantillaPedida || o.plantilla_codigo === plantillaPedida))
+      : opciones[0];
+    if (!elegida) return res.status(400).json({ ok: false, error: 'Elegí en qué local trabajaste' });
+
+    const codigo  = elegida.plantilla_codigo;
+    const localId = elegida.local_id;
 
     const plantilla = await cargarPlantilla(codigo);
     if (!plantilla) return res.status(404).json({ ok: false, error: 'Todavía no está cargado tu formulario' });
 
-    const localId = req.user.locales_permitidos?.[0];
-    if (!localId) return res.status(400).json({ ok: false, error: 'Tu usuario no tiene un local asignado' });
-
-    const { fecha, turno, respuestas } = req.body;
     if (!turno) return res.status(400).json({ ok: false, error: 'Elegí el turno' });
 
     const fechaFinal = fecha || hoyStr();
@@ -665,17 +736,19 @@ router.get('/:id', requireAuth, async (req, res) => {
     const plantilla = await cargarPlantilla(rows[0].plantilla_codigo);
 
     // El campo de horas guarda ids. Sin los nombres, quien revisa lee "Empleado #7".
-    const equipo = await pool.query(
-      'SELECT id, nombre, puesto FROM empleados WHERE local_id_principal = $1',
-      [rows[0].local_id]
-    );
+    const equipo = (await pool.query(`
+      SELECT e.id, e.nombre, e.puesto, l.nombre AS local_nombre,
+             (e.local_id_principal = $1) AS del_local
+      FROM empleados e JOIN locales l ON l.id = e.local_id_principal
+      ORDER BY del_local DESC, e.nombre
+    `, [rows[0].local_id])).rows;
 
     res.json({
       ok: true,
       data: {
         ...rows[0],
         plantilla,
-        equipo:   equipo.rows,
+        equipo,
         adjuntos: await adjuntosDe(rows[0].id),
         facturas: await facturasDe(rows[0].id),
       },

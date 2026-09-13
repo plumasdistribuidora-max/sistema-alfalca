@@ -86,6 +86,8 @@ export default function Reportes() {
 
   const cerrado = d?.consolidado?.estado === 'cerrado';
   const faltan = d ? d.totales.esperados - d.totales.recibidos : 0;
+  // Recibidos pero todavía no aprobados: devueltos o sin revisar. También frenan el cierre.
+  const sinAprobar = d ? d.locales.flatMap(l => l.slots).filter(s => ['enviado', 'observado'].includes(s.estado)).length : 0;
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -134,7 +136,9 @@ export default function Reportes() {
                     ? 'Cerrado y enviado a los dueños.'
                     : faltan > 0
                       ? `No se puede cerrar hasta que lleguen los ${faltan} reportes que faltan.`
-                      : 'Están todos los reportes. Listo para verificar y cerrar.'}
+                      : sinAprobar > 0
+                        ? `Están todos. Falta${sinAprobar === 1 ? '' : 'n'} ${sinAprobar} por revisar y aprobar antes de cerrar.`
+                        : 'Todos aprobados. Listo para verificar y cerrar.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">

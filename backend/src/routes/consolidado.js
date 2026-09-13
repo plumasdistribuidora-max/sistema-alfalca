@@ -359,6 +359,18 @@ router.post('/cerrar', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (
         faltan.push(`Explicá por qué ${l.nombre} no cierra contra lo que reportaron los turnos`);
       }
     }
+    // El día se cierra sobre reportes revisados. Uno devuelto está esperando que la
+    // persona lo corrija; uno enviado sin abrir todavía no lo miró nadie. En los dos
+    // casos el cierre es prematuro, y el mensaje dice a quién le falta qué.
+    const sinAprobar = dia.locales.flatMap(l =>
+      l.reportes.filter(r => r.estado !== 'aprobado').map(r => ({ ...r, local: l.nombre }))
+    );
+    for (const r of sinAprobar) {
+      faltan.push(r.estado === 'observado'
+        ? `${r.usuario_nombre} (${r.local}, ${r.turno.toLowerCase()}) todavía no corrigió el reporte que le devolviste`
+        : `Falta revisar y aprobar el reporte de ${r.usuario_nombre} (${r.local}, ${r.turno.toLowerCase()})`);
+    }
+
     if (!c.vencimientos_ok) faltan.push('Confirmá el control de vencimientos');
     if (!c.control_tienda_ok) faltan.push('Confirmá el control de tienda');
     if (dia.novedades.vencimientos.length && !c.acciones_vencimientos?.trim()) {

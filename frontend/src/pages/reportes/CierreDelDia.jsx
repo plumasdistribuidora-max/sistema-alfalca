@@ -100,13 +100,29 @@ function armarMensaje({ d, form, fecha, user }) {
   if (form.faltas_tardanzas?.trim()) { if (!nv.ausencias.length) { L.push(''); L.push('*Faltas y tardanzas*'); } L.push(`  Encargado: ${form.faltas_tardanzas.trim()}`); }
   seccion('Quejas', nv.quejas, it => it.texto);
 
+  // Facturas: las que entraron hoy y las que se pagaron, una por renglón, con el medio.
   const p = d.proveedores;
-  if (p && (p.pagos.length || p.vencidas.length)) {
+  if (p && (p.cargadas?.length || p.pagos.length || p.vencidas.length)) {
     L.push('');
-    L.push('*Proveedores*');
-    if (p.pagos.length) L.push(`• Pagado hoy: ${n(p.pagado_hoy)} (${p.pagos.length} factura${p.pagos.length === 1 ? '' : 's'})`);
-    if (p.vencidas.length) L.push(`• 🔴 Vencidas sin pagar: ${p.vencidas.length} por ${n(p.total_vencido)}`);
-    L.push(`• Deuda total: ${n(p.deuda_total)} en ${p.facturas_abiertas} facturas`);
+    L.push('*Facturas*');
+    if (p.cargadas?.length) {
+      L.push(`Cargadas hoy: ${p.cargadas.length} por ${n(p.total_cargadas)}`);
+      for (const f of p.cargadas) {
+        L.push(`• ${f.proveedor}${f.numero ? ` ${f.numero}` : ''} — ${n(f.total)} (${corto(f.local_nombre || '')}${f.vencimiento ? `, vence ${fechaCorta(f.vencimiento)}` : ''})`);
+      }
+    } else {
+      L.push('Cargadas hoy: ninguna');
+    }
+    if (p.pagos.length) {
+      L.push(`Pagadas hoy: ${p.pagos.length} por ${n(p.pagado_hoy)}`);
+      for (const pg of p.pagos) {
+        L.push(`• ${pg.proveedor}${pg.factura_numero ? ` ${pg.factura_numero}` : ''} — ${n(pg.monto)} por ${medioLabel(pg.medio)}${pg.comprobante ? ` (${pg.comprobante})` : ''}`);
+      }
+    } else {
+      L.push('Pagadas hoy: ninguna');
+    }
+    if (p.vencidas.length) L.push(`🔴 Vencidas sin pagar: ${p.vencidas.length} por ${n(p.total_vencido)}`);
+    L.push(`Deuda total: ${n(p.deuda_total)} en ${p.facturas_abiertas} facturas`);
   }
 
   L.push('');

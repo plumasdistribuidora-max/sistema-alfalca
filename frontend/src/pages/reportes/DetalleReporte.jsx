@@ -3,18 +3,85 @@ import api from '../../api';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
-function Foto({ id }) {
-  const [url, setUrl] = useState(null);
+// Las fotos llegan como blob autenticado, no como URL pública: cada una se baja una
+// vez y el objectURL se comparte entre la miniatura y el visor grande.
+function useFotos(adjuntos) {
+  const [urls, setUrls] = useState({});
   useEffect(() => {
-    let vivo = true, creada = null;
-    api.get(`/reportes/adjuntos/${id}`, { responseType: 'blob' })
-      .then(r => { if (vivo) { creada = URL.createObjectURL(r.data); setUrl(creada); } })
-      .catch(() => {});
-    return () => { vivo = false; if (creada) URL.revokeObjectURL(creada); };
-  }, [id]);
+    let vivo = true;
+    const creadas = [];
+    setUrls({});
+    for (const a of adjuntos) {
+      api.get(`/reportes/adjuntos/${a.id}`, { responseType: 'blob' })
+        .then(r => {
+          if (!vivo) return;
+          const url = URL.createObjectURL(r.data);
+          creadas.push(url);
+          setUrls(u => ({ ...u, [a.id]: url }));
+        })
+        .catch(() => {});
+    }
+    return () => { vivo = false; creadas.forEach(u => URL.revokeObjectURL(u)); };
+  }, [adjuntos.map(a => a.id).join(',')]);
+  return urls;
+}
+
+function Foto({ url, onClick }) {
   return (
-    <div className="w-28 h-36 rounded-lg overflow-hidden border border-ahg-accent/40 bg-ahg-accent/10">
+    <button
+      type="button" onClick={onClick} disabled={!url}
+      className="w-28 h-36 rounded-lg overflow-hidden border border-ahg-accent/40 bg-ahg-accent/10 block"
+      aria-label="Ver foto grande"
+    >
       {url && <img src={url} alt="" className="w-full h-full object-cover" />}
+    </button>
+  );
+}
+
+// Visor a pantalla completa. Flechas y Escape del teclado, o los botones en el celular.
+function Visor({ fotos, urls, indice, onCambiar, onCerrar }) {
+  const total = fotos.length;
+  const ir = d => onCambiar((indice + d + total) % total);
+
+  useEffect(() => {
+    function tecla(e) {
+      if (e.key === 'Escape') onCerrar();
+      else if (e.key === 'ArrowRight') ir(1);
+      else if (e.key === 'ArrowLeft') ir(-1);
+    }
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  });
+
+  const actual = fotos[indice];
+  const url = urls[actual.id];
+
+  return (
+    <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center" onClick={onCerrar}>
+      <button
+        type="button" onClick={onCerrar} aria-label="Cerrar"
+        className="absolute top-3 right-4 text-white/80 text-4xl leading-none hover:text-white"
+      >×</button>
+
+      {url
+        ? <img src={url} alt="" className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
+        : <p className="text-white/70 text-sm">Cargando…</p>}
+
+      {total > 1 && (
+        <>
+          <button
+            type="button" onClick={e => { e.stopPropagation(); ir(-1); }} aria-label="Anterior"
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 text-white text-2xl hover:bg-white/30"
+          >‹</button>
+          <button
+            type="button" onClick={e => { e.stopPropagation(); ir(1); }} aria-label="Siguiente"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 text-white text-2xl hover:bg-white/30"
+          >›</button>
+          <p className="absolute bottom-4 left-0 right-0 text-center text-white/70 text-sm">
+            {indice + 1} de {total}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -84,6 +151,8 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
+  const [abierta, setAbierta] = useState(null);   // índice de la foto abierta en el visor
+  const urls = useFotos(r?.adjuntos || []);
 
   useEffect(() => {
     api.get(`/reportes/${id}`).then(res => setR(res.data.data)).catch(() => setError('No se pudo abrir el reporte'));
@@ -116,7 +185,7 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
 
   const equipo = Object.fromEntries((r.equipo || []).map(e => [String(e.id), e]));
   const campos = r.plantilla?.campos || [];
-  const fotos  = (r.adjuntos || []);
+  const fotos  = r.adjuntos || [];
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-3 overflow-y-auto">
@@ -166,11 +235,15 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
             <div className="py-2.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1.5">Fotos</p>
               <div className="flex gap-2 flex-wrap">
-                {fotos.map(a => <Foto key={a.id} id={a.id} />)}
+                {fotos.map((a, i) => <Foto key={a.id} url={urls[a.id]} onClick={() => setAbierta(i)} />)}
               </div>
             </div>
           )}
         </div>
+
+        {abierta != null && (
+          <Visor fotos={fotos} urls={urls} indice={abierta} onCambiar={setAbierta} onCerrar={() => setAbierta(null)} />
+        )}
 
         {r.estado !== 'aprobado' && (
           <div className="px-5 py-4 border-t border-ahg-accent/30 space-y-3">

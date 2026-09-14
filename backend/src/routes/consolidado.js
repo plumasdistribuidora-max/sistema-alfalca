@@ -170,6 +170,7 @@ async function armarDia(fecha) {
   }
 
   const novedades = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [] };
+  const horasPorPersona = new Map();
 
   for (const rep of reportes) {
     const acc = porLocal[rep.local_id];
@@ -185,11 +186,14 @@ async function armarDia(fecha) {
     acc.personas_reportadas += n(r.personas);
     acc.ventas_reportadas   += n(r.ventas);
 
+    // Las horas se juntan por persona y turno, no por reporte: la cocinera aparece en
+    // el equipo del café Y en su propio reporte de cocina, y son las mismas horas.
     for (const fila of horasDe(rep)) {
-      const valor = valorDe[fila.empleado_id];
-      acc.horas += fila.horas;
-      if (valor) acc.gasto_personal += fila.horas * valor;
-      else acc.horas_sin_valor += fila.horas;
+      const clave = `${rep.local_id}|${rep.turno}|${fila.empleado_id}`;
+      const previa = horasPorPersona.get(clave);
+      if (!previa || fila.horas > previa.horas) {
+        horasPorPersona.set(clave, { acc, empleado_id: fila.empleado_id, horas: fila.horas });
+      }
     }
 
     // Novedades que el encargado tiene que mirar y resumir para los dueños.
@@ -215,6 +219,13 @@ async function armarDia(fecha) {
     if (esNovedad(r.quejas)) {
       novedades.quejas.push({ local, turno: rep.turno, texto: r.quejas.trim() });
     }
+  }
+
+  for (const { acc, empleado_id, horas } of horasPorPersona.values()) {
+    const valor = valorDe[empleado_id];
+    acc.horas += horas;
+    if (valor) acc.gasto_personal += horas * valor;
+    else acc.horas_sin_valor += horas;
   }
 
   const guardado = (await pool.query('SELECT * FROM consolidados WHERE fecha = $1', [fecha])).rows[0] || null;

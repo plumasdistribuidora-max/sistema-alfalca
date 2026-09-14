@@ -63,7 +63,8 @@ function armarMensaje({ d, form, fecha, user }) {
   const L = [];
 
   L.push(`*Cierre del día — ${FECHA_LARGA.format(new Date(`${fecha}T12:00:00`))}*`);
-  L.push(`Venta: ${n(t.ventas_sistema)} · ${t.tickets} tickets · ticket prom. ${t.ticket_promedio ? n(t.ticket_promedio) : 's/d'}`);
+  L.push(`Venta: ${n(t.ventas_sistema)} · ${t.tickets} tickets`);
+  L.push(`Ticket prom.: tiendas ${t.ticket_promedio_tiendas ? n(t.ticket_promedio_tiendas) : 's/d'} · café ${t.ticket_promedio_cafe ? n(t.ticket_promedio_cafe) : 's/d'}`);
   L.push(`Personal: ${t.horas.toFixed(1)} h${t.gasto_personal ? ` · ${n(t.gasto_personal)}` : ''}`
     + (t.horas_sobre_ventas != null ? ` · ${pct(t.horas_sobre_ventas)} de la venta ${t.horas_sobre_ventas <= t.objetivo ? '✅' : '🔴'} (meta ${pct(t.objetivo)})` : ''));
   if (t.horas_sin_valor > 0) L.push(`⚠️ ${t.horas_sin_valor.toFixed(1)} h sin valor hora cargado (no cuentan en personal)`);
@@ -375,8 +376,9 @@ export default function CierreDelDia({ fecha, onCambio }) {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Kpi titulo="Venta del día" valor={`$ ${money.format(t.ventas_sistema)}`}
              detalle={`${t.tickets} tickets`} />
-        <Kpi titulo="Ticket promedio"
-             valor={t.ticket_promedio ? `$ ${money.format(t.ticket_promedio)}` : '—'} />
+        <Kpi titulo="Ticket promedio tiendas"
+             valor={t.ticket_promedio_tiendas ? `$ ${money.format(t.ticket_promedio_tiendas)}` : '—'}
+             detalle={`café: ${t.ticket_promedio_cafe ? `$ ${money.format(t.ticket_promedio_cafe)}` : '—'}`} />
         <Kpi titulo="Horas" valor={t.horas.toFixed(1)}
              detalle={t.gasto_personal ? `$ ${money.format(t.gasto_personal)} de personal` : 'sin valor hora'} />
         <Kpi titulo="Horas / ventas"

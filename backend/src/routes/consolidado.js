@@ -303,6 +303,16 @@ async function armarDia(fecha) {
     : null;
   totales.ticket_promedio = totales.tickets > 0 ? totales.ventas_sistema / totales.tickets : null;
 
+  // Un ticket de café y uno de tienda no se parecen en nada: el promedio mezclado
+  // no le dice nada a nadie. Van separados.
+  const promedioDe = grupo => {
+    const v = grupo.reduce((s, l) => s + l.ventas_sistema, 0);
+    const k = grupo.reduce((s, l) => s + l.tickets_sistema, 0);
+    return k > 0 ? v / k : null;
+  };
+  totales.ticket_promedio_tiendas = promedioDe(filas.filter(l => l.tipo !== 'cafeteria'));
+  totales.ticket_promedio_cafe    = promedioDe(filas.filter(l => l.tipo === 'cafeteria'));
+
   return {
     fecha, locales: filas, totales, novedades,
     proveedores: await facturasDelDia(fecha),

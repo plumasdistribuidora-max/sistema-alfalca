@@ -115,7 +115,7 @@ function armarMensaje({ d, form, fecha, user }) {
   return L.join('\n');
 }
 
-function MensajeDuenos({ texto }) {
+function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'Ya está armado. Copialo y pegalo en el grupo, o abrilo directo en WhatsApp.' }) {
   const [copiado, setCopiado] = useState(false);
   const ref = useRef(null);
 
@@ -135,8 +135,8 @@ function MensajeDuenos({ texto }) {
   return (
     <div className="card p-5 space-y-3 border-ahg-primary/40">
       <div>
-        <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Mensaje para los dueños</h2>
-        <p className="text-xs text-ahg-text/50">Ya está armado. Copialo y pegalo en el grupo, o abrilo directo en WhatsApp.</p>
+        <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>{titulo}</h2>
+        <p className="text-xs text-ahg-text/50">{sub}</p>
       </div>
       <textarea ref={ref} readOnly value={texto} rows={Math.min(22, texto.split('\n').length + 1)}
                 className="input text-sm font-mono leading-relaxed whitespace-pre" />
@@ -269,6 +269,20 @@ export default function CierreDelDia({ fecha, onCambio }) {
   useEffect(cargar, [fecha]);
 
   const cerrado = d?.consolidado?.estado === 'cerrado';
+
+  // Los viernes, además del diario, va el resumen de la semana (sábado a viernes).
+  const esViernes = new Date(`${fecha}T12:00:00`).getDay() === 5;
+  const [semana, setSemana] = useState(null);       // { texto } | { error } | null
+  useEffect(() => {
+    setSemana(null);
+    if (!esViernes) return;
+    let vivo = true;
+    api.get('/consolidado/semana', { params: { hasta: fecha } })
+      .then(r => { if (vivo) setSemana({ texto: r.data.data.texto }); })
+      .catch(err => { if (vivo) setSemana({ error: err.response?.data?.error || 'No se pudo armar el resumen semanal' }); });
+    return () => { vivo = false; };
+  }, [fecha, esViernes, cerrado]);
+
 
   async function guardar(nuevo) {
     setGuardando(true);
@@ -565,6 +579,15 @@ export default function CierreDelDia({ fecha, onCambio }) {
       </div>
 
       {cerrado && <MensajeDuenos texto={armarMensaje({ d, form, fecha, user })} />}
+
+      {esViernes && (
+        semana?.texto
+          ? <MensajeDuenos texto={semana.texto} titulo="Resumen de la semana"
+                           sub={`Sábado a viernes, para mandar a los dueños junto con el diario.${cerrado ? '' : ' Se actualiza cuando cierres el día.'}`} />
+          : <div className="card p-5 text-sm text-ahg-text/50">
+              {semana?.error || 'Armando el resumen de la semana…'}
+            </div>
+      )}
     </div>
   );
 }

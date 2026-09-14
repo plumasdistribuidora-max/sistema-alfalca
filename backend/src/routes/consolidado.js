@@ -278,6 +278,253 @@ async function armarDia(fecha) {
   };
 }
 
+
+// ── Resumen semanal ───────────────────────────────────────────────────────────
+// La semana va de sábado a viernes: cierra con el viernes y arranca con el finde,
+// que es lo fuerte. Se arma reusando el consolidado de cada día, así los números
+// son exactamente los que ya vio el encargado día por día. Solo informa: no marca
+// nada como resuelto ni pide acciones.
+
+const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+function fechaStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function sumarDias(fecha, dias) {
+  const d = new Date(`${fecha}T12:00:00`);
+  d.setDate(d.getDate() + dias);
+  return fechaStr(d);
+}
+function diaCorto(fecha) {
+  const d = new Date(`${fecha}T12:00:00`);
+  return `${DIA_CORTO[d.getDay()]} ${d.getDate()}`;
+}
+
+async function ventasEntre(desde, hasta) {
+  const { rows } = await pool.query(`
+    SELECT t.local_id, COALESCE(SUM(t.total), 0) AS total, COUNT(*)::int AS tickets,
+           COALESCE((SELECT SUM(i.docenas_equivalentes) FROM ventas_items i
+                     JOIN ventas_tickets t2 ON t2.id = i.ticket_id
+                     WHERE t2.local_id = t.local_id AND t2.fecha BETWEEN $1 AND $2
+                       AND t2.estado = 'cerrada' AND NOT i.cancelada), 0) AS docenas
+    FROM ventas_tickets t
+    WHERE t.fecha BETWEEN $1 AND $2 AND t.estado = 'cerrada'
+    GROUP BY t.local_id
+  `, [desde, hasta]);
+  const porLocal = Object.fromEntries(rows.map(r => [r.local_id, { total: n(r.total), tickets: r.tickets, docenas: n(r.docenas) }]));
+  const total = rows.reduce((a, r) => ({ total: a.total + n(r.total), tickets: a.tickets + r.tickets, docenas: a.docenas + n(r.docenas) }), { total: 0, tickets: 0, docenas: 0 });
+  return { porLocal, total };
+}
+
+async function armarSemana(hasta) {
+  const desde = sumarDias(hasta, -6);
+  const fechas = Array.from({ length: 7 }, (_, i) => sumarDias(desde, i));
+
+  // Los siete días en paralelo: cada uno son varias consultas a la base, y en serie
+  // el resumen tardaba medio minuto.
+  const dias = await Promise.all(fechas.map(armarDia));
+
+  const [actual, anterior, anio] = await Promise.all([
+    ventasEntre(desde, hasta),
+    ventasEntre(sumarDias(desde, -7), sumarDias(hasta, -7)),
+    ventasEntre(sumarDias(desde, -364), sumarDias(hasta, -364)),   // mismo día de la semana, un año atrás
+  ]);
+
+  // Reportes que llegaron después del día, y los devueltos, por persona.
+  const tarde = (await pool.query(`
+    SELECT u.nombre AS usuario, l.nombre AS local, r.fecha::text, r.turno
+    FROM reportes r JOIN usuarios u ON u.id = r.usuario_id JOIN locales l ON l.id = r.local_id
+    WHERE r.fecha BETWEEN $1 AND $2 AND r.enviado_at IS NOT NULL
+      AND (r.enviado_at AT TIME ZONE 'America/Argentina/Mendoza')::date > r.fecha
+  `, [desde, hasta])).rows;
+  const devueltos = (await pool.query(`
+    SELECT u.nombre AS usuario, COUNT(*)::int AS veces
+    FROM reporte_revisiones rv JOIN reportes r ON r.id = rv.reporte_id JOIN usuarios u ON u.id = r.usuario_id
+    WHERE rv.accion = 'observo' AND r.fecha BETWEEN $1 AND $2
+    GROUP BY u.nombre ORDER BY veces DESC, u.nombre
+  `, [desde, hasta])).rows;
+
+  // Proveedores: lo pagado en la semana y lo que vence en la próxima.
+  const pagado = n((await pool.query(
+    'SELECT COALESCE(SUM(monto), 0) AS t FROM pagos_proveedor WHERE fecha BETWEEN $1 AND $2', [desde, hasta]
+  )).rows[0].t);
+  const abiertas = (await pool.query(`
+    SELECT f.vencimiento::text AS vencimiento,
+           f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) AS saldo
+    FROM facturas f
+    WHERE f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) > 0
+  `)).rows.map(r => ({ ...r, saldo: n(r.saldo) }));
+  const proxSemana = abiertas.filter(f => f.vencimiento && f.vencimiento > hasta && f.vencimiento <= sumarDias(hasta, 7));
+  const vencidas   = abiertas.filter(f => f.vencimiento && f.vencimiento <= hasta);
+
+  return { desde, hasta, fechas, dias, actual, anterior, anio, tarde, devueltos,
+           proveedores: {
+             pagado, deuda: abiertas.reduce((s, f) => s + f.saldo, 0), facturas: abiertas.length,
+             vence_proxima: proxSemana.reduce((s, f) => s + f.saldo, 0), n_proxima: proxSemana.length,
+             vencido: vencidas.reduce((s, f) => s + f.saldo, 0), n_vencidas: vencidas.length,
+           } };
+}
+
+const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+const $ = v => `$ ${money.format(v)}`;
+const pct = v => v == null ? 's/d' : `${v.toFixed(1)}%`;
+const corto = nombre => nombre.replace(' Tienda de Alfajores', '').replace(' Cafetería', '');
+const variacion = (ahora, antes) => antes > 0 ? `${ahora >= antes ? '+' : '−'}${Math.abs((ahora / antes - 1) * 100).toFixed(0)}%` : null;
+
+// El texto para WhatsApp. Primero lo que hay que saber, después el detalle.
+function textoSemana(w) {
+  const L = [];
+  const d0 = new Date(`${w.desde}T12:00:00`), d1 = new Date(`${w.hasta}T12:00:00`);
+  const rango = d0.getMonth() === d1.getMonth()
+    ? `sáb ${d0.getDate()} al vie ${d1.getDate()} de ${MES_LARGO[d1.getMonth()]}`
+    : `sáb ${d0.getDate()} de ${MES_LARGO[d0.getMonth()]} al vie ${d1.getDate()} de ${MES_LARGO[d1.getMonth()]}`;
+
+  const locales = w.dias[0].locales.map(l => l.local_id);
+  const nombreDe = Object.fromEntries(w.dias[0].locales.map(l => [l.local_id, l.nombre]));
+  const objetivoDe = Object.fromEntries(w.dias[0].locales.map(l => [l.local_id, l.objetivo]));
+
+  // Totales de la semana a partir de los días.
+  // El KPI de la semana se calcula solo sobre los días que tienen horas cargadas: si
+  // faltan reportes, dividir el gasto de un día por la venta de siete diría cualquier cosa.
+  const tot = { horas: 0, gasto: 0, sin_valor: 0, ventas_con_horas: 0, dias_con_ventas: 0 };
+  const porLocal = {};
+  for (const id of locales) porLocal[id] = { horas: 0, gasto: 0, ventas_con_horas: 0, dias_con_horas: 0, dias_con_ventas: 0, dias_kpi: 0, dias_en_meta: 0, dias_sin_reportes: [], no_cierra: [], mejor: null, peor: null };
+  for (const dia of w.dias) {
+    tot.horas += dia.totales.horas; tot.gasto += dia.totales.gasto_personal; tot.sin_valor += dia.totales.horas_sin_valor;
+    for (const l of dia.locales) {
+      const a = porLocal[l.local_id];
+      a.horas += l.horas; a.gasto += l.gasto_personal;
+      if (l.ventas_sistema > 0) a.dias_con_ventas++;
+      if (l.horas > 0 && l.ventas_sistema > 0) { a.ventas_con_horas += l.ventas_sistema; a.dias_con_horas++; tot.ventas_con_horas += l.ventas_sistema; }
+      if (l.horas_sobre_ventas != null) { a.dias_kpi++; if (l.horas_sobre_ventas <= l.objetivo) a.dias_en_meta++; }
+      if (l.turnos_esperados > 0 && !l.completo) a.dias_sin_reportes.push(diaCorto(dia.fecha));
+      if (l.diferencia != null && Math.abs(l.diferencia) >= 1) {
+        a.no_cierra.push({ dia: diaCorto(dia.fecha), dif: l.diferencia, exp: dia.consolidado?.explicaciones?.[String(l.local_id)]?.trim() });
+      }
+      if (l.ventas_sistema > 0) {
+        if (!a.mejor || l.ventas_sistema > a.mejor.v) a.mejor = { dia: diaCorto(dia.fecha), v: l.ventas_sistema };
+        if (!a.peor  || l.ventas_sistema < a.peor.v)  a.peor  = { dia: diaCorto(dia.fecha), v: l.ventas_sistema };
+      }
+    }
+  }
+  const ventaTotal = w.actual.total.total;
+  const kpiRed = tot.ventas_con_horas > 0 && tot.gasto > 0 ? tot.gasto / tot.ventas_con_horas * 100 : null;
+  const metaRed = ventaTotal > 0
+    ? locales.reduce((s, id) => s + (objetivoDe[id] || 0) * (w.actual.porLocal[id]?.total || 0), 0) / ventaTotal : null;
+  const diasConHoras = w.dias.filter(d => d.totales.horas > 0).length;
+  const diasConVentas = w.dias.filter(d => d.totales.ventas_sistema > 0).length;
+
+  L.push(`*Resumen semanal — ${rango}*`);
+  L.push(`Venta: ${$(ventaTotal)} · ${w.actual.total.tickets} tickets · ticket prom. ${w.actual.total.tickets ? $(ventaTotal / w.actual.total.tickets) : 's/d'}`);
+  const vAnt = variacion(ventaTotal, w.anterior.total.total), vAnio = variacion(ventaTotal, w.anio.total.total);
+  if (vAnt || vAnio) L.push(`vs semana anterior: ${vAnt || 's/d'}${vAnio ? ` · vs misma semana del año pasado: ${vAnio}` : ''}`);
+  if (w.actual.total.docenas) L.push(`Docenas: ${money.format(w.actual.total.docenas)}${w.anterior.total.docenas ? ` (semana anterior ${money.format(w.anterior.total.docenas)})` : ''}`);
+  L.push(`Personal: ${tot.horas.toFixed(1)} h · ${$(tot.gasto)}${kpiRed != null ? ` · ${pct(kpiRed)} de la venta ${kpiRed <= metaRed ? '✅' : '🔴'} (meta ${pct(metaRed)})` : ''}`
+    + (kpiRed != null && diasConHoras < diasConVentas ? ` — sobre ${diasConHoras} de ${diasConVentas} días con reportes` : ''));
+  if (tot.sin_valor > 0) L.push(`⚠️ ${tot.sin_valor.toFixed(1)} h sin valor hora cargado`);
+
+  L.push('');
+  L.push('*Por local*');
+  for (const id of locales) {
+    const v = w.actual.porLocal[id]?.total || 0;
+    if (!v && !porLocal[id].horas) continue;
+    const a = porLocal[id];
+    const kpi = a.ventas_con_horas > 0 && a.gasto > 0 ? a.gasto / a.ventas_con_horas * 100 : null;
+    const va = variacion(v, w.anterior.porLocal[id]?.total || 0);
+    let linea = `• ${corto(nombreDe[id])}: ${$(v)}${va ? ` (${va})` : ''}`;
+    if (kpi != null) linea += ` · personal ${pct(kpi)} ${kpi <= objetivoDe[id] ? '✅' : '🔴'} (meta ${objetivoDe[id]}%)`;
+    L.push(linea);
+    if (a.dias_kpi) {
+      const enMeta = a.dias_en_meta, fuera = a.dias_kpi - enMeta;
+      let lectura = `  ${enMeta} de ${a.dias_kpi} días en meta${a.dias_con_horas < a.dias_con_ventas ? ` (${a.dias_con_horas} de ${a.dias_con_ventas} días con reportes)` : ''}`;
+      if (kpi != null && kpi <= objetivoDe[id] && fuera > 0) lectura += `, pero la semana cerró en meta`;
+      if (kpi != null && kpi > objetivoDe[id] && enMeta > fuera) lectura += `, pero la semana cerró arriba de la meta`;
+      L.push(lectura);
+    }
+    if (a.mejor && a.peor && a.mejor.dia !== a.peor.dia) L.push(`  mejor día ${a.mejor.dia} ${$(a.mejor.v)} · peor ${a.peor.dia} ${$(a.peor.v)}`);
+    if (a.no_cierra.length) {
+      L.push(`  🔴 no cerró ${a.no_cierra.length === 1 ? 'el' : 'los días'} ${a.no_cierra.map(x => `${x.dia} (${x.dif > 0 ? '+' : '−'}${money.format(Math.abs(x.dif))}${x.exp ? `: ${x.exp}` : ''})`).join(', ')}`);
+    }
+    if (a.dias_sin_reportes.length) L.push(`  ⚠️ faltaron reportes: ${a.dias_sin_reportes.join(', ')}`);
+  }
+
+  // Cómo funcionó el circuito.
+  const cerrados = w.dias.filter(d => d.consolidado?.estado === 'cerrado').map(d => diaCorto(d.fecha));
+  const sinCerrar = w.dias.filter(d => d.consolidado?.estado !== 'cerrado').map(d => diaCorto(d.fecha));
+  let esperados = 0, recibidos = 0;
+  for (const dia of w.dias) for (const l of dia.locales) { esperados += l.turnos_esperados; recibidos += Math.min(l.turnos_reportados, l.turnos_esperados); }
+  L.push('');
+  L.push('*Cómo funcionó la semana*');
+  L.push(`• Días cerrados: ${cerrados.length} de 7${sinCerrar.length ? ` (sin cerrar: ${sinCerrar.join(', ')})` : ''}`);
+  L.push(`• Reportes de venta: ${recibidos} de ${esperados} esperados`);
+  if (w.tarde.length) L.push(`• Llegaron al día siguiente: ${w.tarde.length} (${[...new Set(w.tarde.map(t => t.usuario))].join(', ')})`);
+  if (w.devueltos.length) L.push(`• Devueltos para corregir: ${w.devueltos.map(d => `${d.usuario} ${d.veces > 1 ? `×${d.veces}` : ''}`.trim()).join(', ')}`);
+
+  // Novedades acumuladas, contadas.
+  const todas = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [] };
+  for (const dia of w.dias) for (const k of Object.keys(todas)) for (const it of dia.novedades[k]) todas[k].push({ ...it, dia: diaCorto(dia.fecha) });
+  const contar = (items, clave) => {
+    const c = {};
+    for (const it of items) { const k = clave(it); if (k) c[k] = (c[k] || 0) + 1; }
+    return Object.entries(c).sort((a, b) => b[1] - a[1]);
+  };
+  if (todas.vencimientos.length) {
+    L.push(''); L.push(`*Vencimientos* · ${todas.vencimientos.length} en la semana`);
+    L.push(`• Por local: ${contar(todas.vencimientos, it => corto(it.local)).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
+    const rep = contar(todas.vencimientos, it => (it.producto || '').trim().toLowerCase()).filter(([, v]) => v > 1);
+    if (rep.length) L.push(`• Se repite: ${rep.map(([k, v]) => `${k} (${v})`).join(', ')}`);
+  }
+  if (todas.mantenimiento.length) {
+    L.push(''); L.push(`*Mantenimiento reportado* · ${todas.mantenimiento.length}`);
+    for (const it of todas.mantenimiento) L.push(`• ${corto(it.local)} (${it.dia}): ${it.texto}`);
+  }
+  for (const dia of w.dias) if (dia.consolidado?.mantenimiento?.trim()) L.push(`• Encargado (${diaCorto(dia.fecha)}): ${dia.consolidado.mantenimiento.trim()}`);
+  if (todas.faltantes.length) {
+    L.push(''); L.push(`*Faltantes de insumos* · ${todas.faltantes.length}`);
+    for (const [k, v] of contar(todas.faltantes, it => `${(it.insumo || '').trim()}${it.proveedor ? ` (${it.proveedor})` : ''}`)) L.push(`• ${k}${v > 1 ? ` — ${v} veces` : ''}`);
+  }
+  if (todas.ausencias.length) {
+    L.push(''); L.push(`*Faltas y tardanzas* · ${todas.ausencias.length}`);
+    for (const [k, v] of contar(todas.ausencias, it => (it.empleado || '').trim())) {
+      const motivos = todas.ausencias.filter(it => (it.empleado || '').trim() === k).map(it => `${it.dia}: ${it.motivo}`).join('; ');
+      L.push(`• ${k} ×${v} — ${motivos}`);
+    }
+  }
+  for (const dia of w.dias) if (dia.consolidado?.faltas_tardanzas?.trim()) L.push(`• Encargado (${diaCorto(dia.fecha)}): ${dia.consolidado.faltas_tardanzas.trim()}`);
+  if (todas.quejas.length) {
+    L.push(''); L.push(`*Quejas* · ${todas.quejas.length}`);
+    for (const it of todas.quejas) L.push(`• ${corto(it.local)} (${it.dia}): ${it.texto}`);
+  }
+
+  const p = w.proveedores;
+  if (p.pagado || p.deuda) {
+    L.push(''); L.push('*Proveedores*');
+    L.push(`• Pagado en la semana: ${$(p.pagado)}`);
+    if (p.n_vencidas) L.push(`• 🔴 Vencidas sin pagar: ${p.n_vencidas} por ${$(p.vencido)}`);
+    if (p.n_proxima) L.push(`• Vence la semana que viene: ${p.n_proxima} facturas por ${$(p.vence_proxima)}`);
+    L.push(`• Deuda total: ${$(p.deuda)} en ${p.facturas} facturas`);
+  }
+
+  return L.join('\n');
+}
+
+// ── GET /semana ───────────────────────────────────────────────────────────────
+// La semana que termina en `hasta` (un viernes, normalmente). Devuelve el texto listo
+// para WhatsApp; el detalle día por día ya está en cada consolidado.
+
+router.get('/semana', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
+  try {
+    const hasta = req.query.hasta || hoyStr();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return res.status(400).json({ ok: false, error: 'Fecha inválida' });
+    const w = await armarSemana(hasta);
+    res.json({ ok: true, data: { desde: w.desde, hasta: w.hasta, texto: textoSemana(w) } });
+  } catch (err) {
+    console.error('[consolidado/semana]', err);
+    res.status(500).json({ ok: false, error: 'Error al armar el resumen semanal' });
+  }
+});
+
 // ── GET / ─────────────────────────────────────────────────────────────────────
 // El dueño también entra: requireRol deja pasar admin siempre.
 

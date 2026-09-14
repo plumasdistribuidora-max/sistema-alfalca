@@ -25,12 +25,16 @@ function Respuesta({ campo, valor, equipo }) {
 
   if (campo.tipo === 'si_no_lista') {
     const v = valor || {};
+    const items = (v.items || [])
+      .map(it => (campo.subcampos || []).map(sc => it[sc.codigo]).filter(Boolean).join(' — '))
+      .filter(Boolean);
     if (!v.hubo) cuerpo = <span className="text-ahg-text/40">No</span>;
-    else cuerpo = (
+    else if (campo.pregunta_lista && !items.length) {
+      // Hizo el control y no encontró nada: eso es una respuesta, no un faltante.
+      cuerpo = <span>Sí <span className="text-ahg-text/40">· {campo.pregunta_lista} No</span></span>;
+    } else cuerpo = (
       <ul className="list-disc pl-5 space-y-0.5">
-        {(v.items || []).map((it, i) => (
-          <li key={i}>{(campo.subcampos || []).map(sc => it[sc.codigo]).filter(Boolean).join(' — ')}</li>
-        ))}
+        {items.map((t, i) => <li key={i}>{t}</li>)}
       </ul>
     );
   } else if (campo.tipo === 'horas_empleados') {

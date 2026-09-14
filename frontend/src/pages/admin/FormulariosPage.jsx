@@ -115,6 +115,15 @@ function Campo({ campo, i, total, onChange, onMover, onBorrar }) {
           {campo.tipo === 'si_no_lista' && (
             <>
               <div>
+                <label className="label">Pregunta intermedia (opcional)</label>
+                <input className="input" value={campo.pregunta_lista || ''}
+                       onChange={e => set('pregunta_lista', e.target.value)}
+                       placeholder="Ej: ¿Hay productos que venzan en menos de 25 días?" />
+                <p className="text-xs text-ahg-text/50 mt-1">
+                  Si la completás, el detalle se pide solo cuando esta segunda pregunta también es “Sí”.
+                </p>
+              </div>
+              <div>
                 <label className="label">Título del detalle</label>
                 <input className="input" value={campo.label_lista || ''}
                        onChange={e => set('label_lista', e.target.value)}

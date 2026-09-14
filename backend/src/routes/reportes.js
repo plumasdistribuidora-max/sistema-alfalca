@@ -90,6 +90,13 @@ function puedeVer(user, reporte) {
   return esDeRed(user) || reporte.usuario_id === user.id;
 }
 
+// Una fila de detalle vacía (la que aparece sola al tocar "Sí") no cuenta como cargada.
+function filasConDatos(items) {
+  return (Array.isArray(items) ? items : []).filter(
+    f => f && Object.values(f).some(x => x !== undefined && x !== null && String(x).trim() !== '')
+  );
+}
+
 // Valida las respuestas contra la plantilla. Devuelve la lista de lo que falta,
 // en el mismo lenguaje que ve la persona en pantalla.
 function validar(campos, respuestas) {
@@ -110,12 +117,22 @@ function validar(campos, respuestas) {
         if (typeof v !== 'boolean') faltan.push(campo.label);
         break;
 
-      case 'si_no_lista':
+      case 'si_no_lista': {
         if (v?.hubo === undefined || v?.hubo === null) { faltan.push(campo.label); break; }
-        if (v.hubo && !(Array.isArray(v.items) && v.items.length)) {
+        if (!v.hubo) break;
+
+        // Con pregunta intermedia ("¿Hay productos por vencer?"), el "Sí" de arriba solo
+        // dice que se hizo el control: la lista se pide recién si la segunda también es sí.
+        let pideLista = true;
+        if (campo.pregunta_lista) {
+          if (typeof v.hay !== 'boolean') { faltan.push(campo.pregunta_lista); break; }
+          pideLista = v.hay;
+        }
+        if (pideLista && !filasConDatos(v.items).length) {
           faltan.push(`${campo.label} — dijiste que sí, falta el detalle`);
         }
         break;
+      }
 
       case 'horas_empleados':
         if (!Array.isArray(v) || !v.length) { faltan.push(campo.label); break; }

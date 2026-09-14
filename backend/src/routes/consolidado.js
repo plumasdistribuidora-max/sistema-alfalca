@@ -26,6 +26,13 @@ function esNovedad(texto) {
 
 // Las horas de un reporte según el tipo de plantilla: la de café trae las de todo
 // el turno, las otras solo las de quien firma.
+// Filas de detalle sin nada cargado (la vacía que deja el formulario al tocar "Sí").
+function filasConDatos(items) {
+  return (Array.isArray(items) ? items : []).filter(
+    f => f && Object.values(f).some(x => x !== undefined && x !== null && String(x).trim() !== '')
+  );
+}
+
 function horasDe(reporte) {
   const r = reporte.respuestas || {};
   if (Array.isArray(r.horas_equipo)) {
@@ -188,7 +195,7 @@ async function armarDia(fecha) {
     // Novedades que el encargado tiene que mirar y resumir para los dueños.
     const local = porLocal[rep.local_id].nombre;
     if (r.vencimientos?.hubo) {
-      for (const it of (r.vencimientos.items || [])) {
+      for (const it of filasConDatos(r.vencimientos.items)) {
         novedades.vencimientos.push({ local, turno: rep.turno, ...it });
       }
     }
@@ -196,12 +203,12 @@ async function armarDia(fecha) {
       novedades.mantenimiento.push({ local, turno: rep.turno, texto: r.mantenimiento.trim() });
     }
     if (r.faltantes?.hubo) {
-      for (const it of (r.faltantes.items || [])) {
+      for (const it of filasConDatos(r.faltantes.items)) {
         novedades.faltantes.push({ local, turno: rep.turno, ...it });
       }
     }
     if (r.ausencias?.hubo) {
-      for (const it of (r.ausencias.items || [])) {
+      for (const it of filasConDatos(r.ausencias.items)) {
         novedades.ausencias.push({ local, turno: rep.turno, ...it });
       }
     }

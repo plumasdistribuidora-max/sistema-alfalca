@@ -304,14 +304,32 @@ export default function Campo({ campo, valor, onChange, ctx }) {
 
     case 'si_no_lista': {
       const v = valor || {};
+      // Con pregunta intermedia, el "Sí" de arriba solo dice que se hizo el control
+      // ("¿Hiciste el check?"); la lista aparece recién si la segunda también es sí
+      // ("¿Hay productos por vencer?"). Sin pregunta intermedia, el sí ya abre la lista.
+      const conPregunta = Boolean(campo.pregunta_lista);
+      const muestraLista = v.hubo && (conPregunta ? v.hay === true : true);
       control = (
         <>
           <Segmentado
             opciones={['Sí', 'No']}
             valor={v.hubo === true ? 'Sí' : v.hubo === false ? 'No' : null}
-            onChange={o => set({ hubo: o === 'Sí', items: o === 'Sí' ? (v.items || [{}]) : [] })}
+            onChange={o => {
+              if (o !== 'Sí') return set({ hubo: false, items: [] });
+              set(conPregunta ? { hubo: true, hay: v.hay, items: v.items || [] } : { hubo: true, items: v.items?.length ? v.items : [{}] });
+            }}
           />
-          {v.hubo && (
+          {v.hubo && conPregunta && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-ahg-text mb-1.5">{campo.pregunta_lista}</p>
+              <Segmentado
+                opciones={['Sí', 'No']}
+                valor={v.hay === true ? 'Sí' : v.hay === false ? 'No' : null}
+                onChange={o => set({ ...v, hay: o === 'Sí', items: o === 'Sí' ? (v.items?.length ? v.items : [{}]) : [] })}
+              />
+            </div>
+          )}
+          {muestraLista && (
             <div className="mt-3 pl-3 border-l-2 border-amber-400">
               <p className="text-xs font-semibold text-amber-700 mb-2">{campo.label_lista}</p>
               <Filas

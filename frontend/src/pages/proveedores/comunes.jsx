@@ -48,9 +48,6 @@ export const fechaLarga = iso => {
 };
 export const diasHasta = iso => Math.round((aDate(iso) - aDate(hoyStr())) / 86400000);
 
-// Domingo de esta semana: hasta ahí llega "vence esta semana".
-export const finDeSemana = () => sumarDias(hoyStr(), (7 - aDate(hoyStr()).getDay()) % 7);
-
 export const listaDias = dias => {
   const d = (dias || []).map(Number).sort();
   if (!d.length) return 'sin días cargados';
@@ -70,19 +67,17 @@ export function proximoDiaPago(dias, desde = hoyStr()) {
 
 // ── Presentación ─────────────────────────────────────────────────────────────
 
-export function ChipVencimiento({ vencimiento }) {
-  if (!vencimiento) return <span className="text-ahg-text/30">—</span>;
-  const d = diasHasta(vencimiento);
-  const base = 'inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border';
-
-  if (d < 0) return (
-    <span className={`${base} bg-red-50 text-red-700 border-red-200`}>
-      {d === -1 ? 'Vencida ayer' : `Vencida hace ${-d} días`}
-    </span>
-  );
-  if (d === 0) return <span className={`${base} bg-red-50 text-red-700 border-red-200`}>Vence hoy</span>;
-  if (d <= 7)  return <span className={`${base} bg-amber-50 text-amber-700 border-amber-200`}>En {d} {d === 1 ? 'día' : 'días'}</span>;
-  return <span className={`${base} bg-green-50 text-green-700 border-green-200`}>{fechaCorta(vencimiento)}</span>;
+// Cuántos días lleva la factura sin pagarse, contados desde su fecha. Es lo que el
+// dueño mira para decidir qué pagar: no el vencimiento.
+export function ChipAntiguedad({ fecha }) {
+  if (!fecha) return <span className="text-ahg-text/30">—</span>;
+  const d = -diasHasta(fecha);
+  const base = 'inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap';
+  const tono = d > 30 ? 'bg-red-50 text-red-700 border-red-200'
+             : d > 7  ? 'bg-amber-50 text-amber-700 border-amber-200'
+             :          'bg-green-50 text-green-700 border-green-200';
+  const texto = d <= 0 ? 'Hoy' : d === 1 ? 'Ayer' : `Hace ${d} días`;
+  return <span className={`${base} ${tono}`}>{texto}</span>;
 }
 
 export function ChipDias({ dias }) {
@@ -260,7 +255,7 @@ export function ModalPago({ factura, grupo, onGuardar, onCerrar }) {
           <input type="date" className="input" value={fecha} onChange={e => setFecha(e.target.value)} />
           {!unaSola && (
             <p className="text-xs text-ahg-text/50 mt-1">
-              El vencimiento y el día de cobro son orientativos: se anota con la fecha que pongas.
+              El día de cobro es orientativo: se anota con la fecha que pongas.
             </p>
           )}
           {unaSola && (

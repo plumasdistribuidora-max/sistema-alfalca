@@ -253,8 +253,9 @@ router.get('/facturas', requireAuth, soloEncargado, async (req, res) => {
     }
 
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-    const { rows } = await pool.query(`${SELECT_FACTURAS} ${where} ORDER BY f.vencimiento, f.id`, args);
+    const { rows } = await pool.query(`${SELECT_FACTURAS} ${where} ORDER BY f.fecha, f.id`, args);
 
+    // Las más viejas primero: lo que se mira es cuánto hace que está sin pagar.
     let facturas = rows.map(armarFactura);
     if (req.query.estado !== 'todas') facturas = facturas.filter(f => f.saldo > 0);
     if (req.query.estado === 'vencidas') facturas = facturas.filter(f => f.vencimiento < hoy);
@@ -320,8 +321,9 @@ router.post('/facturas', requireAuth, soloEncargado, async (req, res) => {
 });
 
 // ── GET /plan ─────────────────────────────────────────────────────────────────
-// "Hasta el viernes, ¿qué pago?": lo que vence hasta esa fecha, agrupado por
-// proveedor, con el aviso de si ese proveedor no cobra antes de ese día.
+// "Todo lo que debo de facturas hasta tal día": las facturas con fecha hasta esa
+// (por fecha de la factura, no por vencimiento) que todavía tienen saldo, agrupadas
+// por proveedor. El dueño no quiere que el vencimiento entre en esta cuenta.
 
 router.get('/plan', requireAuth, soloEncargado, async (req, res) => {
   try {
@@ -329,7 +331,7 @@ router.get('/plan', requireAuth, soloEncargado, async (req, res) => {
     const hasta = esFecha(req.query.hasta) ? req.query.hasta : hoy;
 
     const { rows } = await pool.query(
-      `${SELECT_FACTURAS} WHERE f.vencimiento <= $1::date ORDER BY f.vencimiento, f.id`, [hasta]
+      `${SELECT_FACTURAS} WHERE f.fecha <= $1::date ORDER BY f.fecha, f.id`, [hasta]
     );
     const facturas = rows.map(armarFactura).filter(f => f.saldo > 0);
 
@@ -352,9 +354,7 @@ router.get('/plan', requireAuth, soloEncargado, async (req, res) => {
       g.facturas.push(f);
     }
 
-    const grupos = [...porProveedor.values()]
-      .map(g => ({ ...g, cobra_despues: !!(g.proximo_dia_pago && g.proximo_dia_pago > hasta) }))
-      .sort((a, b) => b.total - a.total);
+    const grupos = [...porProveedor.values()].sort((a, b) => b.total - a.total);
 
     res.json({
       ok: true,

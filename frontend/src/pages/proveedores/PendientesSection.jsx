@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import {
-  plata, money, Tile, ChipVencimiento, ModalPago, Modal, Selector,
-  hoyStr, sumarDias, fechaCorta, finDeSemana, listaDias,
+  plata, money, Tile, ChipAntiguedad, ModalPago, Modal, Selector,
+  hoyStr, diasHasta, fechaCorta, listaDias,
 } from './comunes';
+
+// Lo que importa es cuántos días lleva cada factura sin pagar, contados desde su
+// fecha. El vencimiento se calcula igual por atrás pero acá no se muestra: el dueño
+// pidió sacarlo.
+const DIAS_VIEJA = 30;
 
 const FILTROS = [
   { id: 'todas',     label: 'Todas' },
-  { id: 'vencidas',  label: 'Vencidas' },
-  { id: 'semana',    label: 'Vencen esta semana' },
+  { id: 'viejas',    label: `Más de ${DIAS_VIEJA} días` },
   { id: 'parciales', label: 'Pagadas a medias' },
 ];
 
@@ -25,9 +29,6 @@ function ModalFacturaManual({ proveedores, locales, onGuardar, onCerrar }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
-  const prov  = proveedores.find(p => String(p.id) === String(f.proveedor_id));
-  const vence = prov ? sumarDias(f.fecha, prov.plazo_dias) : f.fecha;
-
   function editarItem(i, campo, v) {
     setF(x => ({ ...x, items: x.items.map((it, idx) => idx === i ? { ...it, [campo]: v } : it) }));
   }
@@ -37,9 +38,9 @@ function ModalFacturaManual({ proveedores, locales, onGuardar, onCerrar }) {
     setGuardando(true);
     setError('');
     try {
+      // El vencimiento lo calcula el servidor con el plazo de la ficha.
       await onGuardar({
         ...f,
-        vencimiento: vence,
         items: f.items.filter(i => i.producto?.trim()),
       });
     } catch (err) {
@@ -93,21 +94,12 @@ function ModalFacturaManual({ proveedores, locales, onGuardar, onCerrar }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Fecha de la factura</label>
-          <input
-            type="date" className="input" value={f.fecha}
-            onChange={e => setF(x => ({ ...x, fecha: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="label">Vence</label>
-          <input className="input bg-ahg-bg" value={fechaCorta(vence)} readOnly />
-          <p className="text-xs text-ahg-text/50 mt-1">
-            {prov?.plazo_dias === 0 ? 'Cobra contado.' : `Sale de los ${prov?.plazo_dias} días de la ficha.`}
-          </p>
-        </div>
+      <div>
+        <label className="label">Fecha de la factura</label>
+        <input
+          type="date" className="input" value={f.fecha}
+          onChange={e => setF(x => ({ ...x, fecha: e.target.value }))}
+        />
       </div>
 
       <div>
@@ -172,8 +164,7 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
   const [pagando, setPagando] = useState(null);
   const [manual, setManual]   = useState(false);
 
-  // Las tildadas para pagar juntas. Se elige a mano, factura por factura, sin que el
-  // vencimiento limite nada: la fecha en que "debería" pagarse es un dato, no una regla.
+  // Las tildadas para pagar juntas. Se elige a mano, factura por factura.
   const [elegidas, setElegidas] = useState(new Set());
   const [pagandoVarias, setPagandoVarias] = useState(false);
 
@@ -211,16 +202,13 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
     onCambio?.();
   }
 
-  const hoy  = hoyStr();
-  const finS = finDeSemana();
-
-  const vencidas = facturas.filter(f => f.vencimiento && f.vencimiento < hoy);
-  const semana   = facturas.filter(f => f.vencimiento && f.vencimiento >= hoy && f.vencimiento <= finS);
+  const antiguedad = f => -diasHasta(f.fecha);
+  const viejas   = facturas.filter(f => antiguedad(f) > DIAS_VIEJA);
+  const masVieja = facturas.reduce((m, f) => Math.max(m, antiguedad(f)), 0);
   const deuda    = facturas.reduce((s, f) => s + f.saldo, 0);
 
   let lista = facturas;
-  if (filtro === 'vencidas')  lista = vencidas;
-  if (filtro === 'semana')    lista = semana;
+  if (filtro === 'viejas')    lista = viejas;
   if (filtro === 'parciales') lista = facturas.filter(f => f.pagado > 0);
   if (provFiltro)  lista = lista.filter(f => String(f.proveedor_id) === String(provFiltro));
   if (localFiltro) lista = lista.filter(f => String(f.local_id) === String(localFiltro));
@@ -247,12 +235,12 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Tile titulo="Deuda total" valor={plata(deuda)}
               detalle={`${facturas.length} factura${facturas.length === 1 ? '' : 's'} sin cerrar`} />
-        <Tile titulo="Vencido" tono="alerta"
-              valor={plata(vencidas.reduce((s, f) => s + f.saldo, 0))}
-              detalle={`${vencidas.length} pasada${vencidas.length === 1 ? '' : 's'} de fecha`} />
-        <Tile titulo="Vence esta semana" tono="aviso"
-              valor={plata(semana.reduce((s, f) => s + f.saldo, 0))}
-              detalle={`${semana.length} hasta el domingo`} />
+        <Tile titulo={`Más de ${DIAS_VIEJA} días`} tono="alerta"
+              valor={plata(viejas.reduce((s, f) => s + f.saldo, 0))}
+              detalle={`${viejas.length} factura${viejas.length === 1 ? '' : 's'} de hace más de un mes`} />
+        <Tile titulo="La más vieja" tono="aviso"
+              valor={masVieja ? `${masVieja} días` : '—'}
+              detalle="sin pagar desde su fecha" />
         <Tile titulo="Proveedores con deuda" tono="normal"
               valor={new Set(facturas.map(f => f.proveedor)).size}
               detalle="de los que hay cargados" />
@@ -289,7 +277,7 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
               <th className="table-th">Proveedor</th>
               <th className="table-th">Factura</th>
               <th className="table-th">Local</th>
-              <th className="table-th">Vence</th>
+              <th className="table-th">Hace</th>
               <th className="table-th text-right">Total</th>
               <th className="table-th text-right">Pagado</th>
               <th className="table-th text-right">Saldo</th>
@@ -318,7 +306,7 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
                   <span className="block text-xs text-ahg-text/40">del {fechaCorta(f.fecha)}</span>
                 </td>
                 <td className="table-td">{f.local_nombre}</td>
-                <td className="table-td"><ChipVencimiento vencimiento={f.vencimiento} /></td>
+                <td className="table-td"><ChipAntiguedad fecha={f.fecha} /></td>
                 <td className="table-td text-right tabular-nums">{plata(f.total)}</td>
                 <td className="table-td text-right tabular-nums">
                   {f.pagado > 0

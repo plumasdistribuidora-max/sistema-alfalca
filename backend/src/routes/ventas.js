@@ -29,6 +29,14 @@ function parseExcelDate(val) {
   return null;
 }
 
+// La columna `fecha` de ventas_tickets es un DATE, y las fechas del Excel vienen como
+// medianoche UTC. Si se manda el Date tal cual, pg lo escribe en la hora del proceso
+// (Mendoza, tres horas atrás) y Postgres se queda con el día anterior: un import
+// entero corrido un día. Se manda el YYYY-MM-DD en UTC, que es el día que dice el Excel.
+function soloFecha(d) {
+  return d instanceof Date && !isNaN(d) ? d.toISOString().slice(0, 10) : null;
+}
+
 function normalizeEstado(val) {
   if (!val) return 'cerrada';
   const v = val.toString().toLowerCase().trim();
@@ -274,7 +282,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
               updated_at        = NOW()
             RETURNING id, (xmax = 0) AS inserted
           `, [
-            local_id, posId, fecha, creacion, cerrada,
+            local_id, posId, soloFecha(fecha), creacion, cerrada,
             getCol(row, 'caja') || null, estado,
             getCol(row, 'cliente') || null,
             getCol(row, 'mesa') || null,
@@ -345,7 +353,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
               updated_at        = NOW()
             RETURNING id, (xmax = 0) AS inserted
           `, [
-            local_id, t.pos_id, t.fecha, t.fecha, null,
+            local_id, t.pos_id, soloFecha(t.fecha), t.fecha, null,
             t.caja, 'cerrada',
             null, t.mesa, t.sala, null, null, null,
             t.medio_pago, Math.round(t.total * 100) / 100, false,

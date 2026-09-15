@@ -74,6 +74,27 @@ const HIJAS = [
       `, [IMPORTS]);
       console.log(`Tickets con la hora corregida: ${t.rowCount}`);
 
+      // Al borrar un import, sus renglones quedan huérfanos (ticket_id NULL) y algunos
+      // tienen la misma clave única que van a tener los nuestros al restar las 3 horas.
+      // Se sacan solo los que chocan: no pertenecen a ningún ticket.
+      const hi = await client.query(`
+        DELETE FROM ventas_items o
+        USING ventas_items i JOIN ventas_tickets tk ON tk.id = i.ticket_id
+        WHERE tk.archivo_import_id = ANY($1) AND o.ticket_id IS NULL
+          AND o.local_id = i.local_id AND o.pos_ticket_id = i.pos_ticket_id
+          AND o.producto_nombre_raw = i.producto_nombre_raw
+          AND o.fecha_creacion = i.fecha_creacion - interval '3 hours'
+      `, [IMPORTS]);
+      const hp = await client.query(`
+        DELETE FROM ventas_pagos o
+        USING ventas_pagos p JOIN ventas_tickets tk ON tk.id = p.ticket_id
+        WHERE tk.archivo_import_id = ANY($1) AND o.ticket_id IS NULL
+          AND o.local_id = p.local_id AND o.pos_ticket_id = p.pos_ticket_id
+          AND o.medio_pago IS NOT DISTINCT FROM p.medio_pago AND o.monto = p.monto
+          AND o.fecha_pago = p.fecha_pago - interval '3 hours'
+      `, [IMPORTS]);
+      console.log(`Huérfanos que estorbaban, borrados: ${hi.rowCount} ítems, ${hp.rowCount} pagos`);
+
       for (const [tabla, col] of HIJAS) {
         const h = await client.query(`
           UPDATE ${tabla} x SET ${col} = x.${col} - interval '3 hours'

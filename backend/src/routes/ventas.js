@@ -16,15 +16,32 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Convención de toda la base: la hora del Excel (hora de Mendoza) se guarda tal cual,
+// como si fuera UTC. "17:42" en Fudo queda "17:42+00". Así están todos los tickets
+// desde el principio y así los lee el análisis hora por hora.
+//
+// SheetJS arma los Date con la zona del proceso. Cuando el servidor corría en UTC eso
+// daba la convención sola; desde que vive en hora de Mendoza, el mismo "17:42" salía
+// como 20:42 UTC. Por eso se reconstruye el Date con los componentes locales como UTC,
+// independiente de la zona en que corra el proceso.
+function comoUTC(d) {
+  return new Date(Date.UTC(
+    d.getFullYear(), d.getMonth(), d.getDate(),
+    d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds(),
+  ));
+}
+
 function parseExcelDate(val) {
   if (!val) return null;
-  if (val instanceof Date) return isNaN(val) ? null : val;
+  if (val instanceof Date) return isNaN(val) ? null : comoUTC(val);
   if (typeof val === 'number') {
     return new Date(Math.round((val - 25569) * 86400 * 1000));
   }
   if (typeof val === 'string' && val.trim()) {
     const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d;
+    if (isNaN(d.getTime())) return null;
+    // "2026-09-15" solo ya es medianoche UTC; "9/15/26 10:30" se parsea en hora local.
+    return /^\d{4}-\d{2}-\d{2}$/.test(val.trim()) ? d : comoUTC(d);
   }
   return null;
 }

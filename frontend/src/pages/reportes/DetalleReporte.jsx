@@ -203,6 +203,12 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
         </div>
 
         <div className="px-5 py-3">
+          {r.estado === 'observado' && r.observacion && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3 text-sm">
+              <p className="font-semibold text-red-800">Devuelto · esperando la corrección</p>
+              <p className="text-red-700 mt-0.5 whitespace-pre-line">“{r.observacion.comentario}”</p>
+            </div>
+          )}
           <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1">Turno</p>
           <p className="text-sm mb-2">{r.turno}</p>
 

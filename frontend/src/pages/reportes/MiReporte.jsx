@@ -6,6 +6,12 @@ import Campo, { soloNumero } from './campos';
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
+function hoyStr() {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
+const fechaLarga = f => FECHA_LARGA.format(new Date(`${f}T12:00:00`));
+
 // Las fotos salen de la cámara del celular a 4000px y 5 MB. Se achican acá para que
 // la carga no dependa de la señal que haya en el local.
 function comprimir(file, maxLado = 1600, calidad = 0.8) {
@@ -131,6 +137,39 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
   );
 }
 
+// Aviso de lo que quedó por resolver de otros días. Un reporte devuelto por el
+// encargado, o uno que se empezó y nunca se envió, no aparece en la pantalla de hoy:
+// desde acá se abre para corregirlo o terminarlo.
+function Pendientes({ lista, onAbrir }) {
+  if (!lista.length) return null;
+  return (
+    <div className="card p-4 mb-4 border-amber-300 bg-amber-50 space-y-2">
+      <p className="text-sm font-semibold text-amber-800">
+        {lista.length === 1 ? 'Tenés un reporte por resolver' : `Tenés ${lista.length} reportes por resolver`}
+      </p>
+      {lista.map(p => (
+        <div key={p.id} className="bg-white rounded-lg border border-amber-200 p-3 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">
+              {p.local_nombre} · turno {p.turno.toLowerCase()} · {fechaLarga(p.fecha)}
+            </p>
+            {p.estado === 'observado' ? (
+              <p className="text-xs text-red-700 mt-0.5">
+                Devuelto por el encargado{p.observacion?.comentario && <>: “{p.observacion.comentario}”</>}
+              </p>
+            ) : (
+              <p className="text-xs text-ahg-text/50 mt-0.5">Quedó empezado y sin enviar</p>
+            )}
+          </div>
+          <button onClick={() => onAbrir(p)} className="btn-primary !py-1.5 !px-3 text-sm flex-shrink-0">
+            {p.estado === 'observado' ? 'Corregir' : 'Terminar'}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // En la lista de locales, el café y la cocina comparten edificio: se distinguen por el
 // nombre del formulario. Las tiendas se distinguen solas por el nombre del local.
 const plantilla_es_sector = o => o.plantilla_codigo !== 'tienda';
@@ -156,18 +195,33 @@ export default function MiReporte() {
   const [modalFactura, setModalFactura] = useState(false);
   const [proveedores, setProveedores] = useState([]);
 
+  // Reportes de otros días que quedaron por resolver (devueltos o sin enviar), y cuál
+  // de ellos está abierto en pantalla en vez del de hoy.
+  const [pendientes,  setPendientes]  = useState([]);
+  const [corrigiendo, setCorrigiendo] = useState(null);
+
   const debounce = useRef(null);
 
+  function cargarPendientes() {
+    api.get('/reportes/pendientes')
+      .then(r => setPendientes(r.data.data))
+      .catch(() => {});
+  }
+
   // Carga la pantalla para un local y formulario. Sin argumentos, el backend elige:
-  // lo que ya venía cargando hoy, o si no el local propio.
-  async function cargar(opcion) {
+  // lo que ya venía cargando hoy, o si no el local propio. Con un pendiente, abre ese
+  // reporte puntual de otro día.
+  async function cargar(opcion, pendiente = null) {
     setCargando(true);
     clearTimeout(debounce.current);
     try {
       const params = opcion ? { local_id: opcion.local_id, plantilla: opcion.plantilla_codigo } : {};
+      if (pendiente) params.fecha = pendiente.fecha;
       const r = await api.get('/reportes/mio', { params });
       setData(r.data.data);
-      const previo = r.data.data.reportes[0];
+      setCorrigiendo(pendiente);
+      const reportes = r.data.data.reportes;
+      const previo = (pendiente && reportes.find(x => x.id === pendiente.id)) || reportes[0];
       setTurno(previo?.turno || '');
       setRespuestas(previo?.respuestas || {});
       setReporteId(previo?.id || null);
@@ -183,7 +237,13 @@ export default function MiReporte() {
     }
   }
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargar(); cargarPendientes(); }, []);
+
+  function abrirPendiente(p) {
+    cargar({ local_id: p.local_id, plantilla_codigo: p.plantilla_codigo }, p);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function volverAHoy() { cargar(); }
 
   // Cambiar de local es cambiar de reporte: se descarta lo que había en pantalla (ya
   // quedó guardado como borrador de ese otro local) y se carga el del elegido.
@@ -300,6 +360,7 @@ export default function MiReporte() {
       if (!id) return;
       await api.post(`/reportes/${id}/enviar`);
       setEnviado(true);
+      cargarPendientes();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       const d = err.response?.data;
@@ -323,10 +384,15 @@ export default function MiReporte() {
   }
 
   const { plantilla, local, fecha, opciones = [], otros = [] } = data;
-  const fechaTxt = FECHA_LARGA.format(new Date(`${fecha}T12:00:00`));
+  const fechaTxt = fechaLarga(fecha);
+  const esHoy = fecha === hoyStr();
   const claveActual = `${local?.id}:${plantilla.codigo}`;
-  // Con una sola opción no hay nada que elegir: se muestra el local y listo.
-  const eligeLocal = opciones.length > 1;
+  // Con una sola opción no hay nada que elegir: se muestra el local y listo. Y al
+  // corregir un reporte de otro día tampoco: el local y el turno ya están fijados.
+  const eligeLocal = opciones.length > 1 && !corrigiendo;
+  const observacion = data.reportes?.find(r => r.id === reporteId)?.observacion || corrigiendo?.observacion;
+  // Los pendientes que no son el que está abierto ahora.
+  const otrosPendientes = pendientes.filter(p => p.id !== reporteId);
   const etiquetaOpcion = o => plantilla_es_sector(o) ? `${o.plantilla_nombre} · ${o.local_nombre}` : o.local_nombre;
   const campoTurno = plantilla.campos.find(c => c.tipo === 'seleccion' && c.codigo === 'turno');
   const resto = plantilla.campos.filter(c => c.codigo !== 'turno');
@@ -346,15 +412,21 @@ export default function MiReporte() {
         <div className="card p-6 text-center border-green-300 bg-green-50">
           <p className="text-4xl mb-2">✓</p>
           <h1 className="text-lg font-bold text-green-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
-            Reporte enviado
+            {corrigiendo ? 'Reporte corregido y enviado' : 'Reporte enviado'}
           </h1>
           <p className="text-sm text-green-700 mt-1">
             {local?.nombre}, turno {turno.toLowerCase()} del {fechaTxt}. Ya le llegó al encargado.
           </p>
         </div>
+        {corrigiendo && (
+          <button onClick={volverAHoy} className="btn-primary w-full">
+            Ir al reporte de hoy
+          </button>
+        )}
         <button onClick={() => setEnviado(false)} className="btn-secondary w-full">
           Ver mi reporte
         </button>
+        <Pendientes lista={otrosPendientes} onAbrir={abrirPendiente} />
         {eligeLocal && (
           <div className="card p-4">
             <p className="text-sm text-ahg-text/70 mb-2">¿Trabajaste también en otro local hoy?</p>
@@ -375,17 +447,34 @@ export default function MiReporte() {
   return (
     <div className={`max-w-lg mx-auto pb-24 transition-opacity ${cargando ? 'opacity-50 pointer-events-none' : ''}`}>
       {/* Cabecera con lo que no se tipea */}
-      <div className="rounded-2xl px-5 py-4 mb-4" style={{ background: '#4C1D95' }}>
+      <div className="rounded-2xl px-5 py-4 mb-4" style={{ background: corrigiendo ? '#7F1D1D' : '#4C1D95' }}>
         <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>
-          {fechaTxt}
+          {corrigiendo ? `Corrigiendo · ${fechaTxt}` : fechaTxt}
         </p>
         <h1 className="text-lg font-bold text-white mt-0.5" style={{ fontFamily: 'Nunito, sans-serif' }}>
           {plantilla.nombre}
         </h1>
         <p className="text-white/70 text-sm">{user?.nombre} · {local?.nombre}</p>
+        {corrigiendo && (
+          <button onClick={volverAHoy} className="mt-2 text-sm text-white/80 underline underline-offset-2">
+            ← Volver al reporte de hoy
+          </button>
+        )}
       </div>
 
       {error && <div className="card px-4 py-3 mb-4 border-red-300 bg-red-50 text-red-700 text-sm">{error}</div>}
+
+      {observacion && (
+        <div className="card px-4 py-3 mb-4 border-red-300 bg-red-50">
+          <p className="text-sm font-semibold text-red-800">
+            {observacion.encargado} te lo devolvió para corregir:
+          </p>
+          <p className="text-sm text-red-700 mt-1 whitespace-pre-line">“{observacion.comentario}”</p>
+          <p className="text-xs text-red-700/70 mt-2">Corregí lo que haga falta y volvé a tocar Enviar.</p>
+        </div>
+      )}
+
+      {!corrigiendo && <Pendientes lista={otrosPendientes} onAbrir={abrirPendiente} />}
 
       {faltan.length > 0 && (
         <div className="card px-4 py-3 mb-4 border-amber-300 bg-amber-50">
@@ -398,7 +487,7 @@ export default function MiReporte() {
 
       {otros.length > 0 && (
         <div className="card px-4 py-3 mb-4 border-ahg-accent bg-ahg-accent/10 text-sm text-ahg-text/80">
-          Hoy también cargaste: {otros.map(o => `${o.local_nombre} (${o.turno.toLowerCase()}, ${o.estado})`).join(' · ')}.
+          {esHoy ? 'Hoy' : 'Ese día'} también cargaste: {otros.map(o => `${o.local_nombre} (${o.turno.toLowerCase()}, ${o.estado})`).join(' · ')}.
         </div>
       )}
 
@@ -419,9 +508,14 @@ export default function MiReporte() {
           </div>
         )}
 
-        {campoTurno && (
+        {campoTurno && (corrigiendo ? (
+          <div className="mb-4">
+            <label className="label">{campoTurno.label}</label>
+            <p className="text-sm font-semibold">{turno}</p>
+          </div>
+        ) : (
           <Campo campo={campoTurno} valor={turno} onChange={(_, v) => elegirTurno(v)} ctx={ctx} />
-        )}
+        ))}
 
         {!turno ? (
           <p className="text-sm text-ahg-text/50 text-center py-6 border-t border-ahg-accent/30">
@@ -446,7 +540,7 @@ export default function MiReporte() {
               {guardando ? 'Guardando…' : 'Guardado'}
             </span>
             <button onClick={enviar} disabled={enviando} className="btn-primary flex-1">
-              {enviando ? 'Enviando…' : 'Enviar al Encargado'}
+              {enviando ? 'Enviando…' : corrigiendo ? 'Enviar corregido' : 'Enviar al Encargado'}
             </button>
           </div>
         </div>

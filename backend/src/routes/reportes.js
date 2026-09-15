@@ -172,6 +172,18 @@ async function adjuntosDe(reporteId) {
   return rows;
 }
 
+// Lo último que dijo el encargado al devolverlo. Es lo que la persona tiene que leer
+// para saber qué corregir; sin esto el "Devuelto" no le dice nada.
+async function observacionDe(reporteId) {
+  const { rows } = await pool.query(`
+    SELECT rv.comentario, rv.created_at, u.nombre AS encargado
+    FROM reporte_revisiones rv JOIN usuarios u ON u.id = rv.usuario_id
+    WHERE rv.reporte_id = $1 AND rv.accion = 'observo'
+    ORDER BY rv.created_at DESC LIMIT 1
+  `, [reporteId]);
+  return rows[0] || null;
+}
+
 async function facturasDe(reporteId) {
   const { rows } = await pool.query(`
     SELECT f.id, f.proveedor, f.proveedor_id, f.numero, f.fecha, f.vencimiento, f.total,
@@ -318,8 +330,9 @@ router.get('/mio', requireAuth, async (req, res) => {
     );
     const conExtras = await Promise.all(propios.map(async r => ({
       ...r,
-      adjuntos: await adjuntosDe(r.id),
-      facturas: elegida.plantilla_codigo === 'cafe' ? await facturasDe(r.id) : [],
+      adjuntos:    await adjuntosDe(r.id),
+      facturas:    elegida.plantilla_codigo === 'cafe' ? await facturasDe(r.id) : [],
+      observacion: r.estado === 'observado' ? await observacionDe(r.id) : null,
     })));
 
     res.json({
@@ -357,6 +370,36 @@ router.get('/mis-reportes', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[reportes/mis-reportes]', err);
     res.status(500).json({ ok: false, error: 'Error al obtener tus reportes' });
+  }
+});
+
+// ── GET /pendientes ───────────────────────────────────────────────────────────
+// Lo que esta persona tiene que resolver de días anteriores: reportes que el encargado
+// devolvió (de cualquier fecha) y borradores viejos que quedaron sin enviar. La
+// pantalla del día solo muestra hoy; sin esta lista, un reporte devuelto ayer no se
+// puede encontrar para corregirlo.
+
+router.get('/pendientes', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.id, r.fecha::text, r.turno, r.estado, r.local_id, r.plantilla_codigo,
+             l.nombre AS local_nombre, p.nombre AS plantilla_nombre
+      FROM reportes r
+      JOIN locales l ON l.id = r.local_id
+      JOIN reporte_plantillas p ON p.codigo = r.plantilla_codigo
+      WHERE r.usuario_id = $1
+        AND (r.estado = 'observado' OR (r.estado = 'borrador' AND r.fecha < $2))
+      ORDER BY r.fecha DESC, r.id DESC
+    `, [req.user.id, hoyStr()]);
+
+    const data = await Promise.all(rows.map(async r => ({
+      ...r,
+      observacion: r.estado === 'observado' ? await observacionDe(r.id) : null,
+    })));
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('[reportes/pendientes]', err);
+    res.status(500).json({ ok: false, error: 'Error al buscar tus reportes pendientes' });
   }
 });
 
@@ -766,8 +809,9 @@ router.get('/:id', requireAuth, async (req, res) => {
         ...rows[0],
         plantilla,
         equipo,
-        adjuntos: await adjuntosDe(rows[0].id),
-        facturas: await facturasDe(rows[0].id),
+        adjuntos:    await adjuntosDe(rows[0].id),
+        facturas:    await facturasDe(rows[0].id),
+        observacion: rows[0].estado === 'observado' ? await observacionDe(rows[0].id) : null,
       },
     });
   } catch (err) {

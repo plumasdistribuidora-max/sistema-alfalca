@@ -816,10 +816,33 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         muestra la diferencia en ámbar. No te frena: te avisa, para que revises antes de mandarla.
       </p>
 
+      <h3>Si el encargado te lo devuelve, o te quedó sin enviar</h3>
+      <p>
+        La pantalla siempre abre el reporte de <em>hoy</em>. Pero si tenés algo de otro día
+        por resolver, arriba de todo aparece un cartel amarillo: <strong>Tenés un reporte por
+        resolver</strong>. Hay dos casos:
+      </p>
+      <ul class="simple">
+        <li><strong>Devuelto por el encargado.</strong> Se ve el comentario con qué tenés que
+        corregir y un botón <em>Corregir</em>. Al tocarlo se abre ese reporte (con su fecha y su
+        turno, que no se pueden cambiar), con el comentario del encargado arriba en rojo.
+        Arreglás lo que haga falta y tocás <em>Enviar corregido</em>. Le vuelve a llegar al
+        encargado como Presentado.</li>
+        <li><strong>Quedó empezado y sin enviar.</strong> Empezaste un reporte un día y no lo
+        mandaste. Aparece con un botón <em>Terminar</em>: lo abrís, completás lo que falte y lo
+        enviás.</li>
+      </ul>
+      <p>
+        Mientras estás corrigiendo, la cabecera se pone roja y dice <em>Corrigiendo</em> con la
+        fecha de ese reporte, para que no lo confundas con el de hoy. Con
+        <em>← Volver al reporte de hoy</em> salís sin perder nada: lo que cambiaste ya quedó
+        guardado.
+      </p>
+
       <div class="aviso ojo">
         <span class="mk">⚠</span>
-        <p>Si el encargado te devuelve el reporte, lo vas a ver de nuevo abierto, con el
-        comentario de qué tenés que corregir. Lo arreglás y lo volvés a enviar.</p>
+        <p>Si ya lo enviaste y te diste cuenta de un error, no lo podés tocar vos: pedile al
+        encargado que te lo devuelva. Cuando lo haga, te va a aparecer el cartel para corregirlo.</p>
       </div>
     </section>
 
@@ -932,7 +955,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
           <thead><tr><th>Estado</th><th>Qué significa</th></tr></thead>
           <tbody>
             <tr><td><strong>Sin cargar</strong></td><td>Nadie tocó nada todavía.</td></tr>
-            <tr><td><strong>Empezado</strong></td><td>Lo empezaron pero no lo mandaron. Vos todavía no lo podés abrir.</td></tr>
+            <tr><td><strong>Empezado</strong></td><td>Lo empezaron pero no lo mandaron. Todavía no lo podés revisar. Si quedó así de un día anterior, a la persona le aparece un aviso para terminarlo la próxima vez que entre.</td></tr>
             <tr><td><strong>Presentado</strong></td><td>Llegó y está esperando que lo revises.</td></tr>
             <tr><td><strong>Devuelto</strong></td><td>Lo mandaste para atrás con un comentario. La persona lo tiene que corregir.</td></tr>
             <tr><td><strong>Aprobado</strong></td><td>Listo. Ya no se toca.</td></tr>
@@ -949,7 +972,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </p>
       <ul class="simple">
         <li><strong>Aprobar</strong> — queda cerrado y cuenta para el consolidado.</li>
-        <li><strong>Devolver</strong> — vuelve a la persona para que lo corrija. <strong>Tenés que escribir el comentario</strong>: sin comentario no te deja devolverlo.</li>
+        <li><strong>Devolver</strong> — vuelve a la persona para que lo corrija. <strong>Tenés que escribir el comentario</strong>: sin comentario no te deja devolverlo. La próxima vez que esa persona entre al sistema, aunque sea otro día, le aparece el aviso con tu comentario y un botón para corregirlo. Cuando lo reenvía, vuelve a Presentado y lo revisás de nuevo. Si volvés a abrir un reporte devuelto antes de que lo corrijan, arriba se ve el comentario que dejaste.</li>
       </ul>
     </section>
 
@@ -1697,6 +1720,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <tr>
               <td><strong>No me deja enviar el reporte</strong></td>
               <td>Falta algo obligatorio. El cartel amarillo de arriba te dice exactamente qué.</td>
+            </tr>
+            <tr>
+              <td><strong>Me equivoqué en un reporte que ya envié</strong></td>
+              <td>Vos no lo podés tocar: pedile al encargado que te lo devuelva. Cuando lo haga, entrás al sistema y arriba te aparece el cartel <em>Tenés un reporte por resolver</em> con el botón <em>Corregir</em>, aunque sea otro día.</td>
             </tr>
             <tr>
               <td><strong>No me deja cerrar el día</strong></td>

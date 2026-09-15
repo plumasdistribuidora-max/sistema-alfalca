@@ -1,4 +1,8 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
+
+// El proceso entero vive en hora de Mendoza. Railway corre en UTC y cualquier
+// `new Date()` que saque el día, el mes o el año se corría tres horas.
+process.env.TZ = 'America/Argentina/Mendoza';
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');

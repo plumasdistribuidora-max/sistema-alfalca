@@ -3,6 +3,7 @@
 const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
+const { hoyStr } = require('../utils/fechas');
 
 const router = express.Router();
 
@@ -14,10 +15,6 @@ const soloEncargado = requireRol(ROLES.ENCARGADO_GENERAL);
 const MEDIOS = ['santander', 'mp', 'galicia', 'efectivo', 'cheque'];
 const n = v => Number(v) || 0;
 
-function hoyStr() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-}
 const esFecha = f => /^\d{4}-\d{2}-\d{2}$/.test(String(f || ''));
 
 // Suma los pagos de cada factura para saber el saldo. Va como subconsulta y no como

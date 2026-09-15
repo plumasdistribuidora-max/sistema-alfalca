@@ -1,5 +1,6 @@
 const express = require('express');
 const pool    = require('../config/db');
+const { hoyStr } = require('../utils/fechas');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 
 const router = express.Router();
@@ -138,8 +139,7 @@ router.put('/:id/valor-hora', requireAuth, puedeAdministrar, async (req, res) =>
     const existe = await pool.query('SELECT 1 FROM empleados WHERE id = $1', [req.params.id]);
     if (!existe.rowCount) return res.status(404).json({ ok: false, error: 'Empleado no encontrado' });
 
-    const t = new Date();
-    const hoy = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    const hoy = hoyStr();
 
     await pool.query(`
       INSERT INTO valor_hora_empleado (empleado_id, valor_hora, vigente_desde)

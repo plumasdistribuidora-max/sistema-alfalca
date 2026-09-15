@@ -1,5 +1,6 @@
 const express = require('express');
 const pool    = require('../config/db');
+const { hoyStr } = require('../utils/fechas');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -13,12 +14,9 @@ const DIA_NOMBRE = {
   5: 'Viernes', 6: 'Sábado', 7: 'Domingo',
 };
 
-function firstOfMonth() {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`;
-}
+function firstOfMonth() { return `${hoyStr().slice(0, 7)}-01`; }
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() { return hoyStr(); }
 
 function isValidDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));

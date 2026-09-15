@@ -4,6 +4,7 @@ const express = require('express');
 const multer  = require('multer');
 const xlsx    = require('xlsx');
 const pool    = require('../config/db');
+const { hoyStr } = require('../utils/fechas');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -43,10 +44,7 @@ function toDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
-function todayStr() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-}
+function todayStr() { return hoyStr(); }
 
 function addDay(yyyymmdd) {
   const [y, m, d] = yyyymmdd.split('-').map(Number);

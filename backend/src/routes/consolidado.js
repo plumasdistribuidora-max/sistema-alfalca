@@ -1,13 +1,10 @@
 const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
+const { hoyStr } = require('../utils/fechas');
 
 const router = express.Router();
 
-function hoyStr() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-}
 
 const n = v => Number(v) || 0;
 

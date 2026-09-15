@@ -3,6 +3,7 @@ const multer  = require('multer');
 const pool    = require('../config/db');
 const { uploadToR2, getFromR2 } = require('../config/r2');
 const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/auth');
+const { hoyStr } = require('../utils/fechas');
 
 const router = express.Router();
 
@@ -18,6 +19,8 @@ const upload = multer({
 });
 
 const ESTADOS = ['borrador', 'enviado', 'observado', 'aprobado'];
+// Cuánto "avanzó" cada estado, para elegir cuál mostrar cuando hay más de uno.
+const PESO_ESTADO = { borrador: 0, observado: 1, enviado: 2, aprobado: 3 };
 const EDITABLES = ['borrador', 'observado'];
 
 // La plantilla que le toca a cada rol cuando reporta en su propio sector.
@@ -78,10 +81,6 @@ async function equipoDe(localId) {
   return rows;
 }
 
-function hoyStr() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-}
 
 function esDeRed(user) { return ROLES_RED.includes(user.rol); }
 
@@ -738,9 +737,11 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
         if (!p) continue;
         const turnos = p.campos.find(c => c.codigo === 'turno')?.opciones || ['Único'];
         for (const turno of turnos) {
-          const reporte = cargados.find(r =>
-            r.local_id === local.id && r.plantilla_codigo === p.codigo && r.turno === turno
-          ) || null;
+          // Si dos personas cargaron el mismo turno (una lo empezó y otra lo terminó), se
+          // muestra el más avanzado: un borrador ajeno no puede tapar un reporte enviado.
+          const reporte = cargados
+            .filter(r => r.local_id === local.id && r.plantilla_codigo === p.codigo && r.turno === turno)
+            .sort((a, b) => PESO_ESTADO[b.estado] - PESO_ESTADO[a.estado] || b.id - a.id)[0] || null;
           slots.push({
             plantilla_codigo: p.codigo,
             plantilla_nombre: p.nombre,

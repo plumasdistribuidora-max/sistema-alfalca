@@ -284,8 +284,10 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
                 </td>
                 <td className="table-td text-right tabular-nums font-semibold">{plata(f.saldo)}</td>
                 <td className="table-td text-xs text-ahg-text/50">
-                  {f.origen === 'formulario' ? 'Formulario' : 'A mano'}
-                  {f.cargada_por && <span className="block">{f.cargada_por}</span>}
+                  {f.origen === 'formulario' ? 'Formulario' : f.origen === 'planilla' ? 'Planilla' : 'A mano'}
+                  {f.origen === 'planilla'
+                    ? <span className="block">{f.importado_de}</span>
+                    : f.cargada_por && <span className="block">{f.cargada_por}</span>}
                 </td>
                 <td className="table-td text-right">
                   <button className="btn-primary text-xs px-3 py-1.5" onClick={() => setPagando(f)}>

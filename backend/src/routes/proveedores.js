@@ -22,7 +22,7 @@ const esFecha = f => /^\d{4}-\d{2}-\d{2}$/.test(String(f || ''));
 // consultas, y anidar dos agregados sobre la misma fila trae el doble de todo.
 const SELECT_FACTURAS = `
   SELECT f.id, f.numero, f.fecha::text AS fecha, f.vencimiento::text AS vencimiento,
-         f.total, f.local_id, f.reporte_id,
+         f.total, f.local_id, f.reporte_id, f.importado_de,
          f.proveedor AS proveedor_texto,
          f.proveedor_id,
          COALESCE(p.nombre, f.proveedor) AS proveedor,
@@ -54,8 +54,10 @@ function armarFactura(row) {
     medio_pago: row.medio_pago || 'santander',
     dias_pago: row.dias_pago || [1, 2, 3, 4, 5],
     cargada_por: row.cargada_por,
-    // Si vino de un reporte de turno, la cargó quien hizo el turno; si no, el encargado.
-    origen: row.reporte_id ? 'formulario' : 'manual',
+    // Si vino de un reporte de turno, la cargó quien hizo el turno; si vino de una
+    // planilla, dice de qué hoja y fila; si no, la cargó el encargado a mano.
+    origen: row.reporte_id ? 'formulario' : row.importado_de ? 'planilla' : 'manual',
+    importado_de: row.importado_de || null,
   };
 }
 

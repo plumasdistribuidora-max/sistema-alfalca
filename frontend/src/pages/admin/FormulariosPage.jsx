@@ -137,7 +137,9 @@ function Campo({ campo, i, total, onChange, onMover, onBorrar }) {
                     codigo: campo.subcampos?.[k]?.codigo
                       || l.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
                            .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || `campo_${k}`,
-                    label: l, tipo: 'texto',
+                    label: l,
+                    tipo: campo.subcampos?.[k]?.tipo || 'texto',
+                    ...(campo.subcampos?.[k]?.opciones ? { opciones: campo.subcampos[k].opciones } : {}),
                   })))}
                   placeholder="Ej: Producto"
                 />

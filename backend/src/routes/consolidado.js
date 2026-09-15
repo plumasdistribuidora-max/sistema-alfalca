@@ -166,7 +166,7 @@ async function armarDia(fecha) {
     };
   }
 
-  const novedades = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [] };
+  const novedades = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [], gastos: [] };
   const horasPorPersona = new Map();
 
   for (const rep of reportes) {
@@ -216,7 +216,14 @@ async function armarDia(fecha) {
     if (esNovedad(r.quejas)) {
       novedades.quejas.push({ local, turno: rep.turno, texto: r.quejas.trim() });
     }
+    // Plata que salió de la caja del turno: pagos a proveedores, compras de insumos.
+    if (r.gastos?.hubo) {
+      for (const it of filasConDatos(r.gastos.items)) {
+        novedades.gastos.push({ local, turno: rep.turno, ...it, monto: n(it.monto) });
+      }
+    }
   }
+  novedades.total_gastos = novedades.gastos.reduce((s, g) => s + g.monto, 0);
 
   for (const { acc, empleado_id, horas } of horasPorPersona.values()) {
     const valor = valorDe[empleado_id];
@@ -501,8 +508,8 @@ function textoSemana(w) {
   if (w.devueltos.length) L.push(`• Devueltos para corregir: ${w.devueltos.map(d => `${d.usuario} ${d.veces > 1 ? `×${d.veces}` : ''}`.trim()).join(', ')}`);
 
   // Novedades acumuladas, contadas.
-  const todas = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [] };
-  for (const dia of w.dias) for (const k of Object.keys(todas)) for (const it of dia.novedades[k]) todas[k].push({ ...it, dia: diaCorto(dia.fecha) });
+  const todas = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [], gastos: [] };
+  for (const dia of w.dias) for (const k of Object.keys(todas)) for (const it of (dia.novedades[k] || [])) todas[k].push({ ...it, dia: diaCorto(dia.fecha) });
   const contar = (items, clave) => {
     const c = {};
     for (const it of items) { const k = clave(it); if (k) c[k] = (c[k] || 0) + 1; }
@@ -534,6 +541,15 @@ function textoSemana(w) {
   if (todas.quejas.length) {
     L.push(''); L.push(`*Quejas* · ${todas.quejas.length}`);
     for (const it of todas.quejas) L.push(`• ${corto(it.local)} (${it.dia}): ${it.texto}`);
+  }
+
+  if (todas.gastos.length) {
+    const total = todas.gastos.reduce((s, g) => s + n(g.monto), 0);
+    L.push(''); L.push(`*Gastos de caja* · ${todas.gastos.length} por ${$(total)}`);
+    for (const [k, v] of contar(todas.gastos, it => it.tipo || 'Otro')) {
+      const suma = todas.gastos.filter(it => (it.tipo || 'Otro') === k).reduce((s, g) => s + n(g.monto), 0);
+      L.push(`• ${k}: ${v} por ${$(suma)}`);
+    }
   }
 
   const p = w.proveedores;

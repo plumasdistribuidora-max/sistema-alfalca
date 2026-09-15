@@ -45,6 +45,37 @@ function Segmentado({ opciones, valor, onChange }) {
   );
 }
 
+// Un dato de un renglón de detalle. Casi siempre es texto; el monto de un gasto se
+// escribe con teclado numérico y puntos de miles, y el tipo se elige de una lista.
+function Subcampo({ sc, valor, onChange }) {
+  if (sc.tipo === 'moneda') {
+    return (
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ahg-text/40 text-sm">$</span>
+        <input
+          className="input text-sm pl-7 tabular-nums" inputMode="numeric" placeholder={sc.label}
+          value={valor === '' || valor == null ? '' : money.format(valor)}
+          onChange={e => onChange(soloNumero(e.target.value))}
+        />
+      </div>
+    );
+  }
+  if (sc.tipo === 'seleccion') {
+    return (
+      <select className="input text-sm" value={valor || ''} onChange={e => onChange(e.target.value)}>
+        <option value="">{sc.label}…</option>
+        {(sc.opciones || []).map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  return (
+    <input
+      className="input text-sm" placeholder={sc.label}
+      value={valor || ''} onChange={e => onChange(e.target.value)}
+    />
+  );
+}
+
 function Filas({ items, subcampos, onChange, textoAgregar }) {
   const lista = items || [];
 
@@ -60,15 +91,7 @@ function Filas({ items, subcampos, onChange, textoAgregar }) {
       {lista.map((fila, i) => (
         <div key={i} className="flex gap-2 items-start">
           <div className="flex-1 space-y-1.5">
-            {subcampos.map(sc => (
-              <input
-                key={sc.codigo}
-                className="input text-sm"
-                placeholder={sc.label}
-                value={fila[sc.codigo] || ''}
-                onChange={e => editar(i, sc.codigo, e.target.value)}
-              />
-            ))}
+            {subcampos.map(sc => <Subcampo key={sc.codigo} sc={sc} valor={fila[sc.codigo]} onChange={v => editar(i, sc.codigo, v)} />)}
           </div>
           <button
             type="button"

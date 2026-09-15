@@ -100,6 +100,11 @@ function armarMensaje({ d, form, fecha, user }) {
   seccion('Faltas y tardanzas', nv.ausencias, it => `${it.empleado} — ${it.motivo}`);
   if (form.faltas_tardanzas?.trim()) { if (!nv.ausencias.length) { L.push(''); L.push('*Faltas y tardanzas*'); } L.push(`  Encargado: ${form.faltas_tardanzas.trim()}`); }
   seccion('Quejas', nv.quejas, it => it.texto);
+  if (nv.gastos?.length) {
+    L.push('');
+    L.push(`*Gastos de caja* · ${n(nv.total_gastos)}`);
+    for (const g of nv.gastos) L.push(`• ${corto(g.local)} (${g.turno.toLowerCase()}): ${g.tipo ? `${g.tipo} — ` : ''}${g.detalle || ''} ${n(g.monto)}`);
+  }
 
   // Facturas: las que entraron hoy y las que se pagaron, una por renglón, con el medio.
   const p = d.proveedores;
@@ -518,7 +523,7 @@ export default function CierreDelDia({ fecha, onCambio }) {
       {/* Lo que llegó de los turnos */}
       {(d.novedades.vencimientos.length || d.novedades.mantenimiento.length ||
         d.novedades.faltantes.length || d.novedades.ausencias.length ||
-        d.novedades.quejas.length) > 0 && (
+        d.novedades.quejas.length || d.novedades.gastos?.length) > 0 && (
         <div className="space-y-2">
           <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
             Lo que reportaron los turnos
@@ -532,6 +537,8 @@ export default function CierreDelDia({ fecha, onCambio }) {
           <Novedades titulo="Faltas y tardanzas" items={d.novedades.ausencias} tono="red"
                      render={it => `${it.empleado} — ${it.motivo}`} />
           <Novedades titulo="Quejas" items={d.novedades.quejas} render={it => it.texto} />
+          <Novedades titulo={`Gastos de caja · $ ${money.format(d.novedades.total_gastos || 0)}`} items={d.novedades.gastos || []}
+                     render={it => `${it.tipo ? `${it.tipo} — ` : ''}${it.detalle || 'sin detalle'} · $ ${money.format(it.monto)}`} />
         </div>
       )}
 

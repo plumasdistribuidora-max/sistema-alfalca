@@ -93,7 +93,9 @@ function Respuesta({ campo, valor, equipo }) {
   if (campo.tipo === 'si_no_lista') {
     const v = valor || {};
     const items = (v.items || [])
-      .map(it => (campo.subcampos || []).map(sc => it[sc.codigo]).filter(Boolean).join(' — '))
+      .map(it => (campo.subcampos || [])
+        .map(sc => sc.tipo === 'moneda' && it[sc.codigo] !== '' && it[sc.codigo] != null ? `$ ${money.format(it[sc.codigo])}` : it[sc.codigo])
+        .filter(Boolean).join(' — '))
       .filter(Boolean);
     if (!v.hubo) cuerpo = <span className="text-ahg-text/40">No</span>;
     else if (campo.pregunta_lista && !items.length) {

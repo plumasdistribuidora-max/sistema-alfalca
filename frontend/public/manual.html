@@ -1154,11 +1154,23 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><div><strong>Para anotar un pago</strong>, tocá <em>Anotar pago</em> en la fila de la factura. Viene puesto el saldo completo y la forma de pago del proveedor.</div></li>
         <li><div><strong>Si pagaste solo una parte</strong>, cambiá el monto: abajo te dice cuánto queda pendiente y la factura sigue en la lista con el saldo.</div></li>
         <li><div><strong>Si la fecha que elegís no es día de cobro</strong> de ese proveedor, te lo avisa en ámbar y te dice cuál es el próximo. No te frena.</div></li>
+        <li><div><strong>Para pagar varias juntas</strong>, tildá la casilla de cada una (o la de arriba de todo, que tilda todas las que se ven con el filtro puesto). Abajo aparece cuántas son y cuánto suman, y con <em>Anotar los pagos elegidos</em> se anotan todas de una, cada una con la forma de pago de su proveedor.</div></li>
       </ol>
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p><strong>El vencimiento es orientativo.</strong> Sale de la fecha de la factura más el plazo de la ficha,
+        y el día de cobro es el que el proveedor suele usar. Ninguno de los dos te impide pagar antes: si querés
+        pagar hoy algo que vence en veinte días, lo tildás y lo pagás.</p>
+      </div>
       <p>
         El botón <em>+ Cargar factura a mano</em> es para lo que no pasa por el formulario del
         turno: alquiler, servicios, una compra puntual. El vencimiento se completa solo con el
         plazo del proveedor.
+      </p>
+      <p>
+        En <em>De dónde salió</em>, además de <em>Formulario</em> y <em>A mano</em>, puede decir
+        <em>Planilla</em> con la hoja y la fila del Excel: es el histórico del café que se cargó
+        desde la planilla vieja, para poder revisar cualquiera contra el original.
       </p>
 
       <h3>¿Qué pago? — la lista de pagos de la semana</h3>
@@ -1166,7 +1178,9 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         Elegís hasta qué día querés cubrir — lo vencido a hoy, los próximos 7 días, o una fecha
         a mano — y el sistema arma la lista <strong>agrupada por proveedor</strong>: a cada uno,
         cuánto le debés y qué facturas son. Vienen todas tildadas; destildás las que no vas a
-        pagar y abajo se va actualizando el total.
+        pagar y abajo se va actualizando el total. Es una sugerencia por vencimiento: para elegir
+        a mano cualquier factura, aunque no venza todavía, usá <em>Todo lo que debo</em> o
+        tildalas desde <em>Facturas pendientes</em>.
       </p>
       <div class="aviso tip">
         <span class="mk">◆</span>

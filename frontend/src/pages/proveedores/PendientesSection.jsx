@@ -172,6 +172,11 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
   const [pagando, setPagando] = useState(null);
   const [manual, setManual]   = useState(false);
 
+  // Las tildadas para pagar juntas. Se elige a mano, factura por factura, sin que el
+  // vencimiento limite nada: la fecha en que "debería" pagarse es un dato, no una regla.
+  const [elegidas, setElegidas] = useState(new Set());
+  const [pagandoVarias, setPagandoVarias] = useState(false);
+
   function cargar() {
     setCargando(true);
     api.get('/proveedores/facturas')
@@ -185,8 +190,18 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
   async function anotarPago(pagos) {
     await api.post('/proveedores/pagos', { pagos });
     setPagando(null);
+    setPagandoVarias(false);
+    setElegidas(new Set());
     cargar();
     onCambio?.();
+  }
+
+  function alternar(id) {
+    setElegidas(prev => {
+      const nueva = new Set(prev);
+      if (nueva.has(id)) nueva.delete(id); else nueva.add(id);
+      return nueva;
+    });
   }
 
   async function guardarManual(f) {
@@ -209,6 +224,19 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
   if (filtro === 'parciales') lista = facturas.filter(f => f.pagado > 0);
   if (provFiltro)  lista = lista.filter(f => String(f.proveedor_id) === String(provFiltro));
   if (localFiltro) lista = lista.filter(f => String(f.local_id) === String(localFiltro));
+
+  // Tildar todas las que se ven con el filtro puesto, o destildarlas si ya están todas.
+  const todasVisiblesElegidas = lista.length > 0 && lista.every(f => elegidas.has(f.id));
+  function alternarVisibles() {
+    setElegidas(prev => {
+      const nueva = new Set(prev);
+      if (todasVisiblesElegidas) lista.forEach(f => nueva.delete(f.id));
+      else lista.forEach(f => nueva.add(f.id));
+      return nueva;
+    });
+  }
+  const seleccion = facturas.filter(f => elegidas.has(f.id));
+  const totalElegido = seleccion.reduce((s, f) => s + f.saldo, 0);
 
   if (cargando) return <p className="text-sm text-ahg-text/50 p-4">Cargando facturas…</p>;
 
@@ -250,6 +278,14 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-ahg-accent/30">
+              <th className="table-th w-8">
+                <input
+                  type="checkbox" className="w-4 h-4 accent-violet-900 align-middle"
+                  checked={todasVisiblesElegidas} onChange={alternarVisibles}
+                  aria-label="Tildar todas las facturas que se ven"
+                  title="Tildar todas las que se ven"
+                />
+              </th>
               <th className="table-th">Proveedor</th>
               <th className="table-th">Factura</th>
               <th className="table-th">Local</th>
@@ -263,7 +299,14 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
           </thead>
           <tbody>
             {lista.map(f => (
-              <tr key={f.id} className="border-b border-ahg-accent/20 hover:bg-ahg-bg">
+              <tr key={f.id} className={`border-b border-ahg-accent/20 hover:bg-ahg-bg ${elegidas.has(f.id) ? 'bg-ahg-accent/10' : ''}`}>
+                <td className="table-td">
+                  <input
+                    type="checkbox" className="w-4 h-4 accent-violet-900 align-middle"
+                    checked={elegidas.has(f.id)} onChange={() => alternar(f.id)}
+                    aria-label={`Elegir la factura ${f.numero || 'sin número'} de ${f.proveedor}`}
+                  />
+                </td>
                 <td className="table-td font-medium">
                   {f.proveedor}
                   <span className="block text-xs text-ahg-text/40">
@@ -298,7 +341,7 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
             ))}
             {!lista.length && (
               <tr>
-                <td colSpan={9} className="table-td text-center text-ahg-text/40 py-8">
+                <td colSpan={10} className="table-td text-center text-ahg-text/40 py-8">
                   No hay facturas con este filtro.
                 </td>
               </tr>
@@ -307,8 +350,39 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
         </table>
       </div>
 
+      {seleccion.length > 0 && (
+        <div className="card p-4 flex items-center gap-4 flex-wrap sticky bottom-0 border-2 border-ahg-primary">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Elegidas</p>
+            <p className="text-2xl font-bold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>
+              {seleccion.length} <span className="text-sm font-semibold text-ahg-text/50">factura{seleccion.length === 1 ? '' : 's'}</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Total a pagar</p>
+            <p className="text-2xl font-bold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>
+              {plata(totalElegido)}
+            </p>
+          </div>
+          <p className="text-xs text-ahg-text/50 max-w-xs">
+            {new Set(seleccion.map(f => f.proveedor)).size === 1
+              ? seleccion[0].proveedor
+              : `${new Set(seleccion.map(f => f.proveedor)).size} proveedores`}
+            {' '}· cada una sale con la forma de pago de su ficha.
+          </p>
+          <div className="flex-1" />
+          <button className="btn-secondary" onClick={() => setElegidas(new Set())}>Destildar todo</button>
+          <button className="btn-primary" onClick={() => setPagandoVarias(true)}>
+            Anotar los pagos elegidos
+          </button>
+        </div>
+      )}
+
       {pagando && (
         <ModalPago factura={pagando} onGuardar={anotarPago} onCerrar={() => setPagando(null)} />
+      )}
+      {pagandoVarias && (
+        <ModalPago grupo={seleccion} onGuardar={anotarPago} onCerrar={() => setPagandoVarias(false)} />
       )}
       {manual && (
         <ModalFacturaManual

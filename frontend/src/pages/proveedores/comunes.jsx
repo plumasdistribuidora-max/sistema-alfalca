@@ -258,11 +258,16 @@ export function ModalPago({ factura, grupo, onGuardar, onCerrar }) {
         <div className={unaSola ? '' : 'col-span-2'}>
           <label className="label">Cuándo</label>
           <input type="date" className="input" value={fecha} onChange={e => setFecha(e.target.value)} />
+          {!unaSola && (
+            <p className="text-xs text-ahg-text/50 mt-1">
+              El vencimiento y el día de cobro son orientativos: se anota con la fecha que pongas.
+            </p>
+          )}
           {unaSola && (
             <p className={`text-xs mt-1 ${diaOk ? 'text-green-700' : 'text-amber-700'}`}>
               {diaOk
                 ? 'Es día de cobro de este proveedor.'
-                : `Cobra ${listaDias(factura.dias_pago)}${proximo ? ` · el próximo es el ${fechaLarga(proximo)}` : ''}`}
+                : `Cobra ${listaDias(factura.dias_pago)}${proximo ? ` · el próximo es el ${fechaLarga(proximo)}` : ''}. Igual podés pagar hoy.`}
             </p>
           )}
         </div>

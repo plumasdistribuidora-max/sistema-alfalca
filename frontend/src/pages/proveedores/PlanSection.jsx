@@ -69,7 +69,9 @@ export default function PlanSection({ onCambio }) {
       <div className="card p-4">
         <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>¿Qué pago?</h2>
         <p className="text-xs text-ahg-text/50 mt-0.5 mb-3">
-          Elegí hasta qué día querés cubrir. Cada proveedor avisa qué días cobra.
+          Elegí hasta qué día querés cubrir y te arma la lista por vencimiento. Es una sugerencia:
+          podés pagar antes lo que quieras, tildándolo acá con "Todo lo que debo" o desde
+          <em> Facturas pendientes</em>.
         </p>
 
         <div className="flex flex-wrap gap-2 items-center">

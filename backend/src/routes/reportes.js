@@ -378,6 +378,8 @@ router.get('/mis-reportes', requireAuth, async (req, res) => {
 // pantalla del día solo muestra hoy; sin esta lista, un reporte devuelto ayer no se
 // puede encontrar para corregirlo.
 
+// Un borrador de más de una semana ya no se va a terminar: no se reclama más. Los
+// devueltos sí, siempre, hasta que se corrijan.
 router.get('/pendientes', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -387,7 +389,8 @@ router.get('/pendientes', requireAuth, async (req, res) => {
       JOIN locales l ON l.id = r.local_id
       JOIN reporte_plantillas p ON p.codigo = r.plantilla_codigo
       WHERE r.usuario_id = $1
-        AND (r.estado = 'observado' OR (r.estado = 'borrador' AND r.fecha < $2))
+        AND (r.estado = 'observado'
+             OR (r.estado = 'borrador' AND r.fecha < $2 AND r.fecha >= $2::date - 7))
       ORDER BY r.fecha DESC, r.id DESC
     `, [req.user.id, hoyStr()]);
 

@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
+const { unoPorTurno } = require('../utils/reportes');
 
 const router = express.Router();
 
@@ -127,14 +128,16 @@ async function armarDia(fecha) {
   );
 
   // Reportes de turno del día.
-  const reportes = (await pool.query(`
+  // Si dos personas enviaron el mismo turno, cuenta uno solo (la misma regla que la
+  // grilla del día): si no, las ventas de ese turno se suman dos veces.
+  const reportes = unoPorTurno((await pool.query(`
     SELECT r.id, r.local_id, r.turno, r.estado, r.empleado_id, r.respuestas,
-           r.plantilla_codigo, u.nombre AS usuario_nombre
+           r.plantilla_codigo, r.enviado_at, u.nombre AS usuario_nombre
     FROM reportes r
     JOIN usuarios u ON u.id = r.usuario_id
     WHERE r.fecha = $1 AND r.estado <> 'borrador'
     ORDER BY r.local_id, r.turno
-  `, [fecha])).rows;
+  `, [fecha])).rows);
 
   // Valor hora vigente a esa fecha, por persona.
   const valores = (await pool.query(`

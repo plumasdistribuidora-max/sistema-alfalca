@@ -5,6 +5,7 @@ const { uploadToR2, getFromR2 } = require('../config/r2');
 const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
+const { elegirReporte } = require('../utils/reportes');
 
 const router = express.Router();
 
@@ -20,8 +21,6 @@ const upload = multer({
 });
 
 const ESTADOS = ['borrador', 'enviado', 'observado', 'aprobado'];
-// Cuánto "avanzó" cada estado, para elegir cuál mostrar cuando hay más de uno.
-const PESO_ESTADO = { borrador: 0, observado: 1, enviado: 2, aprobado: 3 };
 const EDITABLES = ['borrador', 'observado'];
 
 // La plantilla que le toca a cada rol cuando reporta en su propio sector.
@@ -403,6 +402,19 @@ router.get('/pendientes', requireAuth, async (req, res) => {
   }
 });
 
+// Si otra persona ya envió (o le aprobaron) este mismo turno, devuelve el aviso para
+// mostrarle; si no, null. Un reporte devuelto no bloquea: alguien lo puede rehacer.
+async function turnoYaEnviadoPorOtro(codigo, localId, fecha, turno, usuarioId) {
+  const { rows } = await pool.query(`
+    SELECT u.nombre FROM reportes r JOIN usuarios u ON u.id = r.usuario_id
+    WHERE r.plantilla_codigo = $1 AND r.local_id = $2 AND r.fecha = $3 AND r.turno = $4
+      AND r.usuario_id <> $5 AND r.estado IN ('enviado', 'aprobado')
+    ORDER BY r.enviado_at LIMIT 1
+  `, [codigo, localId, fecha, turno, usuarioId]);
+  if (!rows.length) return null;
+  return `El turno ${turno} de hoy ya lo cargó ${rows[0].nombre}. Si trabajaste el otro turno, cambiá el turno; si es un error, avisale al encargado.`;
+}
+
 // ── POST / ────────────────────────────────────────────────────────────────────
 // Crea o actualiza el borrador del día. Idempotente por (plantilla, local, fecha,
 // turno, usuario): si vuelve a entrar, sigue editando el mismo.
@@ -448,6 +460,11 @@ router.post('/', requireAuth, async (req, res) => {
           : 'Este reporte ya fue enviado. Pedile al encargado que te lo devuelva.',
       });
     }
+
+    // Si otra persona ya envió ese mismo turno, no se abre un segundo: el consolidado
+    // sumaría las ventas dos veces. Pasó el 15/9 en el café.
+    const ajeno = await turnoYaEnviadoPorOtro(codigo, localId, fechaFinal, turno, req.user.id);
+    if (ajeno) return res.status(409).json({ ok: false, error: ajeno });
 
     const { rows } = await pool.query(`
       INSERT INTO reportes
@@ -656,6 +673,11 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
       return res.status(409).json({ ok: false, error: 'Este reporte ya fue enviado' });
     }
 
+    const ajeno = await turnoYaEnviadoPorOtro(
+      reporte.plantilla_codigo, reporte.local_id, reporte.fecha, reporte.turno, req.user.id
+    );
+    if (ajeno) return res.status(409).json({ ok: false, error: ajeno });
+
     const plantilla = await cargarPlantilla(reporte.plantilla_codigo);
 
     // El turno vive en su propia columna, no en respuestas: se inyecta para que el
@@ -738,11 +760,10 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
         if (!p) continue;
         const turnos = p.campos.find(c => c.codigo === 'turno')?.opciones || ['Único'];
         for (const turno of turnos) {
-          // Si dos personas cargaron el mismo turno (una lo empezó y otra lo terminó), se
-          // muestra el más avanzado: un borrador ajeno no puede tapar un reporte enviado.
-          const reporte = cargados
-            .filter(r => r.local_id === local.id && r.plantilla_codigo === p.codigo && r.turno === turno)
-            .sort((a, b) => PESO_ESTADO[b.estado] - PESO_ESTADO[a.estado] || b.id - a.id)[0] || null;
+          // Si dos personas cargaron el mismo turno, vale uno solo (ver utils/reportes).
+          const reporte = elegirReporte(
+            cargados.filter(r => r.local_id === local.id && r.plantilla_codigo === p.codigo && r.turno === turno)
+          );
           slots.push({
             plantilla_codigo: p.codigo,
             plantilla_nombre: p.nombre,

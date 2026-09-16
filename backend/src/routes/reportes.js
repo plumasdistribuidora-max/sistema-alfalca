@@ -4,6 +4,7 @@ const pool    = require('../config/db');
 const { uploadToR2, getFromR2 } = require('../config/r2');
 const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
+const { unidadValida } = require('../utils/unidades');
 
 const router = express.Router();
 
@@ -187,7 +188,7 @@ async function facturasDe(reporteId) {
   const { rows } = await pool.query(`
     SELECT f.id, f.proveedor, f.proveedor_id, f.numero, f.fecha, f.vencimiento, f.total,
            COALESCE(json_agg(json_build_object(
-             'producto', i.producto, 'cantidad', i.cantidad, 'precio_unit', i.precio_unit
+             'producto', i.producto, 'cantidad', i.cantidad, 'unidad', i.unidad, 'precio_unit', i.precio_unit
            ) ORDER BY i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM facturas f
     LEFT JOIN facturas_items i ON i.factura_id = f.id
@@ -604,9 +605,9 @@ router.post('/:id/facturas', requireAuth, async (req, res) => {
     for (const it of (items || [])) {
       if (!it.producto?.trim()) continue;
       await client.query(`
-        INSERT INTO facturas_items (factura_id, producto, cantidad, precio_unit)
-        VALUES ($1,$2,$3,$4)
-      `, [f.rows[0].id, it.producto.trim(), Number(it.cantidad) || 1, Number(it.precio_unit) || 0]);
+        INSERT INTO facturas_items (factura_id, producto, cantidad, unidad, precio_unit)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [f.rows[0].id, it.producto.trim(), Number(it.cantidad) || 1, unidadValida(it.unidad), Number(it.precio_unit) || 0]);
     }
     await client.query('COMMIT');
 

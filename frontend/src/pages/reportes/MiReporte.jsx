@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import Campo, { soloNumero } from './campos';
+import { UNIDADES, precioPor } from '../../utils/unidades';
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -88,13 +89,20 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
           </label>
           <div className="space-y-2">
             {f.items.map((it, i) => (
-              <div key={i} className="flex gap-1.5">
-                <input className="input text-sm flex-1" placeholder="Producto"
+              <div key={i} className="space-y-1">
+                <input className="input text-sm w-full" placeholder="Producto"
                        value={it.producto || ''} onChange={e => editarItem(i, 'producto', e.target.value)} />
-                <input className="input text-sm w-16 text-right" inputMode="decimal" placeholder="cant"
-                       value={it.cantidad ?? ''} onChange={e => editarItem(i, 'cantidad', e.target.value.replace(',', '.'))} />
-                <input className="input text-sm w-24 text-right" inputMode="numeric" placeholder="$ c/u"
-                       value={it.precio_unit ?? ''} onChange={e => editarItem(i, 'precio_unit', soloNumero(e.target.value))} />
+                <div className="flex gap-1.5">
+                  <input className="input text-sm w-20 text-right" inputMode="decimal" placeholder="cant"
+                         value={it.cantidad ?? ''} onChange={e => editarItem(i, 'cantidad', e.target.value.replace(',', '.'))} />
+                  <select className="input text-sm w-24" value={it.unidad || 'u'}
+                          onChange={e => editarItem(i, 'unidad', e.target.value)}>
+                    {UNIDADES.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+                  </select>
+                  <input className="input text-sm flex-1 text-right" inputMode="numeric"
+                         placeholder={`$ ${precioPor(it.unidad)}`}
+                         value={it.precio_unit ?? ''} onChange={e => editarItem(i, 'precio_unit', soloNumero(e.target.value))} />
+                </div>
               </div>
             ))}
             <button type="button" onClick={() => setF(x => ({ ...x, items: [...x.items, {}] }))}

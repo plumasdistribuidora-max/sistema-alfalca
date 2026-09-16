@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import { cantidadConUnidad, precioPor } from '../../utils/unidades';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
@@ -230,8 +231,8 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
                   <p className="text-xs text-ahg-text/50">{f.numero || 'sin número'}</p>
                   {(f.items || []).map((it, i) => (
                     <div key={i} className="flex justify-between text-xs text-ahg-text/70 mt-1">
-                      <span>{it.producto} × {Number(it.cantidad)}</span>
-                      <span className="tabular-nums">$ {money.format(it.precio_unit)} c/u</span>
+                      <span>{it.producto} × {cantidadConUnidad(it.cantidad, it.unidad)}</span>
+                      <span className="tabular-nums">$ {money.format(it.precio_unit)} {precioPor(it.unidad)}</span>
                     </div>
                   ))}
                 </div>

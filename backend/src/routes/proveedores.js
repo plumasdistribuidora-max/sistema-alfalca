@@ -4,6 +4,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
+const { unidadValida } = require('../utils/unidades');
 
 const router = express.Router();
 
@@ -304,9 +305,9 @@ router.post('/facturas', requireAuth, soloEncargado, async (req, res) => {
     for (const it of (items || [])) {
       if (!it.producto?.trim()) continue;
       await client.query(`
-        INSERT INTO facturas_items (factura_id, producto, cantidad, precio_unit)
-        VALUES ($1,$2,$3,$4)
-      `, [f.rows[0].id, it.producto.trim(), n(it.cantidad) || 1, n(it.precio_unit)]);
+        INSERT INTO facturas_items (factura_id, producto, cantidad, unidad, precio_unit)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [f.rows[0].id, it.producto.trim(), n(it.cantidad) || 1, unidadValida(it.unidad), n(it.precio_unit)]);
     }
     await client.query('COMMIT');
 

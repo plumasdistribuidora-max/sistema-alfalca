@@ -17,6 +17,8 @@ const MEDIOS = ['santander', 'mp', 'galicia', 'efectivo', 'cheque'];
 const n = v => Number(v) || 0;
 
 const esFecha = f => /^\d{4}-\d{2}-\d{2}$/.test(String(f || ''));
+// "$ 1.234.567", para los mensajes de error que hablan de plata.
+const money = v => `$ ${Math.round(n(v)).toLocaleString('es-AR')}`;
 
 // Suma los pagos de cada factura para saber el saldo. Va como subconsulta y no como
 // JOIN + GROUP BY porque la factura también se agrupa por sus renglones en otras
@@ -318,6 +320,111 @@ router.post('/facturas', requireAuth, soloEncargado, async (req, res) => {
     res.status(500).json({ ok: false, error: 'No se pudo guardar la factura' });
   } finally {
     client.release();
+  }
+});
+
+// ── GET /facturas/:id ─────────────────────────────────────────────────────────
+// Una factura con sus renglones, para editarla.
+
+router.get('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`${SELECT_FACTURAS} WHERE f.id = $1`, [req.params.id]);
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Factura no encontrada' });
+    const items = (await pool.query(`
+      SELECT id, producto, cantidad, unidad, precio_unit FROM facturas_items
+      WHERE factura_id = $1 ORDER BY id
+    `, [req.params.id])).rows.map(it => ({
+      ...it, cantidad: n(it.cantidad), precio_unit: n(it.precio_unit),
+    }));
+    res.json({ ok: true, data: { ...armarFactura(rows[0]), items } });
+  } catch (err) {
+    console.error('[proveedores/facturas/:id]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo traer la factura' });
+  }
+});
+
+// ── PUT /facturas/:id ─────────────────────────────────────────────────────────
+// El encargado o el dueño corrigen cualquier factura, venga del turno o de a mano:
+// proveedor, número, fecha, local, total y renglones. El vencimiento se recalcula
+// con el plazo de la ficha. El total no puede quedar por debajo de lo ya pagado.
+
+router.put('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { proveedor_id, numero, fecha, total, local_id, items } = req.body;
+
+    if (!proveedor_id) return res.status(400).json({ ok: false, error: 'Elegí el proveedor' });
+    if (!local_id)     return res.status(400).json({ ok: false, error: 'Elegí el local' });
+    if (!esFecha(fecha)) return res.status(400).json({ ok: false, error: 'Fecha inválida' });
+    if (n(total) <= 0) return res.status(400).json({ ok: false, error: 'Falta el total de la factura' });
+
+    const actual = await client.query(`${SELECT_FACTURAS} WHERE f.id = $1`, [req.params.id]);
+    if (!actual.rows.length) return res.status(404).json({ ok: false, error: 'Factura no encontrada' });
+    const pagado = n(actual.rows[0].pagado);
+    if (n(total) < pagado) {
+      return res.status(409).json({
+        ok: false,
+        error: `Esta factura ya tiene ${money(pagado)} pagados: el total no puede ser menor que eso. Si el pago está mal, borralo desde Pagos hechos.`,
+      });
+    }
+
+    const prov = await client.query('SELECT nombre, plazo_dias FROM proveedores WHERE id = $1', [proveedor_id]);
+    if (!prov.rows.length) return res.status(404).json({ ok: false, error: 'Ese proveedor no existe' });
+    const d = new Date(`${fecha}T00:00:00`);
+    d.setDate(d.getDate() + prov.rows[0].plazo_dias);
+    const vence = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    await client.query('BEGIN');
+    await client.query(`
+      UPDATE facturas
+      SET local_id = $1, proveedor = $2, proveedor_id = $3, numero = $4, fecha = $5, vencimiento = $6, total = $7
+      WHERE id = $8
+    `, [
+      local_id, prov.rows[0].nombre, proveedor_id,
+      String(numero || '').trim() || null, fecha, vence, n(total), req.params.id,
+    ]);
+    await client.query('DELETE FROM facturas_items WHERE factura_id = $1', [req.params.id]);
+    for (const it of (items || [])) {
+      if (!it.producto?.trim()) continue;
+      await client.query(`
+        INSERT INTO facturas_items (factura_id, producto, cantidad, unidad, precio_unit)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [req.params.id, it.producto.trim(), n(it.cantidad) || 1, unidadValida(it.unidad), n(it.precio_unit)]);
+    }
+    await client.query('COMMIT');
+
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[proveedores/facturas PUT]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo guardar la factura' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── DELETE /facturas/:id ──────────────────────────────────────────────────────
+// Una factura con pagos anotados no se borra: primero se borran los pagos desde
+// "Pagos hechos", así no desaparece plata que ya salió.
+
+router.delete('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT f.id, (SELECT COUNT(*)::int FROM pagos_proveedor pg WHERE pg.factura_id = f.id) AS pagos
+      FROM facturas f WHERE f.id = $1
+    `, [req.params.id]);
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Factura no encontrada' });
+    if (rows[0].pagos > 0) {
+      return res.status(409).json({
+        ok: false,
+        error: `Esta factura tiene ${rows[0].pagos} pago${rows[0].pagos === 1 ? '' : 's'} anotado${rows[0].pagos === 1 ? '' : 's'}. Borralos primero desde Pagos hechos.`,
+      });
+    }
+    await pool.query('DELETE FROM facturas WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[proveedores/facturas DELETE]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo borrar la factura' });
   }
 });
 

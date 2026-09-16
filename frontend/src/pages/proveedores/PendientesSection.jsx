@@ -17,12 +17,18 @@ const FILTROS = [
   { id: 'parciales', label: 'Pagadas a medias' },
 ];
 
-// ── Factura cargada a mano ───────────────────────────────────────────────────
+// ── Factura cargada a mano, o editada ────────────────────────────────────────
 // Para lo que no pasa por el formulario del turno: alquiler, servicios, una compra
-// puntual del dueño.
+// puntual del dueño. Con `inicial` es la misma pantalla para corregir una factura
+// existente, venga del turno o de a mano.
 
-function ModalFacturaManual({ proveedores, locales, onGuardar, onCerrar }) {
-  const [f, setF] = useState({
+function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar }) {
+  const [f, setF] = useState(inicial ? {
+    proveedor_id: inicial.proveedor_id || proveedores[0]?.id || '',
+    local_id: inicial.local_id,
+    numero: inicial.numero || '', fecha: inicial.fecha, total: inicial.total,
+    items: inicial.items.length ? inicial.items : [{}],
+  } : {
     proveedor_id: proveedores[0]?.id || '',
     local_id: locales[0]?.id || '',
     numero: '', fecha: hoyStr(), total: '', items: [{}],
@@ -52,14 +58,16 @@ function ModalFacturaManual({ proveedores, locales, onGuardar, onCerrar }) {
 
   return (
     <Modal
-      titulo="Cargar una factura a mano"
-      subtitulo="Para lo que no pasa por el formulario del turno"
+      titulo={inicial ? 'Corregir la factura' : 'Cargar una factura a mano'}
+      subtitulo={inicial
+        ? `${inicial.proveedor} · ${inicial.numero || 'sin número'}${inicial.pagado > 0 ? ` · ya lleva ${plata(inicial.pagado)} pagados` : ''}`
+        : 'Para lo que no pasa por el formulario del turno'}
       onCerrar={onCerrar}
       pie={
         <>
           <button className="btn-secondary" onClick={onCerrar}>Cancelar</button>
           <button className="btn-primary" disabled={guardando} onClick={guardar}>
-            {guardando ? 'Guardando…' : 'Guardar la factura'}
+            {guardando ? 'Guardando…' : inicial ? 'Guardar los cambios' : 'Guardar la factura'}
           </button>
         </>
       }
@@ -173,6 +181,7 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
 
   const [pagando, setPagando] = useState(null);
   const [manual, setManual]   = useState(false);
+  const [editando, setEditando] = useState(null);   // la factura con sus renglones
 
   // Las tildadas para pagar juntas. Se elige a mano, factura por factura.
   const [elegidas, setElegidas] = useState(new Set());
@@ -210,6 +219,37 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
     setManual(false);
     cargar();
     onCambio?.();
+  }
+
+  async function abrirEdicion(f) {
+    try {
+      const r = await api.get(`/proveedores/facturas/${f.id}`);
+      setEditando(r.data.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo abrir la factura');
+    }
+  }
+
+  async function guardarEdicion(f) {
+    await api.put(`/proveedores/facturas/${editando.id}`, f);
+    setEditando(null);
+    cargar();
+    onCambio?.();
+  }
+
+  async function borrar(f) {
+    const ok = window.confirm(
+      `¿Borrar la factura ${f.numero || 'sin número'} de ${f.proveedor} por ${plata(f.total)}?\nNo se puede deshacer.`
+    );
+    if (!ok) return;
+    try {
+      await api.delete(`/proveedores/facturas/${f.id}`);
+      setError('');
+      cargar();
+      onCambio?.();
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo borrar la factura');
+    }
   }
 
   const antiguedad = f => -diasHasta(f.fecha);
@@ -330,10 +370,19 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
                     ? <span className="block">{f.importado_de}</span>
                     : f.cargada_por && <span className="block">{f.cargada_por}</span>}
                 </td>
-                <td className="table-td text-right">
+                <td className="table-td text-right whitespace-nowrap">
                   <button className="btn-primary text-xs px-3 py-1.5" onClick={() => setPagando(f)}>
                     Anotar pago
                   </button>
+                  <span className="block mt-1 text-xs">
+                    <button className="text-ahg-primary font-semibold hover:underline" onClick={() => abrirEdicion(f)}>
+                      Editar
+                    </button>
+                    <span className="text-ahg-text/30 mx-1.5">·</span>
+                    <button className="text-red-600 font-semibold hover:underline" onClick={() => borrar(f)}>
+                      Borrar
+                    </button>
+                  </span>
                 </td>
               </tr>
             ))}
@@ -382,6 +431,13 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
       {pagandoVarias && (
         <ModalPago grupo={seleccion} onGuardar={anotarPago} onCerrar={() => setPagandoVarias(false)} />
       )}
+      {editando && (
+        <ModalFacturaManual
+          proveedores={proveedores} locales={locales} inicial={editando}
+          onGuardar={guardarEdicion} onCerrar={() => setEditando(null)}
+        />
+      )}
+
       {manual && (
         <ModalFacturaManual
           proveedores={proveedores} locales={locales}

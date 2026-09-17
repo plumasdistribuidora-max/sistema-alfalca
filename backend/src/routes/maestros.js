@@ -371,6 +371,77 @@ router.post('/docenas/recalcular', requireAuth, requireAdmin, async (req, res) =
 });
 
 
+// ── GET /docenas/por-dia?desde&hasta ────────────────────────────────────────
+// Docenas vendidas por día y por local, para el control al pie del maestro. El día
+// es el reloj de pared del ticket (la hora está guardada como UTC a propósito).
+router.get('/docenas/por-dia', requireAuth, async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde || '') || !/^\d{4}-\d{2}-\d{2}$/.test(hasta || '')) {
+      return res.status(400).json({ ok: false, error: 'Fechas inválidas' });
+    }
+    const locales = (await pool.query('SELECT id, nombre, tipo FROM locales WHERE activo = true ORDER BY id')).rows;
+    const { rows } = await pool.query(`
+      SELECT (vi.fecha_creacion AT TIME ZONE 'UTC')::date::text AS fecha, vi.local_id,
+             COALESCE(SUM(vi.docenas_equivalentes), 0) AS docenas,
+             COALESCE(SUM(vi.cantidad) FILTER (WHERE pc.docenas_por_unidad IS NULL), 0) AS sin_definir
+      FROM ventas_items vi
+      LEFT JOIN productos_catalogo pc ON pc.id = vi.producto_id
+      WHERE NOT COALESCE(vi.cancelada, false)
+        AND (vi.fecha_creacion AT TIME ZONE 'UTC')::date BETWEEN $1 AND $2
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `, [desde, hasta]);
+    const dias = new Map();
+    for (const r of rows) {
+      if (!dias.has(r.fecha)) dias.set(r.fecha, { fecha: r.fecha, locales: {}, total: 0, sin_definir: 0 });
+      const d = dias.get(r.fecha);
+      const doc = Math.round(Number(r.docenas) * 100) / 100;
+      d.locales[r.local_id] = doc;
+      d.total = Math.round((d.total + doc) * 100) / 100;
+      d.sin_definir += Number(r.sin_definir);
+    }
+    res.json({ ok: true, data: { locales, dias: [...dias.values()] } });
+  } catch (err) {
+    console.error('[maestros/docenas/por-dia]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── GET /docenas/detalle?fecha&local_id ─────────────────────────────────────
+// Qué se vendió ese día en ese local y cuántas docenas suma cada producto.
+router.get('/docenas/detalle', requireAuth, async (req, res) => {
+  try {
+    const { fecha, local_id } = req.query;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '') || !Number(local_id)) {
+      return res.status(400).json({ ok: false, error: 'Parámetros inválidos' });
+    }
+    const { rows } = await pool.query(`
+      SELECT COALESCE(pc.id, 0) AS id, COALESCE(pc.nombre_display, vi.producto_nombre_raw) AS nombre,
+             pc.docenas_por_unidad AS docenas_unidad,
+             SUM(vi.cantidad) AS unidades, SUM(vi.docenas_equivalentes) AS docenas
+      FROM ventas_items vi
+      LEFT JOIN productos_catalogo pc ON pc.id = vi.producto_id
+      WHERE vi.local_id = $1 AND NOT COALESCE(vi.cancelada, false)
+        AND (vi.fecha_creacion AT TIME ZONE 'UTC')::date = $2
+      GROUP BY 1, 2, 3
+      ORDER BY (pc.docenas_por_unidad IS NULL), SUM(vi.docenas_equivalentes) DESC, SUM(vi.cantidad) DESC
+    `, [Number(local_id), fecha]);
+    res.json({
+      ok: true,
+      data: rows.map(r => ({
+        id: r.id, nombre: r.nombre,
+        unidades: Number(r.unidades),
+        docenas_unidad: r.docenas_unidad === null ? null : Number(r.docenas_unidad),
+        docenas: Math.round(Number(r.docenas) * 100) / 100,
+      })),
+    });
+  } catch (err) {
+    console.error('[maestros/docenas/detalle]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Maestro de café: gramos de café por producto de la cafetería. Mismos tres
 // estados que las docenas (NULL pendiente, 0 no lleva, > 0 gramos). Solo entran

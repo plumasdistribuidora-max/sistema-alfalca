@@ -32,6 +32,179 @@ function fmtDocenas(v) {
   return n.toLocaleString('es-AR', { maximumFractionDigits: 4 });
 }
 
+function hoyStr(delta = 0) {
+  const t = new Date(); t.setDate(t.getDate() + delta);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
+const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+const fechaCorta = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
+const corto = nombre => nombre.replace(' Tienda de Alfajores', '').replace(' Cafetería', '');
+const doc = v => v === null || v === undefined ? '—' : Number(v).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+
+// Qué se vendió un día en un local y cuántas docenas suma cada producto.
+function DetalleDia({ fecha, local, onCerrar }) {
+  const [filas, setFilas] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.get('/maestros/docenas/detalle', { params: { fecha, local_id: local.id } })
+      .then(r => setFilas(r.data.data))
+      .catch(err => setError(err.response?.data?.error || 'No se pudo abrir el detalle'));
+  }, [fecha, local.id]);
+
+  const suman = (filas || []).filter(f => f.docenas > 0);
+  const noSuman = (filas || []).filter(f => f.docenas_unidad === 0);
+  const pendientes = (filas || []).filter(f => f.docenas_unidad === null);
+  const total = suman.reduce((s, f) => s + f.docenas, 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-3 overflow-y-auto" onClick={onCerrar}>
+      <div className="bg-white rounded-2xl w-full max-w-lg my-4" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-stone-200 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-stone-900 capitalize">{fechaCorta(fecha)} · {corto(local.nombre)}</h2>
+            <p className="text-sm text-stone-500"><strong className="text-stone-800">{doc(total)} docenas</strong> vendidas según el maestro</p>
+          </div>
+          <button onClick={onCerrar} className="text-stone-400 text-2xl leading-none" aria-label="Cerrar">×</button>
+        </div>
+        <div className="px-5 py-3">
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {!filas && !error && <p className="text-sm text-stone-400">Cargando…</p>}
+          {filas && !suman.length && <p className="text-sm text-stone-400">Ese día no se vendió nada que sume docenas.</p>}
+          {suman.length > 0 && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-stone-400 uppercase tracking-wide border-b border-stone-200">
+                  <th className="text-left py-1.5">Producto</th>
+                  <th className="text-right py-1.5 px-2">Vendidos</th>
+                  <th className="text-right py-1.5 px-2">c/u</th>
+                  <th className="text-right py-1.5 pl-2">Docenas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {suman.map(f => (
+                  <tr key={f.id + f.nombre} className="border-b border-stone-100">
+                    <td className="py-1.5">{f.nombre}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{formatNumber(f.unidades)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums text-stone-500">{doc(f.docenas_unidad)}</td>
+                    <td className="py-1.5 pl-2 text-right tabular-nums font-semibold">{doc(f.docenas)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td className="py-2" colSpan={3}>Total</td>
+                  <td className="py-2 pl-2 text-right tabular-nums">{doc(total)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+          {pendientes.length > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              <p className="font-semibold mb-1">Pendientes de definir ({pendientes.length}): suman 0</p>
+              <p>{pendientes.map(f => `${f.nombre} (${formatNumber(f.unidades)})`).join(' · ')}</p>
+            </div>
+          )}
+          {noSuman.length > 0 && (
+            <p className="mt-3 text-xs text-stone-400">{noSuman.length} productos vendidos que no suman docenas no se listan.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Docenas vendidas por día y por local. Tocar una celda abre el detalle de ese día.
+function ControlDocenas({ version }) {
+  const [desde, setDesde] = useState(hoyStr(-13));
+  const [hasta, setHasta] = useState(hoyStr());
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [detalle, setDetalle] = useState(null);   // { fecha, local }
+
+  useEffect(() => {
+    let vivo = true;
+    const t = setTimeout(() => {
+      api.get('/maestros/docenas/por-dia', { params: { desde, hasta } })
+        .then(r => { if (vivo) { setData(r.data.data); setError(''); } })
+        .catch(err => { if (vivo) setError(err.response?.data?.error || 'No se pudo armar la tabla'); });
+    }, version ? 1200 : 0);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [desde, hasta, version]);
+
+  const locales = data?.locales || [];
+  const dias = data?.dias || [];
+  const totalLocal = id => Math.round(dias.reduce((s, d) => s + (d.locales[id] || 0), 0) * 100) / 100;
+  const totalGeneral = Math.round(dias.reduce((s, d) => s + d.total, 0) * 100) / 100;
+
+  return (
+    <div className="card p-5 space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <h2 className="font-semibold text-stone-800">Docenas vendidas por día</h2>
+          <p className="text-xs text-stone-400 max-w-2xl mt-0.5">
+            Lo vendido cada día por local, pasado a docenas con este maestro. Tocá un número para ver qué se vendió y cuánto suma cada producto.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          {[['7 días', -6], ['14 días', -13], ['30 días', -29]].map(([l, d]) => (
+            <button key={l} onClick={() => { setDesde(hoyStr(d)); setHasta(hoyStr()); }}
+                    className="text-xs px-2.5 py-1.5 rounded border border-stone-200 text-stone-600 hover:border-violet-400">{l}</button>
+          ))}
+          <input type="date" className="input text-sm w-40" value={desde} onChange={e => setDesde(e.target.value)} />
+          <span className="text-stone-400 text-sm">a</span>
+          <input type="date" className="input text-sm w-40" value={hasta} onChange={e => setHasta(e.target.value)} />
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!data && !error && <p className="text-sm text-stone-400">Armando la tabla…</p>}
+      {data && !dias.length && <p className="text-sm text-stone-400">No hay ventas en ese período.</p>}
+      {dias.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-stone-400 uppercase tracking-wide border-b border-stone-200">
+                <th className="text-left py-2 pr-3">Día</th>
+                {locales.map(l => <th key={l.id} className="text-right py-2 px-3">{corto(l.nombre)}</th>)}
+                <th className="text-right py-2 pl-3">Total</th>
+                <th className="text-right py-2 pl-3">Sin definir</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dias.map(d => (
+                <tr key={d.fecha} className="border-b border-stone-100">
+                  <td className="py-2 pr-3 whitespace-nowrap capitalize">{fechaCorta(d.fecha)}</td>
+                  {locales.map(l => (
+                    <td key={l.id} className="py-2 px-3 text-right tabular-nums">
+                      {d.locales[l.id] ? (
+                        <button onClick={() => setDetalle({ fecha: d.fecha, local: l })} title="Ver qué se vendió ese día"
+                                className="text-violet-700 hover:text-violet-900 underline decoration-dotted underline-offset-2">
+                          {doc(d.locales[l.id])}
+                        </button>
+                      ) : <span className="text-stone-300">—</span>}
+                    </td>
+                  ))}
+                  <td className="py-2 pl-3 text-right tabular-nums font-semibold">{doc(d.total)}</td>
+                  <td className="py-2 pl-3 text-right tabular-nums text-xs text-stone-400">{d.sin_definir ? `${formatNumber(d.sin_definir)} u.` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="py-2 pr-3">Total</td>
+                {locales.map(l => <td key={l.id} className="py-2 px-3 text-right tabular-nums">{doc(totalLocal(l.id))}</td>)}
+                <td className="py-2 pl-3 text-right tabular-nums">{doc(totalGeneral)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+      {detalle && <DetalleDia fecha={detalle.fecha} local={detalle.local} onCerrar={() => setDetalle(null)} />}
+    </div>
+  );
+}
+
 export default function MaestroDocenasPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -54,6 +227,7 @@ export default function MaestroDocenasPage() {
   const [seleccion,   setSeleccion]   = useState(new Set()); // ids tildados
   const [masivaValor, setMasivaValor] = useState('');
   const [masivaBusy,  setMasivaBusy]  = useState(false);
+  const [version,     setVersion]     = useState(0);   // cambios guardados: rearma la tabla de abajo
 
   const filtro = searchParams.get('estado') || 'pendientes';
 
@@ -115,6 +289,7 @@ export default function MaestroDocenasPage() {
     try {
       const res = await api.put(`/maestros/docenas/${row.id}`, { docenas: Number(valor) });
       const d = res.data.data;
+      setVersion(v => v + 1);
       setRows(prev => prev.map(r => r.id === row.id
         ? { ...r, docenas: d.docenas, pendiente: false, origen: 'manual',
             definido_por: user?.nombre, definido_at: new Date().toISOString() }
@@ -176,6 +351,7 @@ export default function MaestroDocenasPage() {
       });
       setSeleccion(new Set());
       setMasivaValor('');
+      setVersion(v => v + 1);
       cargar();
     } catch (err) {
       setMsg({ ok: false, text: err?.response?.data?.error || err.message });
@@ -196,6 +372,7 @@ export default function MaestroDocenasPage() {
     try {
       const res = await api.post('/maestros/docenas/recalcular');
       setMsg({ ok: true, text: `${formatNumber(res.data.ventas_recalculadas)} ventas recalculadas con los valores actuales del maestro.` });
+      setVersion(v => v + 1);
       cargar();
     } catch (err) {
       setMsg({ ok: false, text: err?.response?.data?.error || err.message });
@@ -567,6 +744,8 @@ export default function MaestroDocenasPage() {
           {recalculando ? 'Recalculando...' : 'Recalcular histórico completo'}
         </button>
       </div>
+
+      <ControlDocenas version={version} />
 
     </div>
   );

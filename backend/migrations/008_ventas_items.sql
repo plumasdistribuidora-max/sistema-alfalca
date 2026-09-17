@@ -20,11 +20,16 @@ CREATE TABLE IF NOT EXISTS ventas_items (
   comentario               TEXT,
   comentario_cancelacion   TEXT,
   docenas_equivalentes     NUMERIC(10,4) DEFAULT 0,
-  created_at               TIMESTAMPTZ DEFAULT NOW()
+  created_at               TIMESTAMPTZ DEFAULT NOW(),
+  -- Renglón N-ésimo entre los idénticos de una venta (mismo producto y misma hora).
+  -- Fudo trae "3 cafés" como 3 renglones iguales; sin esto se perdían dos. Ver 047.
+  linea                    SMALLINT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_ventas_items_local_fecha ON ventas_items(local_id, fecha_creacion);
 CREATE INDEX IF NOT EXISTS idx_ventas_items_producto    ON ventas_items(producto_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_items_empleado    ON ventas_items(empleado);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_items_unique
-  ON ventas_items(local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion);
+-- La clave única incluye "linea" desde 047. El índice viejo (sin linea) se borra allá.
+ALTER TABLE ventas_items ADD COLUMN IF NOT EXISTS linea SMALLINT NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_items_unique_linea
+  ON ventas_items(local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion, linea);

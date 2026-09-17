@@ -461,6 +461,10 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       // "creada por", "cocina", "cancelada", "cancelada por", "comentario",
       // "comentario de cancelacion"
       let itemsInsertados = 0, itemsCancelados = 0;
+      // "3 cafés" vienen como 3 renglones idénticos (misma venta, producto y hora al
+      // segundo). Se numeran en el orden del Excel para que la clave única no los
+      // tome como uno solo. El orden es estable entre exportaciones del mismo período.
+      const lineas = new Map();
 
       for (const row of rowsAdiciones) {
         const posTicketId = parseInt(row['id venta']);
@@ -482,6 +486,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
         const fechaCreacion = parseExcelDate(row['creacion']);
         const ticketDbId    = ticketIdMap[posTicketId] ?? null;
+        const claveLinea    = `${posTicketId}|${nombreRaw.toString().trim()}|${fechaCreacion?.getTime()}`;
+        const linea         = lineas.get(claveLinea) || 0;
+        lineas.set(claveLinea, linea + 1);
 
         try {
           await client.query(`
@@ -491,9 +498,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
               costo_base, costo_modificadores, costo_total,
               empleado, fecha_creacion, cocina,
               cancelada, cancelada_por, comentario, comentario_cancelacion,
-              docenas_equivalentes
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-            ON CONFLICT (local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion) DO NOTHING
+              docenas_equivalentes, linea
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+            ON CONFLICT (local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion, linea) DO NOTHING
           `, [
             local_id, ticketDbId, posTicketId, productoId,
             nombreRaw.toString().trim(),
@@ -511,7 +518,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
             row['cancelada por'] || null,
             row['comentario'] || null,
             row['comentario de cancelacion'] || null,
-            docenasEq,
+            docenasEq, linea,
           ]);
           itemsInsertados++;
         } catch (_) { /* ON CONFLICT DO NOTHING */ }
@@ -1221,4 +1228,6 @@ router.get('/docenas', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Para los scripts de reparación, que releen los Excel guardados con la misma lógica.
+module.exports.helpers = { parseExcelDate, parseFiscal, readSheetNorm, normalizeNombre };
 

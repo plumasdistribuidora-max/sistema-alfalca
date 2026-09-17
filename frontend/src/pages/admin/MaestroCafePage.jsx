@@ -30,18 +30,26 @@ const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'n
 const fechaCorta = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
 
 // Lo pesado por los baristas contra lo que las ventas deberían haber consumido.
-function Control({ pendientes }) {
+// `version` sube cada vez que se guarda un producto: la tabla se rearma sola (con
+// una pausa corta, para no recalcular en cada tecla cuando se carga de a uno).
+function Control({ pendientes, version }) {
   const [desde, setDesde] = useState(hoyStr(-13));
   const [hasta, setHasta] = useState(hoyStr());
   const [filas, setFilas] = useState(null);
   const [error, setError] = useState('');
+  const [actualizando, setActualizando] = useState(false);
 
   useEffect(() => {
-    setFilas(null);
-    api.get('/maestros/cafe/control', { params: { desde, hasta } })
-      .then(r => { setFilas(r.data.data); setError(''); })
-      .catch(err => setError(err.response?.data?.error || 'No se pudo armar el control'));
-  }, [desde, hasta]);
+    let vivo = true;
+    setActualizando(true);
+    const t = setTimeout(() => {
+      api.get('/maestros/cafe/control', { params: { desde, hasta } })
+        .then(r => { if (vivo) { setFilas(r.data.data); setError(''); } })
+        .catch(err => { if (vivo) setError(err.response?.data?.error || 'No se pudo armar el control'); })
+        .finally(() => { if (vivo) setActualizando(false); });
+    }, version ? 1200 : 0);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [desde, hasta, version]);
 
   const conDatos = (filas || []).filter(f => f.real !== null && f.teorico !== null);
   const totReal = conDatos.reduce((s, f) => s + f.real, 0);
@@ -53,7 +61,10 @@ function Control({ pendientes }) {
     <div className="card p-5 space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <h2 className="font-semibold text-stone-800">Control: lo pesado contra lo vendido</h2>
+          <h2 className="font-semibold text-stone-800">
+            Control: lo pesado contra lo vendido
+            {actualizando && filas && <span className="ml-2 text-xs font-normal text-stone-400">actualizando…</span>}
+          </h2>
           <p className="text-xs text-stone-400 max-w-2xl mt-0.5">
             <strong>Real</strong> es lo que consumió cada turno según el pesaje de los baristas (recibió menos entregó).
             <strong> Teórico</strong> es lo vendido ese día multiplicado por los gramos de este maestro.
@@ -152,6 +163,7 @@ export default function MaestroCafePage() {
   const [seleccion, setSeleccion] = useState(new Set());
   const [masivaValor, setMasivaValor] = useState('');
   const [masivaBusy,  setMasivaBusy]  = useState(false);
+  const [version,     setVersion]     = useState(0);   // cambios guardados: rearma el control
 
   const filtro = searchParams.get('estado') || 'pendientes';
 
@@ -192,6 +204,7 @@ export default function MaestroCafePage() {
   }, [rows, filtro, busqueda, catFiltro]);
 
   function aplicarLocal(ids, gramos) {
+    setVersion(v => v + 1);
     const set = new Set(ids);
     setRows(prev => prev.map(r => set.has(r.id) ? { ...r, gramos, pendiente: false, definido_por: user?.nombre, definido_at: new Date().toISOString() } : r));
   }
@@ -386,7 +399,7 @@ export default function MaestroCafePage() {
         )}
       </div>
 
-      <Control pendientes={pendientes} />
+      <Control pendientes={pendientes} version={version} />
     </div>
   );
 }

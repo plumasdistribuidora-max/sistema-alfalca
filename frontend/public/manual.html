@@ -499,6 +499,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <p class="tit">Configuración</p>
     <a href="#formularios"><span class="ic">▤</span>Formularios</a>
     <a href="#docenas"><span class="ic">◆</span>Maestro de docenas</a>
+    <a href="#maestro-cafe"><span class="ic">◆</span>Maestro de café</a>
     <a href="#locales"><span class="ic">⌂</span>Locales</a>
 
     <p class="tit">Ayuda</p>
@@ -1818,6 +1819,41 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <span class="mk">✕</span>
         <p><strong>Nunca asignes un valor por categoría entera.</strong> Dentro de una misma categoría
         hay productos que valen distinto. Siempre producto por producto, aunque los cargues en tanda.</p>
+      </div>
+    </section>
+
+    <section class="seccion" id="maestro-cafe">
+      <h2>Maestro de café</h2>
+      <p>
+        Cuántos <strong>gramos de café</strong> lleva cada producto de la cafetería. Entran solos
+        todos los productos que alguna vez se vendieron en el café; los de las tiendas no aparecen.
+        Con esto, lo que se vende cada día tiene un <strong>consumo teórico</strong> de café, y se
+        compara contra lo que pesan los baristas al recibir y entregar el turno.
+      </p>
+      <h3>Los tres estados</h3>
+      <ul class="simple">
+        <li><strong>Pendiente</strong> — nadie le dijo todavía cuántos gramos lleva. Suma cero al teórico y el sistema lo avisa.</li>
+        <li><strong>Lleva café</strong> — tantos gramos por unidad vendida (un espresso simple, un cortado, un café grande).</li>
+        <li><strong>No lleva</strong> — vale <strong>0</strong> a propósito: una medialuna, un jugo, una promo sin café.</li>
+      </ul>
+      <p>
+        Se carga igual que las docenas: uno por uno, o buscando un texto que agrupe los que valen lo
+        mismo, tildándolos y asignando el valor de una. Una promo que incluye café lleva los gramos
+        del café que trae.
+      </p>
+      <h3>Control: lo pesado contra lo vendido</h3>
+      <p>
+        Abajo del listado, una tabla por día: <strong>Real</strong> (lo que consumió cada turno según
+        el pesaje de los baristas), <strong>Teórico</strong> (lo vendido por los gramos del maestro) y
+        la diferencia, en kilos y en porcentaje: verde hasta 10%, ámbar hasta 25%, rojo más. También
+        por turno: el corte entre mañana y tarde es la hora en que la barista de la tarde recibió el
+        turno. Lo mismo aparece resumido en <em>Cerrar el día</em>, en el bloque de café, y en el
+        mensaje a los dueños.
+      </p>
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p>Mientras queden productos pendientes, el teórico queda corto: la tabla dice cuántas
+        unidades se vendieron sin gramos definidos ese día.</p>
       </div>
     </section>
 

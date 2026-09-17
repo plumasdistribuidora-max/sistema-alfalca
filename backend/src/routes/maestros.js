@@ -7,6 +7,8 @@ const {
   loadMaestro, normalizar, setCache, isLoaded,
 } = require('../services/maestroDocenas');
 
+const { controlCafe } = require('../utils/cafe');
+
 const router = express.Router();
 
 // Recalcula docenas_equivalentes de las ventas ya importadas de un producto.
@@ -364,6 +366,126 @@ router.post('/docenas/recalcular', requireAuth, requireAdmin, async (req, res) =
     res.json({ ok: true, ventas_recalculadas: r.rowCount });
   } catch (err) {
     console.error('[maestros/docenas/recalcular]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Maestro de café: gramos de café por producto de la cafetería. Mismos tres
+// estados que las docenas (NULL pendiente, 0 no lleva, > 0 gramos). Solo entran
+// los productos que alguna vez se vendieron en el local de tipo cafetería.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const EN_CAFE = `EXISTS (
+  SELECT 1 FROM ventas_items vi JOIN locales l ON l.id = vi.local_id
+  WHERE vi.producto_id = pc.id AND l.tipo = 'cafeteria'
+)`;
+
+router.get('/cafe/estado', requireAuth, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT COUNT(*)                                     AS productos,
+             COUNT(*) FILTER (WHERE cafe_gramos IS NULL)  AS pendientes,
+             COUNT(*) FILTER (WHERE cafe_gramos > 0)      AS llevan,
+             COUNT(*) FILTER (WHERE cafe_gramos = 0)      AS no_llevan
+      FROM productos_catalogo pc WHERE ${EN_CAFE}
+    `);
+    const r = rows[0];
+    res.json({ ok: true, productos: +r.productos, pendientes: +r.pendientes, llevan: +r.llevan, no_llevan: +r.no_llevan });
+  } catch (err) {
+    console.error('[maestros/cafe/estado]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.get('/cafe/lista', requireAuth, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      WITH ventas AS (
+        SELECT vi.producto_id,
+               SUM(vi.cantidad) FILTER (WHERE NOT COALESCE(vi.cancelada, false)) AS unidades,
+               SUM(vi.cantidad) FILTER (WHERE NOT COALESCE(vi.cancelada, false) AND vi.fecha_creacion >= NOW() - INTERVAL '90 days') AS unidades_90,
+               MAX(vi.fecha_creacion) AS ultima_venta
+        FROM ventas_items vi JOIN locales l ON l.id = vi.local_id
+        WHERE l.tipo = 'cafeteria' AND vi.producto_id IS NOT NULL
+        GROUP BY vi.producto_id
+      )
+      SELECT pc.id, pc.nombre_display, pc.categoria, pc.cafe_gramos, pc.cafe_definido_por, pc.cafe_definido_at,
+             COALESCE(v.unidades, 0) AS unidades_vendidas, COALESCE(v.unidades_90, 0) AS unidades_90, v.ultima_venta
+      FROM productos_catalogo pc
+      JOIN ventas v ON v.producto_id = pc.id
+      ORDER BY (pc.cafe_gramos IS NULL) DESC, COALESCE(v.unidades_90, 0) DESC, pc.nombre_display
+    `);
+    res.json({
+      ok: true,
+      data: rows.map(r => ({
+        id: r.id, nombre: r.nombre_display, categoria: r.categoria,
+        gramos: r.cafe_gramos === null ? null : Number(r.cafe_gramos),
+        pendiente: r.cafe_gramos === null,
+        definido_por: r.cafe_definido_por, definido_at: r.cafe_definido_at,
+        unidades_vendidas: Number(r.unidades_vendidas), unidades_90: Number(r.unidades_90),
+        ultima_venta: r.ultima_venta,
+      })),
+    });
+  } catch (err) {
+    console.error('[maestros/cafe/lista]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+function gramosValidos(g) {
+  const v = Number(g);
+  return g !== undefined && g !== null && g !== '' && isFinite(v) && v >= 0 ? v : null;
+}
+
+// PUT /cafe/:id  { gramos }
+router.put('/cafe/:id', requireAuth, requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const v = gramosValidos(req.body?.gramos);
+  if (!id || v === null) return res.status(400).json({ ok: false, error: 'Ingresá los gramos (0 si no lleva café)' });
+  try {
+    const { rows } = await pool.query(`
+      UPDATE productos_catalogo SET cafe_gramos = $2, cafe_definido_por = $3, cafe_definido_at = NOW(), updated_at = NOW()
+      WHERE id = $1 RETURNING id, nombre_display, cafe_gramos
+    `, [id, v, req.user?.nombre || req.user?.email || 'admin']);
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Producto no encontrado' });
+    res.json({ ok: true, data: { id: rows[0].id, nombre: rows[0].nombre_display, gramos: Number(rows[0].cafe_gramos) } });
+  } catch (err) {
+    console.error('[maestros/cafe/put]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /cafe/bulk  { ids, gramos }
+router.post('/cafe/bulk', requireAuth, requireAdmin, async (req, res) => {
+  const { ids, gramos } = req.body ?? {};
+  const v = gramosValidos(gramos);
+  if (!Array.isArray(ids) || !ids.length || v === null) {
+    return res.status(400).json({ ok: false, error: 'Elegí productos y un valor en gramos' });
+  }
+  try {
+    const upd = await pool.query(`
+      UPDATE productos_catalogo SET cafe_gramos = $1, cafe_definido_por = $2, cafe_definido_at = NOW(), updated_at = NOW()
+      WHERE id = ANY($3::int[])
+    `, [v, req.user?.nombre || req.user?.email || 'admin', ids.map(Number).filter(Boolean)]);
+    res.json({ ok: true, actualizados: upd.rowCount });
+  } catch (err) {
+    console.error('[maestros/cafe/bulk]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// GET /cafe/control?desde&hasta — lo pesado por los baristas contra lo teórico de las ventas.
+router.get('/cafe/control', requireAuth, async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(desde || '') || !/^\d{4}-\d{2}-\d{2}$/.test(hasta || '')) {
+      return res.status(400).json({ ok: false, error: 'Fechas inválidas' });
+    }
+    res.json({ ok: true, data: await controlCafe(desde, hasta) });
+  } catch (err) {
+    console.error('[maestros/cafe/control]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

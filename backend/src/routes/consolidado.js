@@ -5,6 +5,7 @@ const { hoyStr } = require('../utils/fechas');
 const { unoPorTurno, esNovedad } = require('../utils/reportes');
 const { valorMantenimiento, itemsDelDia } = require('../utils/mantenimiento');
 const { cafeDeReporte } = require('../utils/etapas');
+const { localCafeteria, teoricoCafe, corteDe, compararDia } = require('../utils/cafe');
 
 const router = express.Router();
 
@@ -121,7 +122,7 @@ async function armarDia(fecha) {
   // grilla del día): si no, las ventas de ese turno se suman dos veces.
   const reportes = unoPorTurno((await pool.query(`
     SELECT r.id, r.local_id, r.turno, r.estado, r.empleado_id, r.respuestas,
-           r.plantilla_codigo, r.enviado_at, u.nombre AS usuario_nombre
+           r.plantilla_codigo, r.enviado_at, r.apertura_at, u.nombre AS usuario_nombre
     FROM reportes r
     JOIN usuarios u ON u.id = r.usuario_id
     WHERE r.fecha = $1 AND r.estado <> 'borrador'
@@ -347,13 +348,18 @@ async function armarDia(fecha) {
     if (!p) continue;
     const c = cafeDeReporte(p.campos, rep.respuestas);
     if (!c) continue;
-    cafe.turnos.push({ turno: rep.turno, usuario: rep.usuario_nombre, local: porLocal[rep.local_id]?.nombre, ...c });
+    cafe.turnos.push({ turno: rep.turno, usuario: rep.usuario_nombre, local: porLocal[rep.local_id]?.nombre, apertura_at: rep.apertura_at, enviado_at: rep.enviado_at, ...c });
   }
   const ordenTurno = t => t.turno === 'Mañana' ? 0 : 1;
   cafe.turnos.sort((a, b) => ordenTurno(a) - ordenTurno(b));
   cafe.consumo = Math.round(cafe.turnos.reduce((s, t) => s + (t.consumo || 0), 0) * 100) / 100;
   const ultimo = [...cafe.turnos].reverse().find(t => t.entrego !== null);
   cafe.queda = ultimo ? ultimo.entrego : null;
+  // Contra el maestro de café: lo que las ventas del día deberían haber consumido.
+  if (cafe.turnos.length) {
+    const teorico = await teoricoCafe(fecha, await localCafeteria(), corteDe(cafe.turnos));
+    cafe.control = compararDia(cafe.turnos, teorico);
+  }
 
   return {
     fecha, locales: filas, totales, novedades, cafe,

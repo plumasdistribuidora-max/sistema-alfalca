@@ -172,6 +172,7 @@ export default function Sidebar({ open, onClose }) {
               <SectionLabel label="Configuración" />
               <NavItem to="/formularios"            icon={ICON.catalogo} label="Formularios" />
               <NavItem to="/admin/maestros/docenas" icon={ICON.maestros} label="Maestro de docenas" />
+              <NavItem to="/admin/maestros/cafe"    icon={ICON.docenas}  label="Maestro de café" />
               <NavItem to="/locales"                icon={ICON.locales}  label="Locales" />
             </>
           )}

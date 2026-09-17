@@ -158,6 +158,30 @@ function CafeDelDia({ cafe }) {
           <p className="text-xs text-ahg-text/50">consumo del día {kg(cafe.consumo)}</p>
         </div>
       </div>
+      {cafe.control && cafe.control.teorico !== null && (
+        <div className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3 text-sm space-y-1">
+          <p>
+            Según lo vendido, el café debería haber consumido <strong>{kg(cafe.control.teorico)}</strong>
+            {cafe.control.real !== null && cafe.control.diferencia !== null && (
+              <> · pesado <strong>{kg(cafe.control.real)}</strong> · diferencia{' '}
+                <strong className={Math.abs(cafe.control.diferencia) <= Math.max(0.1, cafe.control.teorico * 0.1) ? 'text-green-700' : 'text-red-700'}>
+                  {cafe.control.diferencia > 0 ? '+' : ''}{kg(cafe.control.diferencia)}
+                </strong>
+              </>
+            )}
+          </p>
+          {cafe.control.turnos.some(t => t.teorico !== null) && (
+            <p className="text-xs text-ahg-text/50">
+              Por turno (pesado / teórico): {cafe.control.turnos.map(t => `${t.turno.toLowerCase()} ${kg(t.real)} / ${kg(t.teorico)}`).join(' · ')}
+            </p>
+          )}
+          {cafe.control.sin_definir > 0 && (
+            <p className="text-xs text-amber-700">
+              {cafe.control.sin_definir} unidades vendidas de {cafe.control.productos_sin_definir} productos sin gramos en el maestro de café: el teórico queda corto.
+            </p>
+          )}
+        </div>
+      )}
       {cafe.turnos.map(t => t.coincide === false ? (
         <p key={t.turno} className="text-sm text-red-700 pl-3 border-l-2 border-red-400">
           El pesaje con el que {t.usuario} recibió el turno {t.turno.toLowerCase()} no coincidió con lo que entregó {t.previa_nombre || 'el turno anterior'}: abrí los dos reportes y mirá las fotos.
@@ -237,6 +261,9 @@ function armarMensaje({ d, form, fecha, user }) {
   if (d.cafe?.turnos?.length) {
     L.push('');
     L.push(`*Café* · ${d.cafe.turnos.map(t => `${t.turno.toLowerCase()} ${kg(t.consumo)}`).join(' · ')} · quedan ${kg(d.cafe.queda)}`);
+    if (d.cafe.control?.teorico !== null && d.cafe.control?.diferencia !== null && d.cafe.control?.diferencia !== undefined) {
+      L.push(`  Según ventas debía consumir ${kg(d.cafe.control.teorico)} → diferencia ${d.cafe.control.diferencia > 0 ? '+' : ''}${kg(d.cafe.control.diferencia)}`);
+    }
     for (const t of d.cafe.turnos) if (t.coincide === false) L.push(`🔴 El pesaje de ${t.usuario} al recibir no coincidió con la entrega anterior`);
   }
 

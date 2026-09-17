@@ -27,8 +27,9 @@ const ESTADO = {
 function Slot({ slot, onAbrir }) {
   const e = ESTADO[slot.estado] || ESTADO.sin_cargar;
   const abrible = !!slot.reporte;
-  const etiqueta = slot.plantilla_codigo === 'cocina' ? 'Cocina' :
-                   slot.plantilla_codigo === 'cafe'   ? 'Café'   : 'Tienda';
+  const etiqueta = slot.plantilla_codigo === 'cocina'  ? 'Cocina'  :
+                   slot.plantilla_codigo === 'barista' ? 'Barista' :
+                   slot.plantilla_codigo === 'cafe'    ? 'Café'    : 'Tienda';
 
   return (
     <button

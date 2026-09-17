@@ -29,6 +29,7 @@ const PLANTILLA_POR_ROL = {
   [ROLES.EMPLEADO_TIENDA]:  'tienda',
   [ROLES.ENCARGADO_CAFE]:   'cafe',
   [ROLES.ENCARGADO_COCINA]: 'cocina',
+  [ROLES.BARISTA]:          'barista',
 };
 
 // Dónde puede reportar cada persona. La gente rota: una vendedora cubre otra tienda, una

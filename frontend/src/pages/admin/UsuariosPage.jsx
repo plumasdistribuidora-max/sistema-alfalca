@@ -18,6 +18,7 @@ function Badge({ rol }) {
     [ROLES.EMPLEADO_TIENDA]:   'bg-ahg-accent/40 text-ahg-primary',
     [ROLES.ENCARGADO_CAFE]:    'bg-amber-100 text-amber-800',
     [ROLES.ENCARGADO_COCINA]:  'bg-emerald-100 text-emerald-800',
+    [ROLES.BARISTA]:           'bg-orange-100 text-orange-800',
   }[rol] || 'bg-gray-100 text-gray-600';
 
   return (

@@ -25,6 +25,16 @@ function formatUltimoImport(isoStr) {
   return `${dia} ${mes} ${anio}, ${hh}:${mm}`;
 }
 
+// "Ene 2025 – Sep 2026": el rango real de ventas cargadas, no un texto fijo.
+const MES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+function rangoTexto(u) {
+  if (!u?.desde || !u?.hasta) return 'Ventas cargadas';
+  const [ay, am] = u.desde.split('-').map(Number);
+  const [by, bm, bd] = u.hasta.split('-').map(Number);
+  const desde = ay === by ? MES_CORTO[am - 1] : `${MES_CORTO[am - 1]} ${ay}`;
+  return `${desde} – ${bd} ${MES_CORTO[bm - 1].toLowerCase()} ${by}`;
+}
+
 export default function RedDashboard() {
   const [activeTab, setActiveTab]     = useState('resumen');
   const [ultimoImport, setUltimoImport] = useState(undefined); // undefined = cargando, null = sin datos
@@ -63,7 +73,7 @@ export default function RedDashboard() {
                 className="text-white/50 uppercase tracking-widest leading-tight"
                 style={{ fontSize: '10px', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
               >
-                2026 · 5 unidades
+                {ultimoImport?.hasta ? ultimoImport.hasta.slice(0, 4) : new Date().getFullYear()} · 5 unidades
               </p>
             </div>
           </div>
@@ -81,7 +91,7 @@ export default function RedDashboard() {
         </div>
 
         <p className="px-6 pb-3 text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
-          Ene–Mayo 2026 · 4 tiendas alfajoreras + 1 cafetería
+          {rangoTexto(ultimoImport)} · 4 tiendas alfajoreras + 1 cafetería
         </p>
 
         {/* Tabs */}

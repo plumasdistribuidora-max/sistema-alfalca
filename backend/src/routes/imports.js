@@ -14,7 +14,14 @@ router.get('/ultimo', requireAuth, async (req, res) => {
       ORDER BY created_at DESC
       LIMIT 1
     `);
-    res.json({ ok: true, data: rows[0] || null });
+    if (!rows.length) return res.json({ ok: true, data: null });
+    // El rango de ventas que realmente hay cargado, para el subtítulo del dashboard.
+    const rango = (await pool.query(`
+      SELECT MIN(fecha)::text AS desde, MAX(fecha)::text AS hasta,
+             COUNT(DISTINCT local_id)::int AS locales
+      FROM ventas_tickets WHERE estado = 'cerrada'
+    `)).rows[0];
+    res.json({ ok: true, data: { ...rows[0], ...rango } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: 'Error al obtener último import' });

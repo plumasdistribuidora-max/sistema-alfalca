@@ -20,13 +20,12 @@ async function teoricoCafe(fecha, localId, corte) {
   const { rows } = await pool.query(`
     SELECT
       CASE WHEN $3::timestamptz IS NULL THEN 'Mañana'
-           WHEN (t.creacion AT TIME ZONE 'UTC') < ($3::timestamptz AT TIME ZONE '${TZ}') THEN 'Mañana'
+           WHEN (i.fecha_creacion AT TIME ZONE 'UTC') < ($3::timestamptz AT TIME ZONE '${TZ}') THEN 'Mañana'
            ELSE 'Tarde' END AS turno,
       SUM(i.cantidad * pc.cafe_gramos) FILTER (WHERE pc.cafe_gramos IS NOT NULL) AS gramos
     FROM ventas_items i
-    JOIN ventas_tickets t ON t.id = i.ticket_id
     LEFT JOIN productos_catalogo pc ON pc.id = i.producto_id
-    WHERE t.local_id = $1 AND t.fecha = $2 AND t.estado = 'cerrada'
+    WHERE i.local_id = $1 AND (i.fecha_creacion AT TIME ZONE 'UTC')::date = $2
       AND NOT COALESCE(i.cancelada, false)
     GROUP BY 1
   `, [localId, fecha, corte || null]);
@@ -40,9 +39,8 @@ async function teoricoCafe(fecha, localId, corte) {
   const sd = (await pool.query(`
     SELECT COALESCE(SUM(i.cantidad), 0) AS unidades, COUNT(DISTINCT pc.id) AS productos
     FROM ventas_items i
-    JOIN ventas_tickets t ON t.id = i.ticket_id
     LEFT JOIN productos_catalogo pc ON pc.id = i.producto_id
-    WHERE t.local_id = $1 AND t.fecha = $2 AND t.estado = 'cerrada'
+    WHERE i.local_id = $1 AND (i.fecha_creacion AT TIME ZONE 'UTC')::date = $2
       AND NOT COALESCE(i.cancelada, false) AND pc.cafe_gramos IS NULL
   `, [localId, fecha])).rows[0];
   const sinDefinir = Number(sd.unidades), productosSinDefinir = Number(sd.productos);
@@ -108,7 +106,7 @@ async function controlCafe(desde, hasta) {
 
   // Todos los días con ventas del café en el rango, tengan o no reporte de barista.
   const dias = (await pool.query(
-    "SELECT DISTINCT fecha::text AS fecha FROM ventas_tickets WHERE local_id = $1 AND fecha BETWEEN $2 AND $3 AND estado = 'cerrada' ORDER BY 1",
+    "SELECT DISTINCT (fecha_creacion AT TIME ZONE 'UTC')::date::text AS fecha FROM ventas_items WHERE local_id = $1 AND (fecha_creacion AT TIME ZONE 'UTC')::date BETWEEN $2 AND $3 ORDER BY 1",
     [localId, desde, hasta]
   )).rows.map(r => r.fecha);
   for (const f of porDia.keys()) if (!dias.includes(f)) dias.push(f);
@@ -132,9 +130,8 @@ async function detalleCafe(fecha) {
     SELECT pc.id, pc.nombre_display AS nombre, pc.cafe_gramos AS gramos,
            SUM(i.cantidad) AS unidades
     FROM ventas_items i
-    JOIN ventas_tickets t ON t.id = i.ticket_id
     JOIN productos_catalogo pc ON pc.id = i.producto_id
-    WHERE t.local_id = $1 AND t.fecha = $2 AND t.estado = 'cerrada'
+    WHERE i.local_id = $1 AND (i.fecha_creacion AT TIME ZONE 'UTC')::date = $2
       AND NOT COALESCE(i.cancelada, false)
     GROUP BY pc.id, pc.nombre_display, pc.cafe_gramos
     ORDER BY (pc.cafe_gramos IS NULL), SUM(i.cantidad) * COALESCE(pc.cafe_gramos, 0) DESC, SUM(i.cantidad) DESC

@@ -390,6 +390,17 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         }
       }
 
+      // Renglones de imports anteriores que entraron antes que su ticket (en el café
+      // el ticket sale de la hoja Pagos: hasta que se paga no existe). Ahora que el
+      // ticket está, se enlazan.
+      const enlazados = await client.query(`
+        UPDATE ventas_items vi SET ticket_id = t.id
+        FROM ventas_tickets t
+        WHERE vi.local_id = $1 AND vi.ticket_id IS NULL
+          AND t.local_id = vi.local_id AND t.pos_id = vi.pos_ticket_id
+      `, [local_id]);
+      if (enlazados.rowCount) debugLog.push(`Renglones enlazados a tickets que llegaron después: ${enlazados.rowCount}`);
+
       // ── PASO 2: productos_catalogo ─────────────────────────────────────
       // Columnas normalizadas: nombre, categoria, subcategoria, codigo, cantidad, total
       // "Total ($)" → normaliza a "total"

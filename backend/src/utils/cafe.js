@@ -123,4 +123,28 @@ async function controlCafe(desde, hasta) {
   return out;
 }
 
-module.exports = { localCafeteria, teoricoCafe, corteDe, compararDia, controlCafe };
+// Qué se vendió un día, producto por producto, con sus gramos: es lo que explica el
+// teórico. Los sin gramos van al final, para que se vea qué falta definir.
+async function detalleCafe(fecha) {
+  const localId = await localCafeteria();
+  if (!localId) return [];
+  const { rows } = await pool.query(`
+    SELECT pc.id, pc.nombre_display AS nombre, pc.cafe_gramos AS gramos,
+           SUM(i.cantidad) AS unidades
+    FROM ventas_items i
+    JOIN ventas_tickets t ON t.id = i.ticket_id
+    JOIN productos_catalogo pc ON pc.id = i.producto_id
+    WHERE t.local_id = $1 AND t.fecha = $2 AND t.estado = 'cerrada'
+      AND NOT COALESCE(i.cancelada, false)
+    GROUP BY pc.id, pc.nombre_display, pc.cafe_gramos
+    ORDER BY (pc.cafe_gramos IS NULL), SUM(i.cantidad) * COALESCE(pc.cafe_gramos, 0) DESC, SUM(i.cantidad) DESC
+  `, [localId, fecha]);
+  return rows.map(r => ({
+    id: r.id, nombre: r.nombre,
+    unidades: Number(r.unidades),
+    gramos: r.gramos === null ? null : Number(r.gramos),
+    total_g: r.gramos === null ? null : Math.round(Number(r.unidades) * Number(r.gramos)),
+  }));
+}
+
+module.exports = { localCafeteria, teoricoCafe, corteDe, compararDia, controlCafe, detalleCafe };

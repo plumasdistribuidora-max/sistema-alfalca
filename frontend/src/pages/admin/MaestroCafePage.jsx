@@ -29,6 +29,82 @@ function hoyStr(delta = 0) {
 const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 const fechaCorta = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
 
+// El teórico de un día, abierto: "vendiste 45 café grande × 19 g = 855 g".
+function DetalleDia({ fecha, onCerrar }) {
+  const [filas, setFilas] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.get('/maestros/cafe/detalle', { params: { fecha } })
+      .then(r => setFilas(r.data.data))
+      .catch(err => setError(err.response?.data?.error || 'No se pudo abrir el detalle'));
+  }, [fecha]);
+
+  const conGramos = (filas || []).filter(f => f.gramos !== null);
+  const sinGramos = (filas || []).filter(f => f.gramos === null);
+  const llevan = conGramos.filter(f => f.gramos > 0);
+  const totalG = llevan.reduce((s, f) => s + f.total_g, 0);
+  const g = v => `${formatNumber(v)} g`;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-3 overflow-y-auto" onClick={onCerrar}>
+      <div className="bg-white rounded-2xl w-full max-w-lg my-4" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-stone-200 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-stone-900 capitalize">{fechaCorta(fecha)}</h2>
+            <p className="text-sm text-stone-500">Teórico: <strong className="text-stone-800">{kg(totalG / 1000)}</strong> de café según lo vendido</p>
+          </div>
+          <button onClick={onCerrar} className="text-stone-400 text-2xl leading-none" aria-label="Cerrar">×</button>
+        </div>
+        <div className="px-5 py-3">
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {!filas && !error && <p className="text-sm text-stone-400">Cargando…</p>}
+          {filas && !llevan.length && <p className="text-sm text-stone-400">Ese día no se vendió nada que lleve café.</p>}
+          {llevan.length > 0 && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-stone-400 uppercase tracking-wide border-b border-stone-200">
+                  <th className="text-left py-1.5">Producto</th>
+                  <th className="text-right py-1.5 px-2">Vendidos</th>
+                  <th className="text-right py-1.5 px-2">c/u</th>
+                  <th className="text-right py-1.5 pl-2">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {llevan.map(f => (
+                  <tr key={f.id} className="border-b border-stone-100">
+                    <td className="py-1.5">{f.nombre}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{formatNumber(f.unidades)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums text-stone-500">{g(f.gramos)}</td>
+                    <td className="py-1.5 pl-2 text-right tabular-nums font-semibold">{g(f.total_g)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td className="py-2" colSpan={3}>Total</td>
+                  <td className="py-2 pl-2 text-right tabular-nums">{g(totalG)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+          {sinGramos.length > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              <p className="font-semibold mb-1">Sin gramos definidos ({sinGramos.length}): suman 0</p>
+              <p>{sinGramos.map(f => `${f.nombre} (${formatNumber(f.unidades)})`).join(' · ')}</p>
+              <a href="/admin/maestros/cafe?estado=pendientes" className="underline">Definirlos en el maestro</a>
+            </div>
+          )}
+          {conGramos.length > llevan.length && (
+            <p className="mt-3 text-xs text-stone-400">
+              {conGramos.length - llevan.length} productos vendidos que no llevan café no se listan.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Lo pesado por los baristas contra lo que las ventas deberían haber consumido.
 // `version` sube cada vez que se guarda un producto: la tabla se rearma sola (con
 // una pausa corta, para no recalcular en cada tecla cuando se carga de a uno).
@@ -38,6 +114,7 @@ function Control({ pendientes, version }) {
   const [filas, setFilas] = useState(null);
   const [error, setError] = useState('');
   const [actualizando, setActualizando] = useState(false);
+  const [detalle, setDetalle] = useState(null);   // fecha abierta en el popup
 
   useEffect(() => {
     let vivo = true;
@@ -69,6 +146,7 @@ function Control({ pendientes, version }) {
             <strong>Real</strong> es lo que consumió cada turno según el pesaje de los baristas (recibió menos entregó).
             <strong> Teórico</strong> es lo vendido ese día multiplicado por los gramos de este maestro.
             El corte entre mañana y tarde es la hora en que la barista de la tarde recibió el turno.
+            Tocá el teórico de un día para ver qué se vendió y cuántos gramos lleva cada cosa.
           </p>
         </div>
         <div className="flex items-center gap-2 ml-auto">
@@ -91,6 +169,7 @@ function Control({ pendientes, version }) {
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!filas && !error && <p className="text-sm text-stone-400">Armando el control…</p>}
       {filas && !filas.length && <p className="text-sm text-stone-400">No hay ventas del café en ese período.</p>}
+      {detalle && <DetalleDia fecha={detalle} onCerrar={() => setDetalle(null)} />}
       {filas && filas.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -111,7 +190,12 @@ function Control({ pendientes, version }) {
                   <tr key={f.fecha} className="border-b border-stone-100">
                     <td className="py-2 pr-3 whitespace-nowrap capitalize">{fechaCorta(f.fecha)}</td>
                     <td className="py-2 px-3 text-right tabular-nums font-semibold">{f.real === null ? <span className="text-stone-300 font-normal">sin pesaje</span> : kg(f.real)}</td>
-                    <td className="py-2 px-3 text-right tabular-nums">{kg(f.teorico)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">
+                      <button onClick={() => setDetalle(f.fecha)} title="Ver qué se vendió y cuántos gramos lleva cada cosa"
+                              className="text-violet-700 hover:text-violet-900 underline decoration-dotted underline-offset-2">
+                        {kg(f.teorico)}
+                      </button>
+                    </td>
                     <td className={`py-2 px-3 text-right tabular-nums font-semibold ${tono(p)}`}>
                       {f.diferencia === null ? '—' : `${f.diferencia > 0 ? '+' : ''}${kg(f.diferencia)}${p !== null ? ` (${p > 0 ? '+' : ''}${p}%)` : ''}`}
                     </td>

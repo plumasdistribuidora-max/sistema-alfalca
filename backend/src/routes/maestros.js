@@ -7,7 +7,7 @@ const {
   loadMaestro, normalizar, setCache, isLoaded,
 } = require('../services/maestroDocenas');
 
-const { controlCafe } = require('../utils/cafe');
+const { controlCafe, detalleCafe } = require('../utils/cafe');
 
 const router = express.Router();
 
@@ -486,6 +486,18 @@ router.get('/cafe/control', requireAuth, async (req, res) => {
     res.json({ ok: true, data: await controlCafe(desde, hasta) });
   } catch (err) {
     console.error('[maestros/cafe/control]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// GET /cafe/detalle?fecha — el teórico de un día abierto por producto.
+router.get('/cafe/detalle', requireAuth, async (req, res) => {
+  try {
+    const { fecha } = req.query;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return res.status(400).json({ ok: false, error: 'Fecha inválida' });
+    res.json({ ok: true, data: await detalleCafe(fecha) });
+  } catch (err) {
+    console.error('[maestros/cafe/detalle]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

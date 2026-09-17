@@ -132,6 +132,41 @@ function MantenimientoDia({ items, planes, onPlan, cerrado }) {
   );
 }
 
+// El café del día, de los reportes de barista: con cuánto recibió y entregó cada
+// turno, cuánto consumió, y si el pesaje del cambio de turno coincidió.
+const kg = v => v === null || v === undefined ? '—' : `${String(v).replace('.', ',')} kg`;
+
+function CafeDelDia({ cafe }) {
+  if (!cafe?.turnos?.length) return null;
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Café del día</h2>
+        <span className="text-xs text-ahg-text/40">lo que pesaron los baristas al recibir y entregar cada turno</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {cafe.turnos.map(t => (
+          <div key={t.turno} className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Consumo {t.turno.toLowerCase()}</p>
+            <p className="text-xl font-bold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{kg(t.consumo)}</p>
+            <p className="text-xs text-ahg-text/50">{t.usuario} · recibió {kg(t.recibio)} · entregó {kg(t.entrego)}</p>
+          </div>
+        ))}
+        <div className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Queda en el café</p>
+          <p className="text-xl font-bold tabular-nums text-ahg-primary" style={{ fontFamily: 'Nunito, sans-serif' }}>{kg(cafe.queda)}</p>
+          <p className="text-xs text-ahg-text/50">consumo del día {kg(cafe.consumo)}</p>
+        </div>
+      </div>
+      {cafe.turnos.map(t => t.coincide === false ? (
+        <p key={t.turno} className="text-sm text-red-700 pl-3 border-l-2 border-red-400">
+          El pesaje con el que {t.usuario} recibió el turno {t.turno.toLowerCase()} no coincidió con lo que entregó {t.previa_nombre || 'el turno anterior'}: abrí los dos reportes y mirá las fotos.
+        </p>
+      ) : null)}
+    </div>
+  );
+}
+
 // El texto que el encargado le manda a los dueños al cerrar. Va en texto plano con
 // los asteriscos de WhatsApp: lo que importa es que se lea en el celular sin abrir
 // nada, y que diga primero lo que hay que saber (venta, personal, qué no cerró).
@@ -196,6 +231,13 @@ function armarMensaje({ d, form, fecha, user }) {
     L.push('');
     L.push(`*Gastos de caja* · ${n(nv.total_gastos)}`);
     for (const g of nv.gastos) L.push(`• ${corto(g.local)} (${g.turno.toLowerCase()}): ${g.tipo ? `${g.tipo} — ` : ''}${g.detalle || ''} ${n(g.monto)}`);
+  }
+
+  // Café: consumo por turno y con cuánto queda el café.
+  if (d.cafe?.turnos?.length) {
+    L.push('');
+    L.push(`*Café* · ${d.cafe.turnos.map(t => `${t.turno.toLowerCase()} ${kg(t.consumo)}`).join(' · ')} · quedan ${kg(d.cafe.queda)}`);
+    for (const t of d.cafe.turnos) if (t.coincide === false) L.push(`🔴 El pesaje de ${t.usuario} al recibir no coincidió con la entrega anterior`);
   }
 
   // Facturas: las que entraron hoy y las que se pagaron, una por renglón, con el medio.
@@ -637,6 +679,8 @@ export default function CierreDelDia({ fecha, onCambio }) {
                      render={it => `${it.tipo ? `${it.tipo} — ` : ''}${it.detalle || 'sin detalle'} · $ ${money.format(it.monto)}`} />
         </div>
       )}
+
+      <CafeDelDia cafe={d.cafe} />
 
       <FacturasProveedores p={d.proveedores} />
 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
-import Campo, { soloNumero } from './campos';
+import Campo, { soloNumero, FotoAdjunta } from './campos';
 import { UNIDADES, precioPor } from '../../utils/unidades';
+import { camposApertura, camposEntrega, tieneApertura, fotosPesaje, resumenApertura, hora } from './etapas';
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -178,6 +179,39 @@ function Pendientes({ lista, onAbrir }) {
   );
 }
 
+function TituloEtapa({ titulo, nota, apagado }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[11px] font-bold uppercase tracking-widest ${apagado ? 'text-ahg-text/40' : 'text-ahg-primary'}`}>{titulo}</span>
+      <span className="flex-1 h-px bg-ahg-accent/40" />
+      {nota && <span className="text-[11px] text-ahg-text/40">{nota}</span>}
+    </div>
+  );
+}
+
+// La apertura ya confirmada: lo que se recibió, con hora y fotos, y sin nada editable.
+function AperturaConfirmada({ campos, respuestas, adjuntos, aperturaAt }) {
+  const codigos = camposApertura(campos).flatMap(c =>
+    c.tipo === 'foto' ? [c.codigo] : c.tipo === 'pesaje_cafe' ? Object.values(fotosPesaje(c.codigo)) : []
+  );
+  const fotos = adjuntos.filter(a => codigos.includes(a.campo_codigo));
+  return (
+    <div className="rounded-xl border border-green-300 bg-green-50 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+        <span className="text-[11px] font-bold uppercase tracking-wide text-green-800">Turno recibido · {hora(aperturaAt)}</span>
+      </div>
+      <p className="text-sm text-ahg-text">{resumenApertura(campos, respuestas)}</p>
+      {fotos.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap">
+          {fotos.map(a => <div key={a.id} className="w-11 h-14 rounded-md overflow-hidden border border-green-200"><FotoAdjunta id={a.id} /></div>)}
+        </div>
+      )}
+      <p className="text-xs text-ahg-text/50">Ya no se puede modificar. Si algo está mal, avisale al encargado.</p>
+    </div>
+  );
+}
+
 // En la lista de locales, el café y la cocina comparten edificio: se distinguen por el
 // nombre del formulario. Las tiendas se distinguen solas por el nombre del local.
 const plantilla_es_sector = o => o.plantilla_codigo !== 'tienda';
@@ -192,6 +226,8 @@ export default function MiReporte() {
   const [turno,      setTurno]      = useState('');
   const [respuestas, setRespuestas] = useState({});
   const [reporteId,  setReporteId]  = useState(null);
+  const [aperturaAt, setAperturaAt] = useState(null);   // reportes en dos etapas: cuándo se confirmó la recepción
+  const [estadoReporte, setEstadoReporte] = useState(null);
   const [adjuntos,   setAdjuntos]   = useState([]);
   const [facturas,   setFacturas]   = useState([]);
 
@@ -233,6 +269,8 @@ export default function MiReporte() {
       setTurno(previo?.turno || '');
       setRespuestas(previo?.respuestas || {});
       setReporteId(previo?.id || null);
+      setAperturaAt(previo?.apertura_at || null);
+      setEstadoReporte(previo?.estado || null);
       setAdjuntos(previo?.adjuntos || []);
       setFacturas(previo?.facturas || []);
       setFaltan([]);
@@ -254,6 +292,38 @@ export default function MiReporte() {
     api.get('/reportes/mio', { params })
       .then(r => setData(d => ({ ...d, mantenimiento_pendientes: r.data.data.mantenimiento_pendientes || [] })))
       .catch(() => {});
+  }
+
+  // La entrega del turno anterior puede llegar después de abrir la pantalla (la otra
+  // barista envía su reporte mientras esta ya está cargando): se vuelve a pedir.
+  function refrescarPrevia() {
+    if (!data) return;
+    const params = { local_id: data.local?.id, plantilla: data.plantilla?.codigo };
+    if (corrigiendo) params.fecha = corrigiendo.fecha;
+    api.get('/reportes/mio', { params })
+      .then(r => setData(d => ({ ...d, entrega_previa: r.data.data.entrega_previa || null })))
+      .catch(() => {});
+  }
+
+  async function confirmarApertura() {
+    setEnviando(true);
+    setError('');
+    setFaltan([]);
+    try {
+      clearTimeout(debounce.current);
+      const id = await guardar(turno, respuestas);
+      if (!id) return;
+      const r = await api.post(`/reportes/${id}/apertura`);
+      setAperturaAt(r.data.data.apertura_at);
+      setEstadoReporte(e => e || 'borrador');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      const d = err.response?.data;
+      if (d?.data?.faltan) setFaltan(d.data.faltan);
+      else setError(d?.error || 'No se pudo confirmar');
+    } finally {
+      setEnviando(false);
+    }
   }
 
   function abrirPendiente(p) {
@@ -419,9 +489,18 @@ export default function MiReporte() {
   const campoTurno = plantilla.campos.find(c => c.tipo === 'seleccion' && c.codigo === 'turno');
   const resto = plantilla.campos.filter(c => c.codigo !== 'turno');
 
+  // Reportes en dos etapas: la apertura se edita hasta confirmarla (o si el encargado
+  // devolvió el reporte); la entrega aparece recién después.
+  const conEtapas = tieneApertura(plantilla.campos);
+  const aperturaEditable = !aperturaAt || estadoReporte === 'observado';
+  const entregaVisible = !!aperturaAt;
+
   const ctx = {
     equipo: data.equipo || [],
     mantenimientoPendientes: data.mantenimiento_pendientes || [],
+    entregaPrevia: data.entrega_previa || null,
+    onRefrescarPrevia: refrescarPrevia,
+    fecha, plantilla, respuestas,
     adjuntos, facturas, subiendo,
     onSubirFoto: subirFoto,
     onBorrarFoto: borrarFoto,
@@ -435,7 +514,7 @@ export default function MiReporte() {
         <div className="card p-6 text-center border-green-300 bg-green-50">
           <p className="text-4xl mb-2">✓</p>
           <h1 className="text-lg font-bold text-green-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
-            {corrigiendo ? 'Reporte corregido y enviado' : 'Reporte enviado'}
+            {corrigiendo ? 'Reporte corregido y enviado' : conEtapas ? 'Turno entregado' : 'Reporte enviado'}
           </h1>
           <p className="text-sm text-green-700 mt-1">
             {local?.nombre}, turno {turno.toLowerCase()} del {fechaTxt}. Ya le llegó al encargado.
@@ -531,7 +610,7 @@ export default function MiReporte() {
           </div>
         )}
 
-        {campoTurno && (corrigiendo ? (
+        {campoTurno && ((corrigiendo || (conEtapas && aperturaAt)) ? (
           <div className="mb-4">
             <label className="label">{campoTurno.label}</label>
             <p className="text-sm font-semibold">{turno}</p>
@@ -544,6 +623,42 @@ export default function MiReporte() {
           <p className="text-sm text-ahg-text/50 text-center py-6 border-t border-ahg-accent/30">
             Elegí el turno para empezar a cargar.
           </p>
+        ) : conEtapas ? (
+          <div className="border-t border-ahg-accent/30 pt-5 space-y-5">
+            <TituloEtapa titulo="Recibo el turno" nota={aperturaAt ? null : 'se confirma una vez'} />
+            {aperturaEditable ? (
+              <>
+                {camposApertura(plantilla.campos).map(campo => (
+                  <Campo key={campo.codigo} campo={campo} valor={respuestas[campo.codigo]} onChange={cambiar} ctx={ctx} />
+                ))}
+                {resumenApertura(plantilla.campos, respuestas) && (
+                  <div className="rounded-lg border border-ahg-accent bg-ahg-accent/10 p-3 space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ahg-primary">Así recibís tu turno</p>
+                    <p className="text-sm">{resumenApertura(plantilla.campos, respuestas)}</p>
+                    {!aperturaAt && <p className="text-xs text-ahg-text/50">Al confirmar, esto queda fijo y no se puede cambiar durante el turno.</p>}
+                  </div>
+                )}
+                {!aperturaAt && (
+                  <button onClick={confirmarApertura} disabled={enviando} className="btn-primary w-full">
+                    {enviando ? 'Confirmando…' : 'Confirmar que recibí el turno'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <AperturaConfirmada campos={plantilla.campos} respuestas={respuestas} adjuntos={adjuntos} aperturaAt={aperturaAt} />
+            )}
+
+            <TituloEtapa titulo="Entrego el turno" apagado={!entregaVisible} />
+            {entregaVisible ? (
+              <div>
+                {camposEntrega(plantilla.campos).map(campo => (
+                  <Campo key={campo.codigo} campo={campo} valor={respuestas[campo.codigo]} onChange={cambiar} ctx={ctx} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-ahg-text/50">Se habilita cuando confirmes que recibiste el turno.</p>
+            )}
+          </div>
         ) : (
           <div className="border-t border-ahg-accent/30 pt-5">
             {resto.map(campo => (
@@ -556,14 +671,14 @@ export default function MiReporte() {
         )}
       </div>
 
-      {turno && (
+      {turno && (!conEtapas || entregaVisible) && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-ahg-accent/30 p-3 lg:static lg:bg-transparent lg:border-0 lg:p-0 lg:mt-4">
           <div className="max-w-lg mx-auto flex items-center gap-3">
             <span className="text-xs text-ahg-text/40 flex-shrink-0">
               {guardando ? 'Guardando…' : 'Guardado'}
             </span>
             <button onClick={enviar} disabled={enviando} className="btn-primary flex-1">
-              {enviando ? 'Enviando…' : corrigiendo ? 'Enviar corregido' : 'Enviar al Encargado'}
+              {enviando ? 'Enviando…' : corrigiendo ? 'Enviar corregido' : conEtapas ? 'Entregar turno y enviar al Encargado' : 'Enviar al Encargado'}
             </button>
           </div>
         </div>

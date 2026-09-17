@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import { fotosPesaje, totalPesaje, kg, hora, resumenEntrega } from './etapas';
 
 // Renderizado de cada tipo de campo de una plantilla de reporte.
 // La plantilla es data: agregar una pregunta no toca este archivo salvo que sea
@@ -175,7 +176,7 @@ function HorasEquipo({ valor, equipo, onChange }) {
 
 // Un <img src> no manda el header Authorization, y el endpoint de la foto lo pide.
 // Por eso se baja con axios (que ya inyecta el token) y se muestra como blob.
-function FotoAdjunta({ id }) {
+export function FotoAdjunta({ id }) {
   const [url, setUrl] = useState(null);
 
   useEffect(() => {
@@ -350,6 +351,124 @@ function Mantenimiento({ valor, pendientes, onChange }) {
   );
 }
 
+// Pesaje de café: bolsa abierta (en la balanza) y bolsas cerradas (las del depósito),
+// cada una con su foto. Con "con_previa", primero ofrece el pesaje con el que entregó
+// el turno anterior: si coincide, se toma ese y las fotos son las de ese reporte.
+// Valor: { abierta_kg, cerradas_kg, coincide, previa_reporte_id, previa_nombre }
+const FECHA_DIA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'short' });
+
+function KgInput({ valor, onChange, placeholder }) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        className="input tabular-nums text-right flex-1" inputMode="decimal" placeholder={placeholder || '0,0'}
+        value={valor ?? ''}
+        onChange={e => onChange(e.target.value.replace(',', '.').replace(/[^\d.]/g, ''))}
+      />
+      <span className="text-sm text-ahg-text/60">kg</span>
+    </div>
+  );
+}
+
+function PesajeCafe({ campo, valor, onChange, ctx }) {
+  const v = valor || {};
+  const previa = campo.con_previa ? ctx.entregaPrevia : null;
+  const fotos = fotosPesaje(campo.codigo);
+  const set = parcial => onChange({ ...v, ...parcial });
+  const hoy = ctx.fecha;
+  const total = totalPesaje(v);
+  const esEntrega = !campo.etapa;
+
+  const cuandoPrevia = p => {
+    const dia = p.fecha === hoy ? 'hoy' : FECHA_DIA.format(new Date(`${p.fecha}T12:00:00`));
+    return `${dia}, turno ${p.turno.toLowerCase()} · ${hora(p.enviado_at)}`;
+  };
+
+  // Confirmar el pesaje previo copia sus kilos; "cargo otro" los deja libres.
+  const confirmar = si => {
+    if (si) set({ coincide: true, previa_reporte_id: previa.reporte_id, previa_nombre: previa.usuario_nombre, abierta_kg: previa.abierta_kg, cerradas_kg: previa.cerradas_kg });
+    else set({ coincide: false, previa_reporte_id: previa.reporte_id, previa_nombre: previa.usuario_nombre, abierta_kg: '', cerradas_kg: '' });
+  };
+
+  const pideCarga = !previa || v.coincide === false;
+  const resumen = esEntrega ? resumenEntrega(ctx.plantilla?.campos || [], ctx.respuestas || {}) : null;
+
+  return (
+    <div className="space-y-3">
+      {previa && (
+        <div className={`rounded-lg border p-3 space-y-2 ${v.coincide === true ? 'border-green-300 bg-green-50' : 'border-ahg-accent bg-ahg-accent/10'}`}>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ahg-primary">
+            {previa.usuario_nombre} entregó el turno · {cuandoPrevia(previa)}
+          </p>
+          <p className="text-sm">
+            Tolva vacía. Café: <strong>{kg(previa.abierta_kg)}</strong> en bolsa abierta + <strong>{kg(previa.cerradas_kg)}</strong> en bolsas cerradas = <strong>{kg(previa.total)}</strong>.
+            {previa.fecha === hoy && ' Pesado con vos.'}
+          </p>
+          {previa.adjuntos?.length > 0 && (
+            <div className="flex gap-1.5">
+              {previa.adjuntos.map(a => (
+                <div key={a.id} className="w-14 h-[72px] rounded-md overflow-hidden border border-ahg-accent/40"><FotoAdjunta id={a.id} /></div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs font-semibold text-ahg-primary">¿Recibís lo mismo?</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => confirmar(true)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${v.coincide === true ? 'bg-green-600 text-white border-green-600' : 'bg-white text-ahg-text/70 border-ahg-accent/50'}`}>
+              Sí, coincide
+            </button>
+            <button type="button" onClick={() => confirmar(false)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${v.coincide === false ? 'bg-ahg-primary text-white border-ahg-primary' : 'bg-white text-ahg-text/70 border-ahg-accent/50'}`}>
+              No, cargo otro
+            </button>
+          </div>
+          <p className="text-xs text-ahg-text/50">
+            Si no coincide, cargás tu pesaje con tu foto y el encargado ve los dos.
+            {ctx.onRefrescarPrevia && <> ¿No es la entrega que esperabas? <button type="button" onClick={ctx.onRefrescarPrevia} className="underline text-ahg-primary">Volver a buscar</button>.</>}
+          </p>
+        </div>
+      )}
+
+      {pideCarga && (
+        <>
+          <div>
+            <p className="text-sm font-medium mb-1">Kilos en la bolsa abierta</p>
+            <p className="text-xs text-ahg-text/50 mb-1.5">Con la tolva vacía, en la balanza de cocina{esEntrega ? ', junto con quien recibe' : ''}</p>
+            <KgInput valor={v.abierta_kg} onChange={x => set({ abierta_kg: x })} />
+            <div className="mt-2">
+              <Fotos campo={{ codigo: fotos.abierta, max: 2 }} adjuntos={ctx.adjuntos} onSubir={ctx.onSubirFoto}
+                     onBorrar={ctx.onBorrarFoto} subiendo={ctx.subiendo === fotos.abierta} />
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1">Kilos de café en bolsas cerradas</p>
+            <p className="text-xs text-ahg-text/50 mb-1.5">Las del depósito. Sumá lo que dice cada bolsa.</p>
+            <KgInput valor={v.cerradas_kg} onChange={x => set({ cerradas_kg: x })} />
+            <div className="mt-2">
+              <Fotos campo={{ codigo: fotos.cerradas, max: 3 }} adjuntos={ctx.adjuntos} onSubir={ctx.onSubirFoto}
+                     onBorrar={ctx.onBorrarFoto} subiendo={ctx.subiendo === fotos.cerradas} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {esEntrega && resumen && (
+        <div className="rounded-lg border border-ahg-accent bg-ahg-accent/10 p-3 space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ahg-primary">Así entregás tu turno</p>
+          <p className="text-sm">{resumen.texto}</p>
+          {resumen.consumo !== null && (
+            <p className="text-sm">Consumo de tu turno: <strong className="text-ahg-primary">{kg(resumen.consumo)}</strong> (recibiste con {kg(resumen.recibio)}).</p>
+          )}
+          <p className="text-xs text-ahg-text/50">Quien recibe va a ver este mismo pesaje al abrir su turno.</p>
+        </div>
+      )}
+      {!esEntrega && total !== null && !previa && (
+        <p className="text-xs text-ahg-text/60">Total: <strong>{kg(total)}</strong> de café.</p>
+      )}
+    </div>
+  );
+}
+
 export default function Campo({ campo, valor, onChange, ctx }) {
   const set = v => onChange(campo.codigo, v);
 
@@ -497,6 +616,10 @@ export default function Campo({ campo, valor, onChange, ctx }) {
       control = (
         <Mantenimiento valor={valor} pendientes={ctx.mantenimientoPendientes || []} onChange={set} />
       );
+      break;
+
+    case 'pesaje_cafe':
+      control = <PesajeCafe campo={campo} valor={valor} onChange={set} ctx={ctx} />;
       break;
 
     default:

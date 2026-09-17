@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import { cantidadConUnidad, precioPor } from '../../utils/unidades';
+import { camposApertura, camposEntrega, tieneApertura, fotosPesaje, totalPesaje, kg, hora, resumenEntrega } from './etapas';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
@@ -88,10 +89,27 @@ function Visor({ fotos, urls, indice, onCambiar, onCerrar }) {
 }
 
 // Muestra el valor de un campo según su tipo, con el label de la plantilla.
-function Respuesta({ campo, valor, equipo, items = [] }) {
+function Respuesta({ campo, valor, equipo, items = [], respuestas = {}, campos = [], children }) {
   let cuerpo;
 
-  if (campo.tipo === 'mantenimiento' && typeof valor === 'object' && valor !== null) {
+  if (campo.tipo === 'pesaje_cafe') {
+    const t = totalPesaje(valor);
+    const r = !campo.etapa ? resumenEntrega(campos, respuestas) : null;
+    cuerpo = t === null ? <span className="text-ahg-text/40">Sin pesaje</span> : (
+      <div className="space-y-0.5">
+        <p>Bolsa abierta <strong>{kg(valor.abierta_kg)}</strong> + bolsas cerradas <strong>{kg(valor.cerradas_kg)}</strong> = <strong>{kg(t)}</strong></p>
+        {campo.con_previa && valor.coincide === true && (
+          <p className="text-xs text-green-700">Confirmó el pesaje con el que entregó {valor.previa_nombre || 'el turno anterior'} ✓ (las fotos están en ese reporte)</p>
+        )}
+        {campo.con_previa && valor.coincide === false && (
+          <p className="text-xs text-red-700">No coincidió con lo que entregó {valor.previa_nombre || 'el turno anterior'}: cargó su propio pesaje</p>
+        )}
+        {r?.consumo !== null && r?.consumo !== undefined && (
+          <p>Consumo del turno: <strong className="text-ahg-primary">{kg(r.consumo)}</strong> <span className="text-ahg-text/50">(recibió con {kg(r.recibio)})</span></p>
+        )}
+      </div>
+    );
+  } else if (campo.tipo === 'mantenimiento' && typeof valor === 'object' && valor !== null) {
     // Lo que dijo el turno de cada pendiente, más lo que reportó nuevo.
     const porId = Object.fromEntries(items.map(it => [String(it.id), it]));
     const seg = Object.entries(valor.seguimiento || {});
@@ -170,6 +188,7 @@ function Respuesta({ campo, valor, equipo, items = [] }) {
     <div className="py-2.5 border-b border-ahg-accent/20 last:border-0">
       <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1">{campo.label}</p>
       <div className="text-sm text-ahg-text">{cuerpo}</div>
+      {children}
     </div>
   );
 }
@@ -214,6 +233,42 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
   const equipo = Object.fromEntries((r.equipo || []).map(e => [String(e.id), e]));
   const campos = r.plantilla?.campos || [];
   const fotos  = r.adjuntos || [];
+  const fotosDe = codigo => fotos.filter(a => a.campo_codigo === codigo);
+  const Miniaturas = ({ lista }) => lista.length ? (
+    <div className="flex gap-2 flex-wrap mt-1">
+      {lista.map(a => <Foto key={a.id} url={urls[a.id]} onClick={() => setAbierta(fotos.indexOf(a))} />)}
+    </div>
+  ) : null;
+
+  // Cada pregunta con sus fotos al lado: una de tipo foto son solo las miniaturas; un
+  // pesaje trae las de la balanza y las de las bolsas cerradas.
+  const pintar = c => {
+    if (c.tipo === 'foto') {
+      const lista = fotosDe(c.codigo);
+      return (
+        <div key={c.codigo} className="py-2.5 border-b border-ahg-accent/20 last:border-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1">{c.label}</p>
+          {lista.length ? <Miniaturas lista={lista} /> : <span className="text-sm text-ahg-text/40">Sin foto</span>}
+        </div>
+      );
+    }
+    const extra = c.tipo === 'pesaje_cafe' ? [...fotosDe(fotosPesaje(c.codigo).abierta), ...fotosDe(fotosPesaje(c.codigo).cerradas)] : [];
+    return (
+      <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} items={r.mantenimiento_items || []}
+                 respuestas={r.respuestas || {}} campos={campos}>
+        {extra.length > 0 && <Miniaturas lista={extra} />}
+      </Respuesta>
+    );
+  };
+  // Fotos de campos que ya no están en la plantilla (o de versiones viejas).
+  const codigosConocidos = new Set(campos.flatMap(c => c.tipo === 'pesaje_cafe' ? Object.values(fotosPesaje(c.codigo)) : [c.codigo]));
+  const sueltas = fotos.filter(a => !codigosConocidos.has(a.campo_codigo));
+  const Etapa = ({ titulo }) => (
+    <div className="flex items-center gap-2 pt-3 pb-1">
+      <span className="text-[11px] font-bold uppercase tracking-widest text-ahg-primary">{titulo}</span>
+      <span className="flex-1 h-px bg-ahg-accent/40" />
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-3 overflow-y-auto">
@@ -240,9 +295,14 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1">Turno</p>
           <p className="text-sm mb-2">{r.turno}</p>
 
-          {campos.filter(c => c.codigo !== 'turno' && c.tipo !== 'foto' && c.tipo !== 'facturas').map(c => (
-            <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} items={r.mantenimiento_items || []} />
-          ))}
+          {tieneApertura(campos) ? (
+            <>
+              <Etapa titulo={`Recibió el turno${r.apertura_at ? ` · ${hora(r.apertura_at)}` : ' · sin confirmar'}`} />
+              {camposApertura(campos).map(pintar)}
+              <Etapa titulo={`Entregó el turno${r.enviado_at ? ` · ${hora(r.enviado_at)}` : ''}`} />
+              {camposEntrega(campos).filter(c => c.tipo !== 'facturas').map(pintar)}
+            </>
+          ) : campos.filter(c => c.codigo !== 'turno' && c.tipo !== 'facturas').map(pintar)}
 
           {r.facturas?.length > 0 && (
             <div className="py-2.5 border-b border-ahg-accent/20">
@@ -265,11 +325,11 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
             </div>
           )}
 
-          {fotos.length > 0 && (
+          {sueltas.length > 0 && (
             <div className="py-2.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1.5">Fotos</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ahg-text/40 mb-1.5">Otras fotos</p>
               <div className="flex gap-2 flex-wrap">
-                {fotos.map((a, i) => <Foto key={a.id} url={urls[a.id]} onClick={() => setAbierta(i)} />)}
+                {sueltas.map(a => <Foto key={a.id} url={urls[a.id]} onClick={() => setAbierta(fotos.indexOf(a))} />)}
               </div>
             </div>
           )}

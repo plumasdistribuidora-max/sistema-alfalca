@@ -15,6 +15,7 @@ const TIPOS = [
   { v: 'foto',            l: 'Fotos' },
   { v: 'facturas',        l: 'Facturas' },
   { v: 'mantenimiento',   l: 'Mantenimiento con seguimiento' },
+  { v: 'pesaje_cafe',     l: 'Pesaje de café (bolsa abierta + cerradas)' },
 ];
 
 const tipoLabel = v => TIPOS.find(t => t.v === v)?.l || v;
@@ -96,6 +97,19 @@ function Campo({ campo, i, total, onChange, onMover, onBorrar }) {
               <select className="input" value={campo.tipo} onChange={e => set('tipo', e.target.value)}>
                 {TIPOS.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
               </select>
+            </div>
+          )}
+
+          {!esTurno && (
+            <div>
+              <label className="label">Etapa</label>
+              <select className="input" value={campo.etapa || ''} onChange={e => set('etapa', e.target.value || undefined)}>
+                <option value="">Al entregar el turno (lo normal)</option>
+                <option value="apertura">Al recibir el turno — se confirma una vez y queda fijo</option>
+              </select>
+              <p className="text-xs text-ahg-text/50 mt-1">
+                Solo para formularios en dos etapas, como el de barista. Si ningún campo es de apertura, el formulario es de una sola etapa.
+              </p>
             </div>
           )}
 

@@ -7,6 +7,9 @@ const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
 const { elegirReporte } = require('../utils/reportes');
 const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte } = require('../utils/mantenimiento');
+const {
+  camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura, faltantesPesaje, entregaPrevia,
+} = require('../utils/etapas');
 
 const router = express.Router();
 
@@ -151,6 +154,10 @@ function validar(campos, respuestas) {
         // chequea contra la base al enviar (faltantesMantenimiento).
         break;
 
+      case 'pesaje_cafe':
+        // Necesita los adjuntos: se chequea en faltantesDe.
+        break;
+
       case 'checklist':
         if (!Array.isArray(v) || !v.length) faltan.push(campo.label);
         break;
@@ -160,6 +167,19 @@ function validar(campos, respuestas) {
     }
   }
 
+  return faltan;
+}
+
+// Todo lo que le falta a un grupo de campos: respuestas, fotos obligatorias y pesajes.
+// Es lo mismo al confirmar la apertura (solo sus campos) que al enviar (todos).
+function faltantesDe(campos, respuestas, adjuntos) {
+  const faltan = validar(campos, respuestas);
+  for (const campo of campos) {
+    if (campo.tipo === 'foto' && campo.requerido && !adjuntos.some(a => a.campo_codigo === campo.codigo)) {
+      faltan.push(campo.label);
+    }
+    if (campo.tipo === 'pesaje_cafe') faltan.push(...faltantesPesaje(campo, respuestas[campo.codigo], adjuntos));
+  }
   return faltan;
 }
 
@@ -239,7 +259,7 @@ router.get('/plantillas', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), asyn
 const TIPOS_VALIDOS = [
   'texto', 'texto_largo', 'numero', 'decimal', 'moneda', 'seleccion',
   'si_no', 'si_no_lista', 'horas_empleados', 'checklist', 'foto', 'facturas',
-  'mantenimiento',
+  'mantenimiento', 'pesaje_cafe',
 ];
 
 router.put('/plantillas/:codigo', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
@@ -356,6 +376,10 @@ router.get('/mio', requireAuth, async (req, res) => {
         equipo:    await equipoDe(elegida.local_id),
         // Lo que sigue abierto en ese local, para que el turno diga si se solucionó.
         mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id)),
+        // El pesaje con el que el turno anterior entregó, para confirmarlo al recibir.
+        entrega_previa: plantilla.campos.some(c => c.con_previa)
+          ? await entregaPrevia(plantilla.campos, elegida.local_id, elegida.plantilla_codigo, fecha, propios[0]?.id)
+          : null,
       },
     });
   } catch (err) {
@@ -461,7 +485,7 @@ router.post('/', requireAuth, async (req, res) => {
     // El estado se chequea ANTES del upsert: si no, un reporte ya enviado quedaría
     // pisado por el ON CONFLICT antes de llegar al rechazo.
     const previo = await pool.query(`
-      SELECT estado FROM reportes
+      SELECT estado, apertura_at, respuestas FROM reportes
       WHERE plantilla_codigo = $1 AND local_id = $2 AND fecha = $3 AND turno = $4 AND usuario_id = $5
     `, [codigo, localId, fechaFinal, turno, req.user.id]);
 
@@ -479,6 +503,15 @@ router.post('/', requireAuth, async (req, res) => {
     const ajeno = await turnoYaEnviadoPorOtro(codigo, localId, fechaFinal, turno, req.user.id);
     if (ajeno) return res.status(409).json({ ok: false, error: ajeno });
 
+    // Lo que se confirmó al recibir el turno queda fijo: se conserva lo guardado
+    // aunque la pantalla mande otra cosa.
+    let finales = respuestas || {};
+    if (previo.rowCount && aperturaBloqueada(previo.rows[0])) {
+      const fijas = {};
+      for (const c of camposApertura(plantilla.campos)) fijas[c.codigo] = previo.rows[0].respuestas?.[c.codigo];
+      finales = { ...finales, ...fijas };
+    }
+
     const { rows } = await pool.query(`
       INSERT INTO reportes
         (plantilla_codigo, plantilla_version, local_id, empleado_id, usuario_id, fecha, turno, respuestas)
@@ -489,7 +522,7 @@ router.post('/', requireAuth, async (req, res) => {
       RETURNING *
     `, [
       codigo, plantilla.version, localId, req.user.empleado_id || null, req.user.id,
-      fechaFinal, turno, JSON.stringify(respuestas || {}),
+      fechaFinal, turno, JSON.stringify(finales),
     ]);
 
     res.json({ ok: true, data: rows[0] });
@@ -516,6 +549,12 @@ router.post('/:id/adjuntos', requireAuth, upload.single('foto'), async (req, res
     }
     if (!EDITABLES.includes(reporte.estado)) {
       return res.status(409).json({ ok: false, error: 'El reporte ya fue enviado' });
+    }
+    if (aperturaBloqueada(reporte)) {
+      const plantilla = await cargarPlantilla(reporte.plantilla_codigo);
+      if (codigosFotoApertura(plantilla.campos).includes(campo_codigo)) {
+        return res.status(409).json({ ok: false, error: 'Ya confirmaste que recibiste el turno: esas fotos no se cambian' });
+      }
     }
 
     const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi, '');
@@ -561,7 +600,8 @@ router.get('/adjuntos/:id', requireAuth, async (req, res) => {
 router.delete('/adjuntos/:id', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT a.id, r.usuario_id, r.estado FROM reporte_adjuntos a
+      SELECT a.id, a.campo_codigo, r.usuario_id, r.estado, r.apertura_at, r.plantilla_codigo
+      FROM reporte_adjuntos a
       JOIN reportes r ON r.id = a.reporte_id
       WHERE a.id = $1
     `, [req.params.id]);
@@ -569,6 +609,12 @@ router.delete('/adjuntos/:id', requireAuth, async (req, res) => {
     if (rows[0].usuario_id !== req.user.id) return res.status(403).json({ ok: false, error: 'Esta foto no es tuya' });
     if (!EDITABLES.includes(rows[0].estado)) {
       return res.status(409).json({ ok: false, error: 'El reporte ya fue enviado' });
+    }
+    if (aperturaBloqueada(rows[0])) {
+      const plantilla = await cargarPlantilla(rows[0].plantilla_codigo);
+      if (codigosFotoApertura(plantilla.campos).includes(rows[0].campo_codigo)) {
+        return res.status(409).json({ ok: false, error: 'Ya confirmaste que recibiste el turno: esas fotos no se cambian' });
+      }
     }
 
     // El archivo queda en R2 a propósito: borrarlo dejaría el histórico sin la imagen
@@ -695,14 +741,12 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
 
     // El turno vive en su propia columna, no en respuestas: se inyecta para que el
     // validador lo encuentre como cualquier otro campo de la plantilla.
-    const faltan = validar(plantilla.campos, { ...reporte.respuestas, turno: reporte.turno });
-
-    // Las fotos obligatorias se chequean contra los adjuntos, no contra respuestas.
     const adjuntos = await adjuntosDe(reporte.id);
-    for (const campo of plantilla.campos) {
-      if (campo.tipo === 'foto' && campo.requerido) {
-        if (!adjuntos.some(a => a.campo_codigo === campo.codigo)) faltan.push(campo.label);
-      }
+    const faltan = faltantesDe(plantilla.campos, { ...reporte.respuestas, turno: reporte.turno }, adjuntos);
+
+    // En dos etapas, no se entrega un turno que no se confirmó haber recibido.
+    if (tieneApertura(plantilla.campos) && !reporte.apertura_at) {
+      faltan.unshift('Confirmá primero que recibiste el turno');
     }
 
     // Cada pendiente de mantenimiento del local tiene que tener respuesta.
@@ -731,6 +775,38 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[reportes/enviar]', err);
     res.status(500).json({ ok: false, error: 'Error al enviar el reporte' });
+  }
+});
+
+// ── POST /:id/apertura ────────────────────────────────────────────────────────
+// Confirma lo cargado al recibir el turno. Desde acá esos campos y sus fotos quedan
+// fijos hasta que se entregue el turno (o el encargado lo devuelva).
+
+router.post('/:id/apertura', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM reportes WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Reporte no encontrado' });
+    const reporte = rows[0];
+    if (reporte.usuario_id !== req.user.id) return res.status(403).json({ ok: false, error: 'Este reporte no es tuyo' });
+    if (!EDITABLES.includes(reporte.estado)) return res.status(409).json({ ok: false, error: 'Este reporte ya fue enviado' });
+
+    const plantilla = await cargarPlantilla(reporte.plantilla_codigo);
+    if (!tieneApertura(plantilla.campos)) return res.status(400).json({ ok: false, error: 'Este formulario no tiene apertura' });
+    if (aperturaBloqueada(reporte)) return res.json({ ok: true, data: { apertura_at: reporte.apertura_at } });
+
+    const faltan = faltantesDe(camposApertura(plantilla.campos), reporte.respuestas || {}, await adjuntosDe(reporte.id));
+    if (faltan.length) {
+      return res.status(400).json({ ok: false, error: 'Te falta completar algo para recibir el turno', data: { faltan } });
+    }
+
+    const upd = await pool.query(
+      'UPDATE reportes SET apertura_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING apertura_at',
+      [reporte.id]
+    );
+    res.json({ ok: true, data: { apertura_at: upd.rows[0].apertura_at } });
+  } catch (err) {
+    console.error('[reportes/apertura]', err);
+    res.status(500).json({ ok: false, error: 'Error al confirmar la apertura' });
   }
 });
 

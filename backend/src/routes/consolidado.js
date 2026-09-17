@@ -4,6 +4,7 @@ const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
 const { unoPorTurno, esNovedad } = require('../utils/reportes');
 const { valorMantenimiento, itemsDelDia } = require('../utils/mantenimiento');
+const { cafeDeReporte } = require('../utils/etapas');
 
 const router = express.Router();
 
@@ -338,8 +339,24 @@ async function armarDia(fecha) {
   totales.ticket_promedio_tiendas = promedioDe(filas.filter(l => l.tipo !== 'cafeteria'));
   totales.ticket_promedio_cafe    = promedioDe(filas.filter(l => l.tipo === 'cafeteria'));
 
+  // Café del día: lo que pesó cada barista al recibir y al entregar, y cuánto se
+  // consumió por turno. "Queda" es lo que entregó el último turno del día.
+  const cafe = { turnos: [], consumo: 0, queda: null };
+  for (const rep of reportes) {
+    const p = plantillas.find(x => x.codigo === rep.plantilla_codigo);
+    if (!p) continue;
+    const c = cafeDeReporte(p.campos, rep.respuestas);
+    if (!c) continue;
+    cafe.turnos.push({ turno: rep.turno, usuario: rep.usuario_nombre, local: porLocal[rep.local_id]?.nombre, ...c });
+  }
+  const ordenTurno = t => t.turno === 'Mañana' ? 0 : 1;
+  cafe.turnos.sort((a, b) => ordenTurno(a) - ordenTurno(b));
+  cafe.consumo = Math.round(cafe.turnos.reduce((s, t) => s + (t.consumo || 0), 0) * 100) / 100;
+  const ultimo = [...cafe.turnos].reverse().find(t => t.entrego !== null);
+  cafe.queda = ultimo ? ultimo.entrego : null;
+
   return {
-    fecha, locales: filas, totales, novedades,
+    fecha, locales: filas, totales, novedades, cafe,
     proveedores: await facturasDelDia(fecha),
     consolidado: guardado,
   };
@@ -571,6 +588,19 @@ function textoSemana(w) {
   if (todas.quejas.length) {
     L.push(''); L.push(`*Quejas* · ${todas.quejas.length}`);
     for (const it of todas.quejas) L.push(`• ${corto(it.local)} (${it.dia}): ${it.texto}`);
+  }
+
+  // Café: lo que consumieron los baristas en la semana y con cuánto quedó el último día.
+  const diasCafe = w.dias.filter(d => d.cafe?.turnos?.length);
+  if (diasCafe.length) {
+    const kg = v => `${String(v).replace('.', ',')} kg`;
+    const total = Math.round(diasCafe.reduce((s, d) => s + (d.cafe.consumo || 0), 0) * 100) / 100;
+    const ultimo = [...diasCafe].reverse().find(d => d.cafe.queda !== null);
+    L.push(''); L.push(`*Café* · ${kg(total)} consumidos en ${diasCafe.length} día${diasCafe.length === 1 ? '' : 's'}`);
+    L.push(`• Por día: ${diasCafe.map(d => `${diaCorto(d.fecha)} ${kg(d.cafe.consumo)}`).join(' · ')}`);
+    if (ultimo) L.push(`• Queda: ${kg(ultimo.cafe.queda)} (${diaCorto(ultimo.fecha)})`);
+    const desajustes = diasCafe.flatMap(d => d.cafe.turnos.filter(t => t.coincide === false).map(t => `${diaCorto(d.fecha)} ${t.turno.toLowerCase()} (${t.usuario})`));
+    if (desajustes.length) L.push(`• 🔴 Pesajes que no coincidieron al cambiar de turno: ${desajustes.join(', ')}`);
   }
 
   if (todas.gastos.length) {

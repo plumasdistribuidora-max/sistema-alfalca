@@ -21,7 +21,8 @@ ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN (
   'encargado_general',
   'empleado_tienda',
   'encargado_cafe',
-  'encargado_cocina'
+  'encargado_cocina',
+  'barista'             -- agregado en 044; va acá también porque migrate.js corre todo cada vez
 ));
 
 -- Ata el usuario a su legajo de empleado. Los dueños no tienen empleado asociado.
@@ -33,7 +34,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_empleado ON usuarios(empleado_id)
 ALTER TABLE empleados ADD COLUMN IF NOT EXISTS area VARCHAR(20) NOT NULL DEFAULT 'tienda';
 ALTER TABLE empleados DROP CONSTRAINT IF EXISTS empleados_area_check;
 ALTER TABLE empleados ADD CONSTRAINT empleados_area_check CHECK (area IN (
-  'tienda', 'cafe', 'cocina', 'general'
+  'tienda', 'cafe', 'cocina', 'general', 'barista'   -- barista: 044
 ));
 
 -- Los empleados de la cafetería arrancan con area = 'cafe' en vez del default.

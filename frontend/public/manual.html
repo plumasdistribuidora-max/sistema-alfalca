@@ -817,6 +817,58 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         avisale al encargado</strong> para que lo dé de alta; le lleva medio minuto.
       </p>
 
+      <h3>Mantenimiento — lo pendiente aparece solo</h3>
+      <p>
+        Lo que alguien reportó de mantenimiento en tu local <strong>no hay que volver a escribirlo</strong>.
+        Al día siguiente ya aparece en la pregunta de mantenimiento, con quién lo reportó y cuándo, y
+        vos solo tenés que tocar <strong>Ya se solucionó</strong> o <strong>Sigue igual</strong> en cada
+        uno. Hasta que no contestes por todos, el reporte no se envía: te lo dice en el cartel amarillo.
+      </p>
+
+      <figure class="figura">
+        <div class="tel" style="margin:0 auto">
+          <div class="m-main" style="background:#FAFAF7">
+            <div class="m-card" style="display:grid;gap:8px">
+              <div>
+                <div style="font-size:10px;font-weight:700">Mantenimiento</div>
+                <div style="font-size:9px;color:#9C94A6">Lo que ya está reportado aparece solo: decí si se solucionó o sigue igual.</div>
+              </div>
+              <div style="font-size:9.5px;font-weight:700;color:#92400E">Pendiente en este local — ¿cómo está hoy?</div>
+              <div style="border:1px solid #F0D08A;background:#FEF3C7;border-radius:8px;padding:8px">
+                <div style="font-size:10.5px;color:#1F2937">Tapa del baño rota</div>
+                <div style="font-size:9px;color:#9C94A6">Cami · 14 sept</div>
+                <div style="font-size:9px;color:#6B6472;margin-top:4px;padding-left:6px;border-left:2px solid #C4B5FD">Encargado: la compro el jueves y la cambio el viernes</div>
+                <div style="display:flex;gap:5px;margin-top:6px">
+                  <div style="flex:1;text-align:center;padding:5px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10px;font-weight:700">Ya se solucionó</div>
+                  <div style="flex:1;text-align:center;padding:5px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10px;font-weight:700">Sigue igual</div>
+                </div>
+              </div>
+              <div style="border:1px solid #BBF7D0;background:#F0FDF4;border-radius:8px;padding:8px">
+                <div style="font-size:10.5px;color:#1F2937">Luz del salón quemada</div>
+                <div style="font-size:9px;color:#9C94A6">Sofía · 15 sept</div>
+                <div style="display:flex;gap:5px;margin-top:6px">
+                  <div style="flex:1;text-align:center;padding:5px;border-radius:7px;background:#16A34A;color:#fff;font-size:10px;font-weight:700">Ya se solucionó</div>
+                  <div style="flex:1;text-align:center;padding:5px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10px;font-weight:700">Sigue igual</div>
+                </div>
+              </div>
+              <div style="text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:5px;font-size:10px;color:#4C1D95;font-weight:700">+ Agregar algo más</div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>La pregunta de mantenimiento con dos pendientes.</b> El de arriba tiene la respuesta del encargado; el de abajo ya se marcó como solucionado.</figcaption>
+      </figure>
+
+      <ul class="simple">
+        <li><strong>Ya se solucionó</strong> lo saca de la lista: mañana no aparece más, y al encargado le llega como resuelto.</li>
+        <li><strong>Sigue igual</strong> lo deja pendiente y le avisa al encargado que hoy también estaba así.</li>
+        <li>Si el encargado ya dijo qué va a hacer, lo ves debajo del ítem, con <em>Encargado:</em> adelante.</li>
+        <li>Para reportar algo nuevo, <strong>+ Agregar algo más</strong> y lo escribís. Un renglón por cosa: no pongas tres problemas en el mismo, porque después se resuelven por separado.</li>
+      </ul>
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p><strong>Si no hay nada pendiente ni pasó nada</strong>, lo dejás vacío y listo. No hace falta escribir "sin novedades".</p>
+      </div>
+
       <h3>Gastos del turno — solo en el café</h3>
       <p>
         Después de las facturas, el reporte del café pregunta <em>¿Hubo gastos del turno?</em>.
@@ -1071,16 +1123,32 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <ol class="refs">
         <li><strong>Sistema contra Reportado.</strong> Son dos fuentes distintas: una viene del Excel del punto de venta, la otra la escribió a mano el turno mirando la caja. Cuando coinciden aparece un tilde verde.</li>
         <li><strong>La explicación.</strong> Si un local no cierra, se abre un recuadro rojo para que escribas por qué. Sin eso el día no se cierra.</li>
-        <li><strong>Lo que reportaron los turnos.</strong> Vencimientos, mantenimiento, faltantes de insumos, faltas y tardanzas, quejas y los gastos de caja del café con su total — todo junto acá, sin tener que abrir reporte por reporte.</li>
+        <li><strong>Lo que reportaron los turnos.</strong> Vencimientos, mantenimiento (con un casillero por ítem para decir cómo lo vas a resolver), faltantes de insumos, faltas y tardanzas, quejas y los gastos de caja del café con su total — todo junto acá, sin tener que abrir reporte por reporte.</li>
         <li><strong>El botón de cerrar.</strong> Recién cuando está todo, el día se cierra y les llega a los dueños.</li>
       </ol>
+
+      <h3>Mantenimiento — cómo lo vas a resolver</h3>
+      <p>
+        El recuadro rojo de mantenimiento no es una lista de lo que está roto: eso ya lo dijeron
+        los turnos. Muestra, <strong>por local, cada cosa que sigue pendiente</strong>, con quién la
+        reportó, desde cuándo y qué dijeron hoy (<em>Nuevo hoy</em>, <em>Sigue igual · 3 días</em>,
+        <em>Solucionado hoy</em>). Debajo de cada ítem hay un casillero: <strong>cómo lo vas a resolver</strong>.
+        Eso es lo que les llega a los dueños en el mensaje, al lado del problema.
+      </p>
+      <ul class="simple">
+        <li>El plan queda guardado en el ítem: mañana sigue ahí, no hay que reescribirlo. Si cambia, lo editás.</li>
+        <li>Lo que escribís también lo ve el empleado en su reporte, debajo del pendiente.</li>
+        <li><strong>Sin plan no cierra el día.</strong> Si queda un pendiente sin decir cómo se resuelve, el cierre te frena y te dice cuál.</li>
+        <li>Cuando un turno lo marca como solucionado, aparece tachado con <em>Solucionado hoy</em> y al día siguiente desaparece. Vos no marcás nada como resuelto: lo confirma la gente que está en el local.</li>
+      </ul>
 
       <h3>El mensaje para los dueños</h3>
       <p>
         Apenas cerrás el día, abajo aparece <strong>el mensaje ya armado</strong> para el grupo:
         la venta y el personal del día, cada local con su porcentaje contra la meta y si cerró
         contra lo reportado, y todas las novedades de los turnos (vencimientos con lo que hiciste,
-        mantenimiento, faltantes, faltas, quejas, gastos de caja). Tocás <em>Copiar mensaje</em> y lo pegás en
+        cada mantenimiento pendiente con tu plan y lo que se solucionó, faltantes, faltas, quejas,
+        gastos de caja). Tocás <em>Copiar mensaje</em> y lo pegás en
         WhatsApp, o <em>Abrir en WhatsApp</em> y elegís a quién mandárselo. No hay que redactar nada.
       </p>
 
@@ -1094,7 +1162,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         aun así cerrar la semana en verde, o al revés), el mejor y el peor día, y los días que no
         cerraron contra lo reportado. Después cuenta cómo funcionó el circuito (días cerrados,
         reportes que llegaron tarde o hubo que devolver), junta las novedades de toda la semana
-        (vencimientos que se repiten, mantenimiento, faltantes, faltas y tardanzas por persona,
+        (vencimientos que se repiten, el mantenimiento que sigue pendiente con su plan y lo que se
+        resolvió, faltantes, faltas y tardanzas por persona,
         quejas) y termina con proveedores. Solo informa: no marca nada como resuelto.
       </p>
 
@@ -1672,6 +1741,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <tr><td><strong>Horas del equipo</strong></td><td>La gente del local con un casillero de horas al lado.</td></tr>
             <tr><td><strong>Fotos</strong></td><td>Botón de cámara, con un máximo configurable.</td></tr>
             <tr><td><strong>Facturas</strong></td><td>El formulario de factura con proveedor, renglones y total.</td></tr>
+            <tr><td><strong>Mantenimiento con seguimiento</strong></td><td>Lo pendiente del local ya cargado, con <em>Ya se solucionó</em> / <em>Sigue igual</em>, y un botón para agregar algo nuevo. Cada cosa queda como ítem hasta que alguien la marque resuelta.</td></tr>
           </tbody>
         </table>
       </div>

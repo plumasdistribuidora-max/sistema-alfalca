@@ -14,6 +14,7 @@ const TIPOS = [
   { v: 'horas_empleados', l: 'Horas del equipo' },
   { v: 'foto',            l: 'Fotos' },
   { v: 'facturas',        l: 'Facturas' },
+  { v: 'mantenimiento',   l: 'Mantenimiento con seguimiento' },
 ];
 
 const tipoLabel = v => TIPOS.find(t => t.v === v)?.l || v;

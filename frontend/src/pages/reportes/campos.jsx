@@ -264,6 +264,92 @@ function Facturas({ facturas, onAgregar, onBorrar }) {
   );
 }
 
+const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' });
+const fechaCorta = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
+
+// Mantenimiento con seguimiento. Lo que ya está reportado en el local aparece solo y
+// el turno dice si se solucionó o sigue igual; abajo agrega lo nuevo. El valor:
+//   { seguimiento: { [item_id]: 'sigue' | 'resuelto' }, nuevos: [{ texto, item_id? }] }
+// Un reporte viejo puede traer un texto suelto: se muestra como primer renglón nuevo.
+function Mantenimiento({ valor, pendientes, onChange }) {
+  const v = typeof valor === 'string'
+    ? { seguimiento: {}, nuevos: valor.trim() ? [{ texto: valor }] : [] }
+    : (valor || {});
+  const seguimiento = v.seguimiento || {};
+  const nuevos = v.nuevos || [];
+
+  const setSeg = (id, resp) => onChange({ ...v, seguimiento: { ...seguimiento, [id]: resp } });
+  const setNuevos = lista => onChange({ ...v, seguimiento, nuevos: lista });
+  const editar = (i, texto) => setNuevos(nuevos.map((x, idx) => idx === i ? { ...x, texto } : x));
+  const quitar = i => setNuevos(nuevos.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="space-y-3">
+      {pendientes.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-amber-700">Pendiente en este local — ¿cómo está hoy?</p>
+          {pendientes.map(p => {
+            const resp = seguimiento[String(p.id)];
+            return (
+              <div key={p.id} className={`rounded-lg border p-3 ${resp === 'resuelto' ? 'border-green-300 bg-green-50' : resp === 'sigue' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
+                <p className="text-sm text-ahg-text">{p.texto}</p>
+                <p className="text-xs text-ahg-text/50 mt-0.5">
+                  {p.reportado_por ? `${p.reportado_por} · ` : ''}{fechaCorta(p.fecha)}
+                </p>
+                {p.plan && (
+                  <p className="text-xs text-ahg-text/70 mt-1.5 pl-2 border-l-2 border-ahg-accent">
+                    Encargado: {p.plan}
+                  </p>
+                )}
+                <div className="flex gap-2 mt-2">
+                  {[['resuelto', 'Ya se solucionó'], ['sigue', 'Sigue igual']].map(([k, label]) => (
+                    <button
+                      key={k} type="button" onClick={() => setSeg(p.id, k)}
+                      className={`flex-1 py-2 px-2 rounded-lg text-sm font-semibold border transition-colors ${
+                        resp === k
+                          ? k === 'resuelto' ? 'bg-green-600 text-white border-green-600' : 'bg-red-600 text-white border-red-600'
+                          : 'bg-white text-ahg-text/70 border-ahg-accent/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {nuevos.length > 0 && (
+          <p className="text-xs font-semibold text-ahg-text/60">{pendientes.length ? 'Nuevo de hoy' : 'Novedades de hoy'}</p>
+        )}
+        {nuevos.map((x, i) => (
+          <div key={x.item_id || `n${i}`} className="flex gap-2 items-start">
+            <textarea
+              className="input text-sm flex-1 min-h-[44px]" rows={2}
+              placeholder="Qué está roto o qué hay que arreglar"
+              value={x.texto || ''} onChange={e => editar(i, e.target.value)}
+            />
+            <button type="button" onClick={() => quitar(i)} aria-label="Quitar"
+                    className="text-red-500 text-xl leading-none px-2 py-1 hover:bg-red-50 rounded">×</button>
+          </div>
+        ))}
+        <button
+          type="button" onClick={() => setNuevos([...nuevos, { texto: '' }])}
+          className="w-full py-2 text-sm font-semibold text-ahg-primary border border-dashed border-ahg-accent rounded-lg hover:bg-ahg-accent/10"
+        >
+          + {pendientes.length || nuevos.length ? 'Agregar algo más' : 'Reportar algo de mantenimiento'}
+        </button>
+        {!pendientes.length && !nuevos.length && (
+          <p className="text-xs text-ahg-text/40">No hay nada pendiente en este local. Si no hubo novedades, dejalo así.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Campo({ campo, valor, onChange, ctx }) {
   const set = v => onChange(campo.codigo, v);
 
@@ -404,6 +490,12 @@ export default function Campo({ campo, valor, onChange, ctx }) {
         <Facturas
           facturas={ctx.facturas} onAgregar={ctx.onAgregarFactura} onBorrar={ctx.onBorrarFactura}
         />
+      );
+      break;
+
+    case 'mantenimiento':
+      control = (
+        <Mantenimiento valor={valor} pendientes={ctx.mantenimientoPendientes || []} onChange={set} />
       );
       break;
 

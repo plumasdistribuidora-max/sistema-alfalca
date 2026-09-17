@@ -26,4 +26,17 @@ function unoPorTurno(reportes) {
   return [...grupos.values()].map(elegirReporte);
 }
 
-module.exports = { PESO_ESTADO, elegirReporte, unoPorTurno };
+// El placeholder de los campos de texto dice "Sin novedades", y la gente lo escribe
+// tal cual en vez de dejarlo vacío. Sin esto, cada turno sube una novedad que no lo es.
+const NADA = [
+  'sin novedades', 'sin novedad', 'ninguna', 'ninguno', 'nada', 'no', 'no hubo',
+  'todo bien', 'sin nada', 'n/a', 'na', '-', '--', '.', 'ok',
+];
+function esNovedad(texto) {
+  const t = String(texto || '')
+    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.!,]/g, '').trim();
+  return t !== '' && !NADA.includes(t);
+}
+
+module.exports = { PESO_ESTADO, elegirReporte, unoPorTurno, esNovedad };

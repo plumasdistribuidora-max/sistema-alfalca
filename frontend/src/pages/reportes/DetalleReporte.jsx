@@ -88,10 +88,35 @@ function Visor({ fotos, urls, indice, onCambiar, onCerrar }) {
 }
 
 // Muestra el valor de un campo según su tipo, con el label de la plantilla.
-function Respuesta({ campo, valor, equipo }) {
+function Respuesta({ campo, valor, equipo, items = [] }) {
   let cuerpo;
 
-  if (campo.tipo === 'si_no_lista') {
+  if (campo.tipo === 'mantenimiento' && typeof valor === 'object' && valor !== null) {
+    // Lo que dijo el turno de cada pendiente, más lo que reportó nuevo.
+    const porId = Object.fromEntries(items.map(it => [String(it.id), it]));
+    const seg = Object.entries(valor.seguimiento || {});
+    const nuevos = (valor.nuevos || []).filter(x => x?.texto?.trim());
+    cuerpo = !seg.length && !nuevos.length
+      ? <span className="text-ahg-text/40">Sin novedades</span>
+      : (
+        <ul className="space-y-1">
+          {seg.map(([id, resp]) => (
+            <li key={id} className="flex gap-2 items-start">
+              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${resp === 'resuelto' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {resp === 'resuelto' ? 'Se solucionó' : 'Sigue igual'}
+              </span>
+              <span>{porId[id]?.texto || `Ítem #${id}`}</span>
+            </li>
+          ))}
+          {nuevos.map((x, i) => (
+            <li key={x.item_id || i} className="flex gap-2 items-start">
+              <span className="text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 bg-amber-100 text-amber-800">Nuevo</span>
+              <span className="whitespace-pre-line">{x.texto}</span>
+            </li>
+          ))}
+        </ul>
+      );
+  } else if (campo.tipo === 'si_no_lista') {
     const v = valor || {};
     const items = (v.items || [])
       .map(it => (campo.subcampos || [])
@@ -216,7 +241,7 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
           <p className="text-sm mb-2">{r.turno}</p>
 
           {campos.filter(c => c.codigo !== 'turno' && c.tipo !== 'foto' && c.tipo !== 'facturas').map(c => (
-            <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} />
+            <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} items={r.mantenimiento_items || []} />
           ))}
 
           {r.facturas?.length > 0 && (

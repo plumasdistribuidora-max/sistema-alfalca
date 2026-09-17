@@ -247,6 +247,15 @@ export default function MiReporte() {
 
   useEffect(() => { cargar(); cargarPendientes(); }, []);
 
+  function refrescarPendientesMantenimiento() {
+    if (!data) return;
+    const params = { local_id: data.local?.id, plantilla: data.plantilla?.codigo };
+    if (corrigiendo) params.fecha = corrigiendo.fecha;
+    api.get('/reportes/mio', { params })
+      .then(r => setData(d => ({ ...d, mantenimiento_pendientes: r.data.data.mantenimiento_pendientes || [] })))
+      .catch(() => {});
+  }
+
   function abrirPendiente(p) {
     cargar({ local_id: p.local_id, plantilla_codigo: p.plantilla_codigo }, p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -372,7 +381,12 @@ export default function MiReporte() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       const d = err.response?.data;
-      if (d?.data?.faltan) setFaltan(d.data.faltan);
+      if (d?.data?.faltan) {
+        setFaltan(d.data.faltan);
+        // Si otro turno reportó algo de mantenimiento después de que se abrió esta
+        // pantalla, el pendiente nuevo no está en la lista: se vuelve a pedir.
+        if (d.data.faltan.some(f => f.startsWith('Mantenimiento'))) refrescarPendientesMantenimiento();
+      }
       else setError(d?.error || 'No se pudo enviar');
     } finally {
       setEnviando(false);
@@ -407,6 +421,7 @@ export default function MiReporte() {
 
   const ctx = {
     equipo: data.equipo || [],
+    mantenimientoPendientes: data.mantenimiento_pendientes || [],
     adjuntos, facturas, subiendo,
     onSubirFoto: subirFoto,
     onBorrarFoto: borrarFoto,

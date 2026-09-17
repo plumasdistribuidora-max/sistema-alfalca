@@ -52,6 +52,86 @@ function Novedades({ titulo, items, render, tono = 'amber' }) {
   );
 }
 
+// Mantenimiento con seguimiento: lo que hay abierto en cada local, qué dijo cada turno
+// hoy, y por ítem el plan del encargado. Eso — no la lista de lo roto — es lo que
+// les llega a los dueños.
+const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' });
+const fechaCortita = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
+
+function MantenimientoDia({ items, planes, onPlan, cerrado }) {
+  if (!items?.length) return null;
+  const abiertos = items.filter(it => it.estado !== 'resuelto' && !it.legado).length;
+  const sinPlan  = items.filter(it => it.id && it.estado !== 'resuelto' && !(planes[it.id] || '').trim()).length;
+
+  const porLocal = [];
+  for (const it of items) {
+    let g = porLocal.find(x => x.local_id === it.local_id);
+    if (!g) { g = { local_id: it.local_id, local: it.local, items: [] }; porLocal.push(g); }
+    g.items.push(it);
+  }
+
+  const etiqueta = it => {
+    if (it.legado) return { txt: `${it.turno}`, cls: 'bg-ahg-accent/30 text-ahg-text/70' };
+    if (it.estado === 'resuelto') return { txt: 'Solucionado hoy', cls: 'bg-green-100 text-green-800' };
+    if (it.dias === 0) return { txt: 'Nuevo hoy', cls: 'bg-amber-100 text-amber-800' };
+    const sigue = it.hoy.some(h => h.respuesta === 'sigue');
+    return { txt: `${sigue ? 'Sigue igual · ' : ''}${it.dias} día${it.dias === 1 ? '' : 's'}`, cls: 'bg-red-100 text-red-800' };
+  };
+
+  return (
+    <div className="rounded-xl border p-3 border-red-300 bg-red-50 space-y-3">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <p className="text-xs font-semibold uppercase tracking-wide text-red-800">
+          Mantenimiento · {abiertos} pendiente{abiertos === 1 ? '' : 's'}
+        </p>
+        {!cerrado && sinPlan > 0 && (
+          <p className="text-xs text-red-700">Falta decir cómo se resuelve{sinPlan === 1 ? '' : 'n'} {sinPlan}</p>
+        )}
+      </div>
+      {porLocal.map(g => (
+        <div key={g.local_id}>
+          <p className="text-xs font-semibold text-ahg-text/60 mb-1.5">{g.local}</p>
+          <ul className="space-y-2">
+            {g.items.map((it, i) => {
+              const e = etiqueta(it);
+              const resuelto = it.estado === 'resuelto';
+              return (
+                <li key={it.id || `l${i}`} className={`rounded-lg border p-2.5 bg-white ${resuelto ? 'border-green-200' : 'border-red-200'}`}>
+                  <div className="flex gap-2 items-start">
+                    <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${e.cls}`}>{e.txt}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${resuelto ? 'line-through text-ahg-text/50' : 'text-ahg-text'}`}>{it.texto}</p>
+                      {!it.legado && (
+                        <p className="text-xs text-ahg-text/40 mt-0.5">
+                          {it.reportado_por || 'sin nombre'} · {fechaCortita(it.fecha)}
+                          {it.hoy.length > 0 && ` · hoy: ${it.hoy.map(h => `${h.turno.toLowerCase()} ${h.respuesta === 'nuevo' ? 'lo reportó' : h.respuesta === 'resuelto' ? 'dijo que se solucionó' : 'dice que sigue igual'}`).join(', ')}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {it.id && !resuelto && (
+                    <div className="mt-2">
+                      <textarea
+                        className="input text-sm" rows={1} disabled={cerrado}
+                        placeholder="Cómo lo vas a resolver (esto es lo que les llega a los dueños)"
+                        value={planes[it.id] ?? it.plan ?? ''}
+                        onChange={ev => onPlan(it.id, ev.target.value)}
+                      />
+                    </div>
+                  )}
+                  {it.id && resuelto && it.plan && (
+                    <p className="text-xs text-ahg-text/50 mt-1.5 pl-2 border-l-2 border-green-300">Plan: {it.plan}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // El texto que el encargado le manda a los dueños al cerrar. Va en texto plano con
 // los asteriscos de WhatsApp: lo que importa es que se lea en el celular sin abrir
 // nada, y que diga primero lo que hay que saber (venta, personal, qué no cerró).
@@ -94,8 +174,20 @@ function armarMensaje({ d, form, fecha, user }) {
   };
   seccion('Vencimientos', nv.vencimientos, it => `${it.producto || ''}${it.dias ? ` — ${it.dias} días` : ''}`);
   if (nv.vencimientos.length && form.acciones_vencimientos?.trim()) L.push(`  Acciones: ${form.acciones_vencimientos.trim()}`);
-  seccion('Mantenimiento', nv.mantenimiento, it => it.texto);
-  if (form.mantenimiento?.trim()) { if (!nv.mantenimiento.length) { L.push(''); L.push('*Mantenimiento*'); } L.push(`  Encargado: ${form.mantenimiento.trim()}`); }
+  // Mantenimiento: cada pendiente con cómo se va a resolver, y lo que se solucionó hoy.
+  if (nv.mantenimiento.length) {
+    const abiertos  = nv.mantenimiento.filter(it => it.estado !== 'resuelto');
+    const resueltos = nv.mantenimiento.filter(it => it.estado === 'resuelto');
+    L.push('');
+    L.push(`*Mantenimiento*${abiertos.length ? ` · ${abiertos.length} pendiente${abiertos.length === 1 ? '' : 's'}` : ''}`);
+    for (const it of abiertos) {
+      const desde = it.legado ? ` (${it.turno.toLowerCase()})` : it.dias > 0 ? ` (desde hace ${it.dias} día${it.dias === 1 ? '' : 's'})` : ' (nuevo hoy)';
+      const plan = (form.planes?.[it.id] ?? it.plan ?? '').trim();
+      L.push(`• ${corto(it.local)}: ${it.texto}${desde}${plan ? ` — ${plan}` : ''}`);
+    }
+    for (const it of resueltos) L.push(`✅ ${corto(it.local)}: ${it.texto} — solucionado`);
+  }
+  if (d.consolidado?.mantenimiento?.trim()) { if (!nv.mantenimiento.length) { L.push(''); L.push('*Mantenimiento*'); } L.push(`  Encargado: ${d.consolidado.mantenimiento.trim()}`); }
   seccion('Faltantes de insumos', nv.faltantes, it => `${it.insumo}${it.proveedor ? ` (${it.proveedor})` : ''}`);
   seccion('Faltas y tardanzas', nv.ausencias, it => `${it.empleado} — ${it.motivo}`);
   if (form.faltas_tardanzas?.trim()) { if (!nv.ausencias.length) { L.push(''); L.push('*Faltas y tardanzas*'); } L.push(`  Encargado: ${form.faltas_tardanzas.trim()}`); }
@@ -262,7 +354,8 @@ export default function CierreDelDia({ fecha, onCambio }) {
   const [form, setForm] = useState({
     explicaciones: {},
     vencimientos_ok: false, acciones_vencimientos: '',
-    mantenimiento: '', faltas_tardanzas: '', control_tienda_ok: false,
+    faltas_tardanzas: '', control_tienda_ok: false,
+    planes: {},   // { [item_id]: cómo se va a resolver ese mantenimiento }
   });
 
   const debounce = useRef(null);
@@ -278,9 +371,9 @@ export default function CierreDelDia({ fecha, onCambio }) {
           explicaciones: c?.explicaciones || {},
           vencimientos_ok:       c?.vencimientos_ok ?? false,
           acciones_vencimientos: c?.acciones_vencimientos || '',
-          mantenimiento:         c?.mantenimiento || '',
           faltas_tardanzas:      c?.faltas_tardanzas || '',
           control_tienda_ok:     c?.control_tienda_ok ?? false,
+          planes: Object.fromEntries((data.novedades?.mantenimiento || []).filter(it => it.id).map(it => [it.id, it.plan || ''])),
         });
         setError(''); setFaltan([]);
       })
@@ -328,6 +421,9 @@ export default function CierreDelDia({ fecha, onCambio }) {
 
   function explicar(localId, texto) {
     cambiar({ explicaciones: { ...form.explicaciones, [localId]: texto } });
+  }
+  function planear(itemId, texto) {
+    cambiar({ planes: { ...form.planes, [itemId]: texto } });
   }
 
   async function cerrar() {
@@ -530,8 +626,8 @@ export default function CierreDelDia({ fecha, onCambio }) {
           </h2>
           <Novedades titulo="Vencimientos" items={d.novedades.vencimientos}
                      render={it => `${it.producto || ''} ${it.dias ? `(${it.dias} días)` : ''}`} />
-          <Novedades titulo="Mantenimiento" items={d.novedades.mantenimiento} tono="red"
-                     render={it => it.texto} />
+          <MantenimientoDia items={d.novedades.mantenimiento} planes={form.planes}
+                            onPlan={planear} cerrado={cerrado} />
           <Novedades titulo="Faltantes de insumos" items={d.novedades.faltantes}
                      render={it => `${it.insumo} — ${it.proveedor || 'sin proveedor'}`} />
           <Novedades titulo="Faltas y tardanzas" items={d.novedades.ausencias} tono="red"
@@ -567,13 +663,6 @@ export default function CierreDelDia({ fecha, onCambio }) {
           <textarea className="input" rows={2} disabled={cerrado}
                     value={form.acciones_vencimientos}
                     onChange={e => cambiar({ acciones_vencimientos: e.target.value })} />
-        </div>
-
-        <div>
-          <label className="label">Mantenimiento</label>
-          <textarea className="input" rows={2} disabled={cerrado}
-                    value={form.mantenimiento}
-                    onChange={e => cambiar({ mantenimiento: e.target.value })} />
         </div>
 
         <div>

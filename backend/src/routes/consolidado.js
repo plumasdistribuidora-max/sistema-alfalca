@@ -2,25 +2,13 @@ const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
-const { unoPorTurno } = require('../utils/reportes');
+const { unoPorTurno, esNovedad } = require('../utils/reportes');
+const { valorMantenimiento, itemsDelDia } = require('../utils/mantenimiento');
 
 const router = express.Router();
 
 
 const n = v => Number(v) || 0;
-
-// El placeholder de los campos de texto dice "Sin novedades", y la gente lo escribe
-// tal cual en vez de dejarlo vacío. Sin esto, cada turno sube una novedad que no lo es.
-const NADA = [
-  'sin novedades', 'sin novedad', 'ninguna', 'ninguno', 'nada', 'no', 'no hubo',
-  'todo bien', 'sin nada', 'n/a', 'na', '-', '--', '.', 'ok',
-];
-function esNovedad(texto) {
-  const t = String(texto || '')
-    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[.!,]/g, '').trim();
-  return t !== '' && !NADA.includes(t);
-}
 
 // Las horas de un reporte según el tipo de plantilla: la de café trae las de todo
 // el turno, las otras solo las de quien firma.
@@ -171,6 +159,7 @@ async function armarDia(fecha) {
 
   const novedades = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [], gastos: [] };
   const horasPorPersona = new Map();
+  const dichoHoy = [];   // { id, turno, respuesta } por cada ítem de mantenimiento que nombró un turno
 
   for (const rep of reportes) {
     const acc = porLocal[rep.local_id];
@@ -203,8 +192,17 @@ async function armarDia(fecha) {
         novedades.vencimientos.push({ local, turno: rep.turno, ...it });
       }
     }
-    if (esNovedad(r.mantenimiento)) {
-      novedades.mantenimiento.push({ local, turno: rep.turno, texto: r.mantenimiento.trim() });
+    // Mantenimiento: lo que dijo el turno sobre cada ítem (nuevo, sigue igual, se
+    // solucionó). Los reportes anteriores al seguimiento traen un texto suelto.
+    const m = valorMantenimiento(r.mantenimiento);
+    if (m.legado) {
+      novedades.mantenimiento.push({ id: null, local, local_id: rep.local_id, turno: rep.turno, texto: m.legado, legado: true, hoy: [] });
+    }
+    for (const [id, resp] of Object.entries(m.seguimiento)) {
+      dichoHoy.push({ id: Number(id), turno: rep.turno, respuesta: resp });
+    }
+    for (const nuevo of m.nuevos) {
+      if (nuevo.item_id) dichoHoy.push({ id: nuevo.item_id, turno: rep.turno, respuesta: 'nuevo' });
     }
     if (r.faltantes?.hubo) {
       for (const it of filasConDatos(r.faltantes.items)) {
@@ -227,6 +225,26 @@ async function armarDia(fecha) {
     }
   }
   novedades.total_gastos = novedades.gastos.reduce((s, g) => s + g.monto, 0);
+
+  // Los ítems de mantenimiento tal como estaban ese día, con lo que dijo cada turno.
+  // Primero lo nuevo de hoy, después lo que sigue arrastrándose, al final lo resuelto.
+  const diasEntre = (desde, hasta) => Math.round((Date.parse(`${hasta}T12:00:00`) - Date.parse(`${desde}T12:00:00`)) / 86400000);
+  for (const it of await itemsDelDia(fecha)) {
+    if (!porLocal[it.local_id]) continue;
+    const resueltoHoy = it.resuelto_fecha === fecha;
+    novedades.mantenimiento.push({
+      id: it.id, local: porLocal[it.local_id].nombre, local_id: it.local_id,
+      texto: it.texto, fecha: it.fecha, reportado_por: it.reportado_por,
+      dias: diasEntre(it.fecha, fecha),
+      estado: resueltoHoy ? 'resuelto' : 'abierto',
+      plan: it.plan || '',
+      hoy: dichoHoy.filter(d => d.id === it.id).map(({ turno, respuesta }) => ({ turno, respuesta })),
+      // El turno de hoy que lo informó, para mostrarlo como el resto de las novedades.
+      turno: dichoHoy.find(d => d.id === it.id)?.turno || '',
+    });
+  }
+  const orden = it => it.legado ? 3 : it.estado === 'resuelto' ? 2 : it.fecha === fecha ? 0 : 1;
+  novedades.mantenimiento.sort((a, b) => a.local_id - b.local_id || orden(a) - orden(b) || (a.id || 0) - (b.id || 0));
 
   for (const { acc, empleado_id, horas } of horasPorPersona.values()) {
     const valor = valorDe[empleado_id];
@@ -524,9 +542,18 @@ function textoSemana(w) {
     const rep = contar(todas.vencimientos, it => (it.producto || '').trim().toLowerCase()).filter(([, v]) => v > 1);
     if (rep.length) L.push(`• Se repite: ${rep.map(([k, v]) => `${k} (${v})`).join(', ')}`);
   }
-  if (todas.mantenimiento.length) {
-    L.push(''); L.push(`*Mantenimiento reportado* · ${todas.mantenimiento.length}`);
-    for (const it of todas.mantenimiento) L.push(`• ${corto(it.local)} (${it.dia}): ${it.texto}`);
+  // Un ítem que se arrastra toda la semana aparece una vez, con lo último que se supo.
+  const mant = new Map();
+  for (const it of todas.mantenimiento) mant.set(it.id || `legado:${it.local}:${it.texto}`, it);
+  const abiertos  = [...mant.values()].filter(it => it.estado !== 'resuelto');
+  const resueltos = [...mant.values()].filter(it => it.estado === 'resuelto');
+  if (mant.size) {
+    L.push(''); L.push(`*Mantenimiento* · ${abiertos.length} pendiente${abiertos.length === 1 ? '' : 's'}${resueltos.length ? ` · ${resueltos.length} resuelto${resueltos.length === 1 ? '' : 's'}` : ''}`);
+    for (const it of abiertos) {
+      const desde = it.fecha ? ` (desde ${diaCorto(it.fecha)})` : ` (${it.dia})`;
+      L.push(`• ${corto(it.local)}: ${it.texto}${desde}${it.plan ? ` — ${it.plan}` : ''}`);
+    }
+    for (const it of resueltos) L.push(`✅ ${corto(it.local)}: ${it.texto} (resuelto ${it.dia})`);
   }
   for (const dia of w.dias) if (dia.consolidado?.mantenimiento?.trim()) L.push(`• Encargado (${diaCorto(dia.fecha)}): ${dia.consolidado.mantenimiento.trim()}`);
   if (todas.faltantes.length) {
@@ -605,7 +632,7 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
   try {
     const {
       fecha, explicaciones, vencimientos_ok,
-      acciones_vencimientos, mantenimiento, faltas_tardanzas, control_tienda_ok,
+      acciones_vencimientos, faltas_tardanzas, control_tienda_ok, planes,
     } = req.body;
 
     const f = fecha || hoyStr();
@@ -618,13 +645,12 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
     const { rows } = await pool.query(`
       INSERT INTO consolidados
         (fecha, usuario_id, explicaciones, vencimientos_ok,
-         acciones_vencimientos, mantenimiento, faltas_tardanzas, control_tienda_ok)
-      VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,$8)
+         acciones_vencimientos, faltas_tardanzas, control_tienda_ok)
+      VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7)
       ON CONFLICT (fecha) DO UPDATE SET
         explicaciones         = EXCLUDED.explicaciones,
         vencimientos_ok       = EXCLUDED.vencimientos_ok,
         acciones_vencimientos = EXCLUDED.acciones_vencimientos,
-        mantenimiento         = EXCLUDED.mantenimiento,
         faltas_tardanzas      = EXCLUDED.faltas_tardanzas,
         control_tienda_ok     = EXCLUDED.control_tienda_ok,
         updated_at            = NOW()
@@ -633,8 +659,19 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
       f, req.user.id,
       JSON.stringify(explicaciones || {}),
       !!vencimientos_ok, acciones_vencimientos || null,
-      mantenimiento || null, faltas_tardanzas || null, !!control_tienda_ok,
+      faltas_tardanzas || null, !!control_tienda_ok,
     ]);
+
+    // Cómo va a resolver cada mantenimiento pendiente. Vive en el ítem, no en el
+    // día: mañana sigue ahí sin que lo tenga que volver a escribir.
+    for (const [id, plan] of Object.entries(planes || {})) {
+      if (!/^\d+$/.test(id)) continue;
+      await pool.query(`
+        UPDATE mantenimiento_items
+        SET plan = $2, plan_por = $3, plan_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND plan IS DISTINCT FROM $2
+      `, [Number(id), String(plan || '').trim() || null, req.user.id]);
+    }
 
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
@@ -687,6 +724,12 @@ router.post('/cerrar', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (
     if (!c.control_tienda_ok) faltan.push('Confirmá el control de tienda');
     if (dia.novedades.vencimientos.length && !c.acciones_vencimientos?.trim()) {
       faltan.push('Escribí qué acciones tomaste sobre los vencimientos reportados');
+    }
+    // Los dueños no necesitan la lista de lo roto: necesitan saber qué se va a hacer.
+    for (const it of dia.novedades.mantenimiento) {
+      if (it.id && it.estado === 'abierto' && !it.plan?.trim()) {
+        faltan.push(`Decí cómo vas a resolver “${it.texto}” (${it.local})`);
+      }
     }
 
     if (faltan.length) {

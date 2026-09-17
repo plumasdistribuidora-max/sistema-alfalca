@@ -6,6 +6,7 @@ const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/aut
 const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
 const { elegirReporte } = require('../utils/reportes');
+const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte } = require('../utils/mantenimiento');
 
 const router = express.Router();
 
@@ -144,6 +145,11 @@ function validar(campos, respuestas) {
         // Las fotos no viven en respuestas: se cuentan aparte, con los adjuntos.
         break;
 
+      case 'mantenimiento':
+        // Lo obligatorio acá es contestar por cada pendiente del local, y eso se
+        // chequea contra la base al enviar (faltantesMantenimiento).
+        break;
+
       case 'checklist':
         if (!Array.isArray(v) || !v.length) faltan.push(campo.label);
         break;
@@ -232,6 +238,7 @@ router.get('/plantillas', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), asyn
 const TIPOS_VALIDOS = [
   'texto', 'texto_largo', 'numero', 'decimal', 'moneda', 'seleccion',
   'si_no', 'si_no_lista', 'horas_empleados', 'checklist', 'foto', 'facturas',
+  'mantenimiento',
 ];
 
 router.put('/plantillas/:codigo', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
@@ -346,6 +353,8 @@ router.get('/mio', requireAuth, async (req, res) => {
         otros:     hoy.filter(r => !propios.includes(r))
                       .map(r => ({ id: r.id, local_nombre: r.local_nombre, plantilla_codigo: r.plantilla_codigo, turno: r.turno, estado: r.estado })),
         equipo:    await equipoDe(elegida.local_id),
+        // Lo que sigue abierto en ese local, para que el turno diga si se solucionó.
+        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id)),
       },
     });
   } catch (err) {
@@ -695,8 +704,17 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
       }
     }
 
+    // Cada pendiente de mantenimiento del local tiene que tener respuesta.
+    if (plantilla.campos.some(c => c.tipo === 'mantenimiento')) {
+      faltan.push(...await faltantesMantenimiento(reporte));
+    }
+
     if (faltan.length) {
       return res.status(400).json({ ok: false, error: 'Te falta completar algo', data: { faltan } });
+    }
+
+    if (plantilla.campos.some(c => c.tipo === 'mantenimiento')) {
+      await sincronizarMantenimiento(reporte, req.user.id);
     }
 
     await pool.query(
@@ -838,6 +856,7 @@ router.get('/:id', requireAuth, async (req, res) => {
         adjuntos:    await adjuntosDe(rows[0].id),
         facturas:    await facturasDe(rows[0].id),
         observacion: rows[0].estado === 'observado' ? await observacionDe(rows[0].id) : null,
+        mantenimiento_items: await itemsDeReporte(rows[0]),
       },
     });
   } catch (err) {

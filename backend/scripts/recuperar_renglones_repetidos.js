@@ -9,6 +9,7 @@
 //   cd backend && node scripts/recuperar_renglones_repetidos.js            # todo
 //   cd backend && node scripts/recuperar_renglones_repetidos.js --local 5  # un local
 //   cd backend && node scripts/recuperar_renglones_repetidos.js --simular  # solo cuenta
+//   cd backend && node scripts/recuperar_renglones_repetidos.js --desde 66 # retomar desde ese import
 require('dotenv').config({ path: '../.env' });
 const xlsx = require('xlsx');
 const pool = require('../src/config/db');
@@ -18,13 +19,25 @@ const { loadMaestro, getDocenasPorProducto } = require('../src/services/maestroD
 
 const args = process.argv.slice(2);
 const soloLocal = args.includes('--local') ? Number(args[args.indexOf('--local') + 1]) : null;
+const desdeImport = args.includes('--desde') ? Number(args[args.indexOf('--desde') + 1]) : 0;   // retomar desde un import
 const simular   = args.includes('--simular');
 
+// La bajada de R2 a veces se queda colgada: se reintenta con un límite de tiempo.
+function conLimite(promesa, ms, que) {
+  return Promise.race([promesa, new Promise((_, rej) => setTimeout(() => rej(new Error(`${que}: más de ${ms / 1000}s`)), ms))]);
+}
 async function leer(key) {
-  const obj = await getFromR2(key);
-  const chunks = [];
-  for await (const c of obj.Body) chunks.push(c);
-  return xlsx.read(Buffer.concat(chunks), { type: 'buffer', cellDates: true });
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const obj = await conLimite(getFromR2(key), 30000, 'pedir el archivo');
+      const chunks = [];
+      await conLimite((async () => { for await (const c of obj.Body) chunks.push(c); })(), 120000, 'bajar el archivo');
+      return xlsx.read(Buffer.concat(chunks), { type: 'buffer', cellDates: true });
+    } catch (err) {
+      if (intento === 3) throw err;
+      console.log(`    reintento ${intento} (${err.message})`);
+    }
+  }
 }
 
 (async () => {
@@ -33,6 +46,7 @@ async function leer(key) {
     SELECT id, local_id, archivo_r2_key, fecha_desde::text, fecha_hasta::text
     FROM imports_log
     WHERE status = 'completado' AND archivo_r2_key IS NOT NULL ${soloLocal ? 'AND local_id = $1' : ''}
+      AND id >= ${desdeImport}
     ORDER BY id
   `, soloLocal ? [soloLocal] : [])).rows;
   console.log(`${imports.length} imports a releer${simular ? ' (simulación)' : ''}`);
@@ -53,6 +67,26 @@ async function leer(key) {
 
     const lineas = new Map();
     let nuevos = 0, repetidos = 0;
+    const pendientes = [];   // filas a insertar, de a tandas: un INSERT por renglón tardaba minutos por archivo
+    const COLS = 21;
+    async function volcar() {
+      if (!pendientes.length) return;
+      const values = pendientes.map((_, i) => `(${Array.from({ length: COLS }, (__, j) => `$${i * COLS + j + 1}`).join(',')})`).join(',');
+      const r = await pool.query(`
+        INSERT INTO ventas_items (
+          local_id, ticket_id, pos_ticket_id, producto_id, producto_nombre_raw,
+          categoria_raw, cantidad, precio_unit, precio_total,
+          costo_base, costo_modificadores, costo_total,
+          empleado, fecha_creacion, cocina,
+          cancelada, cancelada_por, comentario, comentario_cancelacion,
+          docenas_equivalentes, linea
+        ) VALUES ${values}
+        ON CONFLICT (local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion, linea) DO NOTHING
+      `, pendientes.flat());
+      nuevos += r.rowCount;
+      pendientes.length = 0;
+    }
+
     for (const row of filas) {
       const posTicketId = parseInt(row['id venta']);
       const nombreRaw   = row['producto'];
@@ -72,17 +106,7 @@ async function leer(key) {
       const cantidad   = parseFloat(row['cantidad'] ?? 1) || 1;
       const precioUnit = parseFloat(row['precio'] ?? 0) || 0;
 
-      const r = await pool.query(`
-        INSERT INTO ventas_items (
-          local_id, ticket_id, pos_ticket_id, producto_id, producto_nombre_raw,
-          categoria_raw, cantidad, precio_unit, precio_total,
-          costo_base, costo_modificadores, costo_total,
-          empleado, fecha_creacion, cocina,
-          cancelada, cancelada_por, comentario, comentario_cancelacion,
-          docenas_equivalentes, linea
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-        ON CONFLICT (local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion, linea) DO NOTHING
-      `, [
+      pendientes.push([
         im.local_id, tickets[posTicketId] ?? null, posTicketId, productoId, nombre,
         row['categoria'] || null, cantidad, precioUnit, cantidad * precioUnit,
         parseFloat(row['costo base'] ?? 0) || 0, parseFloat(row['costo modificadores'] ?? 0) || 0, parseFloat(row['costo total'] ?? 0) || 0,
@@ -90,8 +114,9 @@ async function leer(key) {
         parseFiscal(row['cancelada']), row['cancelada por'] || null, row['comentario'] || null, row['comentario de cancelacion'] || null,
         cantidad * docenas, linea,
       ]);
-      nuevos += r.rowCount;
+      if (pendientes.length >= 500) await volcar();
     }
+    await volcar();
     totalNuevos += nuevos;
     console.log(`  import ${im.id} local ${im.local_id} ${im.fecha_desde}→${im.fecha_hasta}: ${filas.length} renglones, ${repetidos} repetidos${simular ? '' : `, ${nuevos} recuperados`}`);
   }

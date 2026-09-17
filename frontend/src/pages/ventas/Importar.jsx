@@ -132,6 +132,35 @@ export default function VentasImportar() {
                 </a>
               </div>
             )}
+
+            {result.productos_sin_cafe_count > 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 space-y-2">
+                <p className="font-semibold text-amber-900">
+                  {result.productos_sin_cafe_count}{' '}
+                  {result.productos_sin_cafe_count === 1
+                    ? 'producto del café sin gramos de café definidos'
+                    : 'productos del café sin gramos de café definidos'}
+                </p>
+                <p className="text-sm text-amber-800">
+                  Suman <strong>0 gramos</strong> al consumo teórico hasta que les pongas cuánto café
+                  llevan (o 0 si no llevan). El control contra el pesaje de los baristas queda corto mientras tanto.
+                </p>
+                <ul className="text-sm text-amber-900 space-y-0.5 max-h-48 overflow-y-auto">
+                  {result.productos_sin_cafe.slice(0, 25).map(p => (
+                    <li key={p.id}>
+                      • {p.nombre}
+                      {p.nuevo && <span className="text-xs text-amber-600 ml-1">(nuevo)</span>}
+                    </li>
+                  ))}
+                  {result.productos_sin_cafe.length > 25 && (
+                    <li className="text-xs text-amber-600">…y {result.productos_sin_cafe.length - 25} más</li>
+                  )}
+                </ul>
+                <a href="/admin/maestros/cafe?estado=pendientes" className="btn-primary inline-block text-sm">
+                  Asignar gramos de café ahora →
+                </a>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <button onClick={reset} className="btn-secondary">Importar otro archivo</button>

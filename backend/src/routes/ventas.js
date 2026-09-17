@@ -397,6 +397,10 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       const productoIdMap = {}; // nombre_normalizado → db id
       const docenasMap    = {}; // db id → docenas_por_unidad (null = sin definir)
       const pendientes    = []; // productos sin docenas definidas vistos en este archivo
+      // En la cafetería, lo mismo para el maestro de café: un producto sin gramos
+      // suma 0 al consumo teórico hasta que se defina.
+      const esCafeteria   = localRes.rows[0].tipo === 'cafeteria';
+      const pendientesCafe = [];
 
       for (const row of rowsProductos) {
         const nombreRaw = row['nombre'];
@@ -425,7 +429,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
             subcategoria    = COALESCE(productos_catalogo.subcategoria, $4),
             codigo_pos      = COALESCE(productos_catalogo.codigo_pos, $5),
             updated_at      = NOW()
-          RETURNING id, docenas_por_unidad, (xmax = 0) AS inserted
+          RETURNING id, docenas_por_unidad, cafe_gramos, (xmax = 0) AS inserted
         `, [
           nombreNorm, nombreDisplay,
           row['categoria'] || null,
@@ -445,6 +449,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         if (docenasDb === null) {
           pendientes.push({ id: prodId, nombre: nombreDisplay, nuevo: inserted });
           console.warn(`[import] Producto sin docenas definidas: "${nombreDisplay}"`);
+        }
+        if (esCafeteria && r.rows[0].cafe_gramos === null) {
+          pendientesCafe.push({ id: prodId, nombre: nombreDisplay, nuevo: inserted });
         }
       }
 
@@ -665,6 +672,8 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           productos_nuevos_catalogo:   productosNuevos,
           productos_pendientes:        pendientes,
           productos_pendientes_count:  pendientes.length,
+          productos_sin_cafe:          pendientesCafe,
+          productos_sin_cafe_count:    pendientesCafe.length,
           docenas_totales_periodo:     Math.round(docenasTotalesDB * 10000) / 10000,
           adicionales_total:           parseInt(adicionalesTotal.rows[0].cnt),
           fecha_desde:                 fechaDesde,

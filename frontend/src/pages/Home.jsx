@@ -5,14 +5,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { colorDeTienda, shortName, fmtARS, fmtDoc } from './red/redUtils';
 import logoEntreDos from '../assets/marcas/entre-dos.png';
 import logoKankay   from '../assets/marcas/kankay.jpg';
-import logoSenzen   from '../assets/marcas/senzen.png';
+import logoSenzen   from '../assets/marcas/senzen-blanco.png';
 
 // Las marcas del grupo. El logo va en su propio recuadro con el fondo con el que
-// vino (negro para Entre Dos y Kankay, blanco para Senzen).
+// vino. Senzen es turquesa: se usa una versión blanca sobre negro para que las tres queden parejas.
 const MARCAS = [
   { nombre: 'Entre Dos', rubro: 'Tiendas y cafetería', logo: logoEntreDos, fondo: '#000000' },
   { nombre: 'Kankay',    rubro: 'Marca del grupo',     logo: logoKankay,   fondo: '#000000' },
-  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#ffffff', nueva: true },
+  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', nueva: true },
 ];
 
 const DIAS  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];

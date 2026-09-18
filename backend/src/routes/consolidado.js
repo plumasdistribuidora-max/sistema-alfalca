@@ -464,9 +464,8 @@ const pct = v => v == null ? 's/d' : `${v.toFixed(1)}%`;
 const corto = nombre => nombre.replace(' Tienda de Alfajores', '').replace(' Cafetería', '');
 const variacion = (ahora, antes) => antes > 0 ? `${ahora >= antes ? '+' : '−'}${Math.abs((ahora / antes - 1) * 100).toFixed(0)}%` : null;
 
-// El texto para WhatsApp. Primero lo que hay que saber, después el detalle.
-function textoSemana(w) {
-  const L = [];
+// Los números de la semana a partir de los siete días, para el texto y para el PDF.
+function resumenSemana(w) {
   const d0 = new Date(`${w.desde}T12:00:00`), d1 = new Date(`${w.hasta}T12:00:00`);
   const rango = d0.getMonth() === d1.getMonth()
     ? `sáb ${d0.getDate()} al vie ${d1.getDate()} de ${MES_LARGO[d1.getMonth()]}`
@@ -507,52 +506,6 @@ function textoSemana(w) {
   const diasConHoras = w.dias.filter(d => d.totales.horas > 0).length;
   const diasConVentas = w.dias.filter(d => d.totales.ventas_sistema > 0).length;
 
-  L.push(`*Resumen semanal — ${rango}*`);
-  L.push(`Venta: ${$(ventaTotal)} · ${w.actual.total.tickets} tickets · ticket prom. ${w.actual.total.tickets ? $(ventaTotal / w.actual.total.tickets) : 's/d'}`);
-  const vAnt = variacion(ventaTotal, w.anterior.total.total), vAnio = variacion(ventaTotal, w.anio.total.total);
-  if (vAnt || vAnio) L.push(`vs semana anterior: ${vAnt || 's/d'}${vAnio ? ` · vs misma semana del año pasado: ${vAnio}` : ''}`);
-  if (w.actual.total.docenas) L.push(`Docenas: ${money.format(w.actual.total.docenas)}${w.anterior.total.docenas ? ` (semana anterior ${money.format(w.anterior.total.docenas)})` : ''}`);
-  L.push(`Personal: ${tot.horas.toFixed(1)} h · ${$(tot.gasto)}${kpiRed != null ? ` · ${pct(kpiRed)} de la venta ${kpiRed <= metaRed ? '✅' : '🔴'} (meta ${pct(metaRed)})` : ''}`
-    + (kpiRed != null && diasConHoras < diasConVentas ? ` — sobre ${diasConHoras} de ${diasConVentas} días con reportes` : ''));
-  if (tot.sin_valor > 0) L.push(`⚠️ ${tot.sin_valor.toFixed(1)} h sin valor hora cargado`);
-
-  L.push('');
-  L.push('*Por local*');
-  for (const id of locales) {
-    const v = w.actual.porLocal[id]?.total || 0;
-    if (!v && !porLocal[id].horas) continue;
-    const a = porLocal[id];
-    const kpi = a.ventas_con_horas > 0 && a.gasto > 0 ? a.gasto / a.ventas_con_horas * 100 : null;
-    const va = variacion(v, w.anterior.porLocal[id]?.total || 0);
-    let linea = `• ${corto(nombreDe[id])}: ${$(v)}${va ? ` (${va})` : ''}`;
-    if (kpi != null) linea += ` · personal ${pct(kpi)} ${kpi <= objetivoDe[id] ? '✅' : '🔴'} (meta ${objetivoDe[id]}%)`;
-    L.push(linea);
-    if (a.dias_kpi) {
-      const enMeta = a.dias_en_meta, fuera = a.dias_kpi - enMeta;
-      let lectura = `  ${enMeta} de ${a.dias_kpi} días en meta${a.dias_con_horas < a.dias_con_ventas ? ` (${a.dias_con_horas} de ${a.dias_con_ventas} días con reportes)` : ''}`;
-      if (kpi != null && kpi <= objetivoDe[id] && fuera > 0) lectura += `, pero la semana cerró en meta`;
-      if (kpi != null && kpi > objetivoDe[id] && enMeta > fuera) lectura += `, pero la semana cerró arriba de la meta`;
-      L.push(lectura);
-    }
-    if (a.mejor && a.peor && a.mejor.dia !== a.peor.dia) L.push(`  mejor día ${a.mejor.dia} ${$(a.mejor.v)} · peor ${a.peor.dia} ${$(a.peor.v)}`);
-    if (a.no_cierra.length) {
-      L.push(`  🔴 no cerró ${a.no_cierra.length === 1 ? 'el' : 'los días'} ${a.no_cierra.map(x => `${x.dia} (${x.dif > 0 ? '+' : '−'}${money.format(Math.abs(x.dif))}${x.exp ? `: ${x.exp}` : ''})`).join(', ')}`);
-    }
-    if (a.dias_sin_reportes.length) L.push(`  ⚠️ faltaron reportes: ${a.dias_sin_reportes.join(', ')}`);
-  }
-
-  // Cómo funcionó el circuito.
-  const cerrados = w.dias.filter(d => d.consolidado?.estado === 'cerrado').map(d => diaCorto(d.fecha));
-  const sinCerrar = w.dias.filter(d => d.consolidado?.estado !== 'cerrado').map(d => diaCorto(d.fecha));
-  let esperados = 0, recibidos = 0;
-  for (const dia of w.dias) for (const l of dia.locales) { esperados += l.turnos_esperados; recibidos += Math.min(l.turnos_reportados, l.turnos_esperados); }
-  L.push('');
-  L.push('*Cómo funcionó la semana*');
-  L.push(`• Días cerrados: ${cerrados.length} de 7${sinCerrar.length ? ` (sin cerrar: ${sinCerrar.join(', ')})` : ''}`);
-  L.push(`• Reportes de venta: ${recibidos} de ${esperados} esperados`);
-  if (w.tarde.length) L.push(`• Llegaron al día siguiente: ${w.tarde.length} (${[...new Set(w.tarde.map(t => t.usuario))].join(', ')})`);
-  if (w.devueltos.length) L.push(`• Devueltos para corregir: ${w.devueltos.map(d => `${d.usuario} ${d.veces > 1 ? `×${d.veces}` : ''}`.trim()).join(', ')}`);
-
   // Novedades acumuladas, contadas.
   const todas = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [], gastos: [] };
   for (const dia of w.dias) for (const k of Object.keys(todas)) for (const it of (dia.novedades[k] || [])) todas[k].push({ ...it, dia: diaCorto(dia.fecha) });
@@ -561,76 +514,60 @@ function textoSemana(w) {
     for (const it of items) { const k = clave(it); if (k) c[k] = (c[k] || 0) + 1; }
     return Object.entries(c).sort((a, b) => b[1] - a[1]);
   };
-  if (todas.vencimientos.length) {
-    L.push(''); L.push(`*Vencimientos* · ${todas.vencimientos.length} en la semana`);
-    L.push(`• Por local: ${contar(todas.vencimientos, it => corto(it.local)).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
-    const rep = contar(todas.vencimientos, it => (it.producto || '').trim().toLowerCase()).filter(([, v]) => v > 1);
-    if (rep.length) L.push(`• Se repite: ${rep.map(([k, v]) => `${k} (${v})`).join(', ')}`);
-  }
   // Un ítem que se arrastra toda la semana aparece una vez, con lo último que se supo.
   const mant = new Map();
   for (const it of todas.mantenimiento) mant.set(it.id || `legado:${it.local}:${it.texto}`, it);
   const abiertos  = [...mant.values()].filter(it => it.estado !== 'resuelto');
   const resueltos = [...mant.values()].filter(it => it.estado === 'resuelto');
-  if (mant.size) {
-    L.push(''); L.push(`*Mantenimiento* · ${abiertos.length} pendiente${abiertos.length === 1 ? '' : 's'}${resueltos.length ? ` · ${resueltos.length} resuelto${resueltos.length === 1 ? '' : 's'}` : ''}`);
-    for (const it of abiertos) {
-      const desde = it.fecha ? ` (desde ${diaCorto(it.fecha)})` : ` (${it.dia})`;
-      L.push(`• ${corto(it.local)}: ${it.texto}${desde}${it.plan ? ` — ${it.plan}` : ''}`);
-    }
-    for (const it of resueltos) L.push(`✅ ${corto(it.local)}: ${it.texto} (resuelto ${it.dia})`);
-  }
-  for (const dia of w.dias) if (dia.consolidado?.mantenimiento?.trim()) L.push(`• Encargado (${diaCorto(dia.fecha)}): ${dia.consolidado.mantenimiento.trim()}`);
-  if (todas.faltantes.length) {
-    L.push(''); L.push(`*Faltantes de insumos* · ${todas.faltantes.length}`);
-    for (const [k, v] of contar(todas.faltantes, it => `${(it.insumo || '').trim()}${it.proveedor ? ` (${it.proveedor})` : ''}`)) L.push(`• ${k}${v > 1 ? ` — ${v} veces` : ''}`);
-  }
-  if (todas.ausencias.length) {
-    L.push(''); L.push(`*Faltas y tardanzas* · ${todas.ausencias.length}`);
-    for (const [k, v] of contar(todas.ausencias, it => (it.empleado || '').trim())) {
-      const motivos = todas.ausencias.filter(it => (it.empleado || '').trim() === k).map(it => `${it.dia}: ${it.motivo}`).join('; ');
-      L.push(`• ${k} ×${v} — ${motivos}`);
-    }
-  }
-  for (const dia of w.dias) if (dia.consolidado?.faltas_tardanzas?.trim()) L.push(`• Encargado (${diaCorto(dia.fecha)}): ${dia.consolidado.faltas_tardanzas.trim()}`);
-  if (todas.quejas.length) {
-    L.push(''); L.push(`*Quejas* · ${todas.quejas.length}`);
-    for (const it of todas.quejas) L.push(`• ${corto(it.local)} (${it.dia}): ${it.texto}`);
-  }
+  const cerrados = w.dias.filter(d => d.consolidado?.estado === 'cerrado').map(d => diaCorto(d.fecha));
+  const sinCerrar = w.dias.filter(d => d.consolidado?.estado !== 'cerrado').map(d => diaCorto(d.fecha));
+  let esperados = 0, recibidos = 0;
+  for (const dia of w.dias) for (const l of dia.locales) { esperados += l.turnos_esperados; recibidos += Math.min(l.turnos_reportados, l.turnos_esperados); }
 
-  // Café: lo que consumieron los baristas en la semana y con cuánto quedó el último día.
-  const diasCafe = w.dias.filter(d => d.cafe?.turnos?.length);
-  if (diasCafe.length) {
-    const kg = v => `${String(v).replace('.', ',')} kg`;
-    const total = Math.round(diasCafe.reduce((s, d) => s + (d.cafe.consumo || 0), 0) * 100) / 100;
-    const ultimo = [...diasCafe].reverse().find(d => d.cafe.queda !== null);
-    L.push(''); L.push(`*Café* · ${kg(total)} consumidos en ${diasCafe.length} día${diasCafe.length === 1 ? '' : 's'}`);
-    L.push(`• Por día: ${diasCafe.map(d => `${diaCorto(d.fecha)} ${kg(d.cafe.consumo)}`).join(' · ')}`);
-    if (ultimo) L.push(`• Queda: ${kg(ultimo.cafe.queda)} (${diaCorto(ultimo.fecha)})`);
-    const desajustes = diasCafe.flatMap(d => d.cafe.turnos.filter(t => t.coincide === false).map(t => `${diaCorto(d.fecha)} ${t.turno.toLowerCase()} (${t.usuario})`));
-    if (desajustes.length) L.push(`• 🔴 Pesajes que no coincidieron al cambiar de turno: ${desajustes.join(', ')}`);
-  }
+  return { rango, locales, nombreDe, objetivoDe, tot, porLocal, ventaTotal, kpiRed, metaRed, diasConHoras, diasConVentas,
+           todas, contar, mant, abiertos, resueltos, cerrados, sinCerrar, esperados, recibidos };
+}
 
-  if (todas.gastos.length) {
-    const total = todas.gastos.reduce((s, g) => s + n(g.monto), 0);
-    L.push(''); L.push(`*Gastos de caja* · ${todas.gastos.length} por ${$(total)}`);
-    for (const [k, v] of contar(todas.gastos, it => it.tipo || 'Otro')) {
-      const suma = todas.gastos.filter(it => (it.tipo || 'Otro') === k).reduce((s, g) => s + n(g.monto), 0);
-      L.push(`• ${k}: ${v} por ${$(suma)}`);
-    }
-  }
+// El texto para WhatsApp: cuatro renglones, igual que el diario. El detalle va en
+// el PDF de la semana.
+function textoSemana(w) {
+  const { rango, ventaTotal } = resumenSemana(w);
+  const tipoDe = Object.fromEntries(w.dias[0].locales.map(l => [l.local_id, l.tipo]));
+  const tiendas = Object.entries(w.actual.porLocal).filter(([id]) => tipoDe[id] !== 'cafeteria');
+  const vTiendas = tiendas.reduce((s, [, v]) => s + v.total, 0);
+  const kTiendas = tiendas.reduce((s, [, v]) => s + v.tickets, 0);
+  const cafe = Object.entries(w.actual.porLocal).find(([id]) => tipoDe[id] === 'cafeteria');
+  const personasCafe = w.dias.reduce((s, d) => s + d.locales.filter(l => l.tipo === 'cafeteria').reduce((t, l) => t + (l.personas_reportadas || 0), 0), 0);
 
-  const p = w.proveedores;
-  if (p.pagado || p.deuda) {
-    L.push(''); L.push('*Proveedores*');
-    L.push(`• Pagado en la semana: ${$(p.pagado)}`);
-    if (p.n_vencidas) L.push(`• 🔴 Vencidas sin pagar: ${p.n_vencidas} por ${$(p.vencido)}`);
-    if (p.n_proxima) L.push(`• Vence la semana que viene: ${p.n_proxima} facturas por ${$(p.vence_proxima)}`);
-    L.push(`• Deuda total: ${$(p.deuda)} en ${p.facturas} facturas`);
+  const L = [];
+  L.push(`*Resumen semanal · ${rango}*`);
+  const va = variacion(ventaTotal, w.anterior.total.total);
+  L.push(`Ventas ${$(ventaTotal)}${va ? ` (${va} vs. semana anterior)` : ''}`);
+  L.push(`Ticket promedio tiendas ${kTiendas ? $(vTiendas / kTiendas) : 's/d'}`);
+  if (cafe && cafe[1].total) {
+    L.push(personasCafe
+      ? `Café: ${$(cafe[1].total / personasCafe)} por persona atendida (${money.format(personasCafe)} personas)`
+      : `Café: ${cafe[1].tickets ? $(cafe[1].total / cafe[1].tickets) : 's/d'} por ticket`);
   }
-
   return L.join('\n');
 }
+
+// ── GET /semana/pdf ───────────────────────────────────────────────────────────
+router.get('/semana/pdf', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
+  try {
+    const hasta = req.query.hasta || hoyStr();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return res.status(400).json({ ok: false, error: 'Fecha inválida' });
+    const w = await armarSemana(hasta);
+    const { pdfSemana } = require('../services/pdfCierre');
+    const buffer = await pdfSemana(w, resumenSemana(w));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Semana ${w.desde} a ${w.hasta}.pdf"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('[consolidado/semana/pdf]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo armar el PDF de la semana' });
+  }
+});
 
 // ── GET /semana ───────────────────────────────────────────────────────────────
 // La semana que termina en `hasta` (un viernes, normalmente). Devuelve el texto listo
@@ -829,3 +766,5 @@ router.post('/reabrir', requireAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.armarDia = armarDia;
+module.exports.armarSemana = armarSemana;
+module.exports.resumenSemana = resumenSemana;

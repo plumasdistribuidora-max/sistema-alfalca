@@ -215,19 +215,20 @@ function armarMensaje({ d, fecha }) {
 // El PDF del cierre viene del servidor con el token de sesión, así que no se puede
 // abrir con un link común. Se baja como archivo y, en el celular, se comparte con
 // el menú del teléfono (WhatsApp lo recibe como adjunto).
-async function pdfDelDia(fecha) {
-  const r = await api.get('/consolidado/pdf', { params: { fecha }, responseType: 'blob' });
-  return new File([r.data], `Cierre ${fecha}.pdf`, { type: 'application/pdf' });
+async function bajarPdf(url, params, nombre) {
+  const r = await api.get(url, { params, responseType: 'blob' });
+  return new File([r.data], nombre, { type: 'application/pdf' });
 }
 
-function BotonPdf({ fecha, texto }) {
+// `pdf` = { url, params, nombre }: el diario o el semanal.
+function BotonPdf({ pdf, texto }) {
   const [estado, setEstado] = useState('');   // '' | 'armando' | 'error'
   const puedeCompartir = typeof navigator !== 'undefined' && !!navigator.share && !!navigator.canShare;
 
   async function compartir() {
     setEstado('armando');
     try {
-      const archivo = await pdfDelDia(fecha);
+      const archivo = await bajarPdf(pdf.url, pdf.params, pdf.nombre);
       if (puedeCompartir && navigator.canShare({ files: [archivo] })) {
         try {
           await navigator.share({ files: [archivo], text: texto, title: archivo.name });
@@ -253,7 +254,7 @@ function BotonPdf({ fecha, texto }) {
   );
 }
 
-function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'El detalle va en el PDF. Compartilo al grupo con el mensaje corto abajo.', pdfFecha = null }) {
+function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'El detalle va en el PDF. Compartilo al grupo con el mensaje corto abajo.', pdf = null }) {
   const [copiado, setCopiado] = useState(false);
   const ref = useRef(null);
 
@@ -279,8 +280,8 @@ function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'El d
       <textarea ref={ref} readOnly value={texto} rows={Math.min(22, texto.split('\n').length + 1)}
                 className="input text-sm font-mono leading-relaxed whitespace-pre" />
       <div className="flex gap-2 flex-wrap">
-        {pdfFecha && <BotonPdf fecha={pdfFecha} texto={texto} />}
-        <button onClick={copiar} className={`${pdfFecha ? 'btn-secondary' : 'btn-primary'} flex-1`}>{copiado ? '✓ Copiado' : 'Copiar mensaje'}</button>
+        {pdf && <BotonPdf pdf={pdf} texto={texto} />}
+        <button onClick={copiar} className={`${pdf ? 'btn-secondary' : 'btn-primary'} flex-1`}>{copiado ? '✓ Copiado' : 'Copiar mensaje'}</button>
         <a href={`https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer"
            className="btn-secondary flex-1 text-center">Abrir en WhatsApp</a>
       </div>
@@ -719,12 +720,13 @@ export default function CierreDelDia({ fecha, onCambio }) {
         )}
       </div>
 
-      {cerrado && <MensajeDuenos texto={armarMensaje({ d, fecha })} pdfFecha={fecha} />}
+      {cerrado && <MensajeDuenos texto={armarMensaje({ d, fecha })} pdf={{ url: '/consolidado/pdf', params: { fecha }, nombre: `Cierre ${fecha}.pdf` }} />}
 
       {esViernes && (
         semana?.texto
           ? <MensajeDuenos texto={semana.texto} titulo="Resumen de la semana"
-                           sub={`Sábado a viernes, para mandar a los dueños junto con el diario. Copialo y pegalo en el grupo.${cerrado ? '' : ' Se actualiza cuando cierres el día.'}`} />
+                           sub={`Sábado a viernes, para mandar a los dueños junto con el diario.${cerrado ? '' : ' Se actualiza cuando cierres el día.'}`}
+                           pdf={{ url: '/consolidado/semana/pdf', params: { hasta: fecha }, nombre: `Semana hasta ${fecha}.pdf` }} />
           : <div className="card p-5 text-sm text-ahg-text/50">
               {semana?.error || 'Armando el resumen de la semana…'}
             </div>

@@ -15,7 +15,7 @@
 <title>Manual de Alfalca</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Inter:wght@400;500;600;700&family=Rubik:wght@800&display=swap">
 
 <style>
 /* ─────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ a{ color: var(--violeta); }
   border-radius: 0;
   flex: 0 0 auto;
 }
-.marca-txt strong{ display:block; font-family: var(--display); font-size: 15px; font-weight: 800; }
+.marca-txt strong{ display:block; font-family: 'Rubik', var(--display); font-size: 24px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
 .marca-txt span{ display:block; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: rgba(255,255,255,.6); }
 
 .portada h1{
@@ -336,7 +336,7 @@ dl.glosario dd{ margin: 0; color: var(--tinta-2); font-size: 14.5px; }
 .m-side{ background: var(--m-vio); padding: 12px 8px; color: #fff; }
 .m-side .m-marca{ display:flex; align-items:center; gap:8px; padding: 2px 6px 12px; border-bottom: 1px solid rgba(255,255,255,.12); margin-bottom: 8px; }
 .m-side .m-iso{ width: 22px; height: 22px; display:grid; place-items:center; }
-.m-side .m-marca b{ font-family: var(--display); font-size: 11.5px; font-weight: 800; display:block; line-height:1.1; }
+.m-side .m-marca b{ font-family: 'Rubik', var(--display); font-size: 14px; font-weight: 800; letter-spacing:-.03em; display:block; line-height:1; }
 .m-side .m-marca em{ font-style: normal; font-size: 7px; color: rgba(255,255,255,.6); }
 .m-side .m-tit{ font-size: 8px; letter-spacing:.14em; text-transform: uppercase; color: rgba(255,255,255,.42); padding: 10px 8px 3px; font-weight: 700; }
 .m-side .m-it{ display:flex; align-items:center; gap:8px; padding: 5px 8px; border-radius: 7px; color: rgba(255,255,255,.75); font-size: 11.5px; }
@@ -451,7 +451,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 <header class="portada">
   <div class="portada-in">
     <div class="marca">
-      <div class="iso"><svg viewBox="0 0 100 100" width="46" height="46" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A47 47 0 0 1 53 100Z"/></svg></div>
+      <div class="iso"><svg viewBox="0 0 100 100" width="46" height="46" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A23.5 23.5 0 0 1 53 53Z"/></svg></div>
       <div class="marca-txt">
         <strong>alfalca</strong>
         <span>grupo inversor · mendoza</span>
@@ -522,9 +522,9 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <div class="mock" style="max-width:340px">
           <div class="mock-bar"><i></i><i></i><i></i><span>alfalca</span></div>
           <div style="padding:34px 26px; display:grid; gap:14px; justify-items:center; background:#ecebe7">
-            <svg viewBox="0 0 100 100" width="44" height="44" fill="#1f2022" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A47 47 0 0 1 53 100Z"/></svg>
+            <svg viewBox="0 0 100 100" width="44" height="44" fill="#1f2022" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A23.5 23.5 0 0 1 53 53Z"/></svg>
             <div style="text-align:center">
-              <div style="font-family:var(--display);font-weight:800;font-size:18px;color:#1F2937;line-height:1">alfalca</div><div style="font-size:9.5px;color:#6B6472">grupo inversor · mendoza</div>
+              <div style="font-family:Rubik,var(--display);font-weight:800;font-size:24px;letter-spacing:-.03em;color:#1F2937;line-height:1">alfalca</div><div style="font-size:9.5px;color:#6B6472">grupo inversor · mendoza</div>
               <div style="font-size:10.5px;color:#9C94A6">Ingresá con tu cuenta</div>
             </div>
             <div class="m-card" style="width:100%; display:grid; gap:9px">
@@ -706,7 +706,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <div class="mock" style="max-width:200px">
           <div class="m-side" style="min-height:400px">
             <div class="m-marca">
-              <div class="m-iso"><svg viewBox="0 0 100 100" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A47 47 0 0 1 53 100Z"/></svg></div>
+              <div class="m-iso"><svg viewBox="0 0 100 100" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A23.5 23.5 0 0 1 53 53Z"/></svg></div>
               <div><b>alfalca</b><em>grupo inversor · mendoza</em></div>
             </div>
             <p class="m-tit">El día</p>
@@ -1015,7 +1015,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
           <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · reportes</span></div>
           <div class="mock-cuerpo">
             <div class="m-side">
-              <div class="m-marca"><div class="m-iso"><svg viewBox="0 0 100 100" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A47 47 0 0 1 53 100Z"/></svg></div><div><b>alfalca</b><em>grupo inversor · mendoza</em></div></div>
+              <div class="m-marca"><div class="m-iso"><svg viewBox="0 0 100 100" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A23.5 23.5 0 0 1 53 53Z"/></svg></div><div><b>alfalca</b><em>grupo inversor · mendoza</em></div></div>
               <p class="m-tit">El día</p>
               <div class="m-it on"><span class="ic">☰</span>Reportes</div>
               <p class="m-tit">Análisis</p>

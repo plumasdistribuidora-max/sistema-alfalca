@@ -31,9 +31,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-ahg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Isotipo className="w-16 h-16 mx-auto mb-4 text-ahg-text" />
-          <h1 className="text-3xl font-extrabold tracking-tight text-ahg-text leading-none" style={{ fontFamily: 'Nunito, sans-serif' }}>alfalca</h1>
-          <p className="text-ahg-text/55 text-sm mt-1">grupo inversor · mendoza</p>
+          <Isotipo className="w-[72px] h-[72px] mx-auto mb-4 text-ahg-text" />
+          <h1 className="text-5xl font-extrabold text-ahg-text leading-none" style={{ fontFamily: 'Rubik, sans-serif', letterSpacing: '-0.03em' }}>alfalca</h1>
+          <p className="text-ahg-text/55 text-base mt-2">grupo inversor · mendoza</p>
           <p className="text-ahg-text/50 text-sm mt-4">Ingresá con tu cuenta</p>
         </div>
 

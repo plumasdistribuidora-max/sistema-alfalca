@@ -9,22 +9,24 @@ export function Isotipo({ className = 'w-8 h-8' }) {
       <path d="M0 47A47 47 0 0 1 47 0V47Z" />
       <path d="M53 0V47H100Z" />
       <rect x="0" y="53" width="47" height="47" />
-      <path d="M53 53H100A47 47 0 0 1 53 100Z" />
+      {/* La pieza de abajo a la derecha es un semicírculo, más corta que el cuadrado: esa asimetría le da vida. */}
+      <path d="M53 53H100A23.5 23.5 0 0 1 53 53Z" />
     </svg>
   );
 }
 
 // Isotipo + "alfalca" + bajada. `claro` es para fondos oscuros (el menú).
+// La palabra va en Rubik pesada, grande y apretada: es lo que manda en el logo.
 export function Logotipo({ claro = false, tamano = 'md' }) {
-  const iso  = tamano === 'lg' ? 'w-14 h-14' : 'w-9 h-9';
-  const nom  = tamano === 'lg' ? 'text-3xl' : 'text-lg';
-  const baja = tamano === 'lg' ? 'text-sm'  : 'text-[10px]';
+  const iso  = tamano === 'lg' ? 'w-[72px] h-[72px]' : 'w-11 h-11';
+  const nom  = tamano === 'lg' ? 'text-5xl' : 'text-[27px]';
+  const baja = tamano === 'lg' ? 'text-base' : 'text-[11px]';
   return (
     <div className={`flex items-center gap-3 ${claro ? 'text-white' : 'text-ahg-text'}`}>
       <Isotipo className={`${iso} flex-shrink-0`} />
       <div className="leading-none">
-        <p className={`${nom} font-extrabold tracking-tight`} style={{ fontFamily: 'Nunito, sans-serif' }}>alfalca</p>
-        <p className={`${baja} mt-1 ${claro ? 'text-white/60' : 'text-ahg-text/55'}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, letterSpacing: '0.02em' }}>
+        <p className={`${nom} font-extrabold`} style={{ fontFamily: 'Rubik, sans-serif', letterSpacing: '-0.03em', lineHeight: 1 }}>alfalca</p>
+        <p className={`${baja} mt-1.5 ${claro ? 'text-white/60' : 'text-ahg-text/55'}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
           grupo inversor · mendoza
         </p>
       </div>

@@ -122,13 +122,19 @@ export default function Sidebar({ open, onClose }) {
         lg:translate-x-0 lg:static lg:z-auto
       `}>
         {/* Logo / Brand */}
-        <div className="px-4 py-5 border-b border-white/10 flex items-center gap-3">
+        {/* El logo lleva al inicio desde cualquier pantalla (y cierra el menú en el celular). */}
+        <NavLink
+          to="/"
+          onClick={onClose}
+          className="px-4 py-5 border-b border-white/10 flex items-center gap-3 hover:bg-white/10 transition-colors"
+          aria-label="Ir al inicio"
+        >
           <img src={logo} alt="AHG" className="w-8 h-8 rounded-full" />
           <div>
             <p className="font-bold text-white text-sm leading-tight" style={{ fontFamily: 'Nunito, sans-serif' }}>Alfalca</p>
             <p className="text-white/60 uppercase tracking-widest" style={{ fontSize: '10px', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>Holding Group</p>
           </div>
-        </div>
+        </NavLink>
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">

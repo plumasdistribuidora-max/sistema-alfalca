@@ -182,6 +182,10 @@ export function ModalPago({ factura, grupo, onGuardar, onCerrar }) {
   const [monto, setMonto]   = useState(String(Math.round(saldoTotal)));
   const [fecha, setFecha]   = useState(hoyStr());
   const [medio, setMedio]   = useState(unaSola ? factura.medio_pago : (grupo[0]?.medio_pago || 'santander'));
+  // En el pago de varias, la forma de pago se elige por proveedor. Arranca en la de
+  // la ficha, pero es solo un punto de partida: lo que importa es con qué se pagó.
+  const [mediosPorProveedor, setMediosPorProveedor] = useState(() =>
+    unaSola ? {} : Object.fromEntries(grupo.map(f => [f.proveedor, f.medio_pago || 'santander'])));
   const [comp, setComp]     = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -197,10 +201,10 @@ export function ModalPago({ factura, grupo, onGuardar, onCerrar }) {
       if (unaSola) {
         await onGuardar([{ factura_id: factura.id, monto: montoNum, fecha, medio, comprobante: comp }]);
       } else {
-        // Cada factura con la forma de pago de su proveedor: en un mismo plan puede
-        // haber uno que cobra por transferencia y otro en efectivo.
+        // Cada factura con la forma de pago que se eligió para su proveedor: en un
+        // mismo plan puede haber uno por transferencia y otro en efectivo.
         await onGuardar(grupo.map(f => ({
-          factura_id: f.id, monto: f.saldo, fecha, medio: f.medio_pago, comprobante: '',
+          factura_id: f.id, monto: f.saldo, fecha, medio: mediosPorProveedor[f.proveedor] || f.medio_pago, comprobante: '',
         })));
       }
     } finally {
@@ -273,27 +277,43 @@ export function ModalPago({ factura, grupo, onGuardar, onCerrar }) {
           <label className="label">Cómo se pagó</label>
           <Selector opciones={MEDIOS} valor={medio} onChange={setMedio} />
           <p className="text-xs text-ahg-text/50 mt-1">
-            Viene marcada la forma de pago de la ficha del proveedor.
+            Elegí con qué se pagó. Viene marcada la habitual del proveedor, pero se cambia acá.
           </p>
         </div>
       ) : (
         <div>
-          <label className="label">Cada uno con su forma de pago</label>
+          <div className="flex items-center justify-between gap-2">
+            <label className="label">Con qué se pagó cada uno</label>
+            <select
+              className="text-xs text-ahg-text/60 bg-transparent border-0 p-0 cursor-pointer"
+              value=""
+              onChange={e => { const m = e.target.value; if (m) setMediosPorProveedor(x => Object.fromEntries(Object.keys(x).map(k => [k, m]))); }}
+            >
+              <option value="">todos con…</option>
+              {MEDIOS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
           <div className="rounded-lg border border-ahg-accent/40 divide-y divide-ahg-accent/30">
             {Object.entries(grupo.reduce((acc, f) => {
-              acc[f.proveedor] = acc[f.proveedor] || { medio: f.medio_pago, total: 0 };
+              acc[f.proveedor] = acc[f.proveedor] || { total: 0 };
               acc[f.proveedor].total += f.saldo;
               return acc;
             }, {})).map(([nombre, d]) => (
-              <div key={nombre} className="flex gap-2 px-3 py-2 text-sm">
+              <div key={nombre} className="flex items-center gap-2 px-3 py-2 text-sm">
                 <span className="flex-1 font-medium truncate">{nombre}</span>
-                <span className="text-ahg-text/50">{medioLabel(d.medio)}</span>
-                <span className="tabular-nums font-semibold">{plata(d.total)}</span>
+                <select
+                  className="input !py-1 !px-2 !w-auto text-xs"
+                  value={mediosPorProveedor[nombre] || 'santander'}
+                  onChange={e => setMediosPorProveedor(x => ({ ...x, [nombre]: e.target.value }))}
+                >
+                  {MEDIOS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+                <span className="tabular-nums font-semibold w-24 text-right">{plata(d.total)}</span>
               </div>
             ))}
           </div>
           <p className="text-xs text-ahg-text/50 mt-1">
-            Sale de la ficha de cada proveedor. Si alguno se pagó distinto, se corrige después desde Pagos hechos.
+            Viene marcada la habitual de cada ficha; cambiala si hoy se pagó distinto.
           </p>
         </div>
       )}

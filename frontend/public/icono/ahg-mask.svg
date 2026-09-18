@@ -1,4 +1,1 @@
-<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <path fill="#000" fill-rule="evenodd" d="M16 1a15 15 0 1 1 0 30 15 15 0 0 1 0-30zm0 2.5a12.5 12.5 0 1 0 0 25 12.5 12.5 0 0 0 0-25z"/>
-  <text x="16" y="21" fill="#000" font-family="'SF Pro Rounded', 'Avenir Next', 'Nunito', sans-serif" font-size="11" font-weight="800" text-anchor="middle" letter-spacing="-0.5">AHG</text>
-</svg>
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><g transform="translate(4 4) scale(0.24)" fill="#000"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A47 47 0 0 1 53 100Z"/></g></svg>

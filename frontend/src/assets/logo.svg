@@ -1,4 +1,1 @@
-<svg viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="65" cy="65" r="64" fill="#ffffff" stroke="#1f2022" stroke-opacity="0.18" stroke-width="2"/>
-  <text x="65" y="82" fill="#1f2022" font-family="'SF Pro Rounded', 'Avenir Next', 'Nunito', sans-serif" font-size="40" font-weight="800" text-anchor="middle" letter-spacing="-2">AHG</text>
-</svg>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="#45484c"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A47 47 0 0 1 53 100Z"/></svg>

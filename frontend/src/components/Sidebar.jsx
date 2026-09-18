@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { esDueno, esDeRed, esDeTurno, rolLabel } from '../utils/roles';
-import logo from '../assets/logo.svg';
+import { Logotipo } from './Marca';
 
 // Íconos de línea (estilo Lucide), 16px, trazo 1.75: cada uno es el path de un
 // <svg viewBox="0 0 24 24">. Se dibujan con Icono, que pone el marco común.
@@ -129,11 +129,7 @@ export default function Sidebar({ open, onClose }) {
           className="px-4 py-5 border-b border-white/10 flex items-center gap-3 hover:bg-white/10 transition-colors"
           aria-label="Ir al inicio"
         >
-          <img src={logo} alt="AHG" className="w-8 h-8 rounded-full" />
-          <div>
-            <p className="font-bold text-white text-sm leading-tight" style={{ fontFamily: 'Nunito, sans-serif' }}>Alfalca</p>
-            <p className="text-white/60 uppercase tracking-widest" style={{ fontSize: '10px', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>Holding Group</p>
-          </div>
+          <Logotipo claro />
         </NavLink>
 
         {/* Nav */}

@@ -131,10 +131,15 @@ export default function Home() {
 
       {/* ── Marcas ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Al pasar el mouse la tarjeta se levanta apenas y el logo crece un poco: vida, sin animación. */}
         {MARCAS.map(m => (
-          <div key={m.nombre} className="card p-3.5 flex flex-col gap-3">
+          <div key={m.nombre} className="card p-3.5 flex flex-col gap-3 group transition-all duration-300 ease-out motion-safe:hover:-translate-y-1 hover:shadow-md">
             <div className="h-24 rounded-xl flex items-center justify-center overflow-hidden" style={{ background: m.fondo }}>
-              <img src={m.logo} alt={m.nombre} className="w-auto max-w-[90%] object-contain" style={{ height: m.alto || 84 }} />
+              <img
+                src={m.logo} alt={m.nombre}
+                className="w-auto max-w-[90%] object-contain transition-transform duration-500 ease-out motion-safe:group-hover:scale-110 motion-safe:group-hover:-rotate-1"
+                style={{ height: m.alto || 84 }}
+              />
             </div>
             <div className="flex items-end justify-between gap-2 px-1">
               <div>

@@ -108,7 +108,7 @@ function Campo({ campo, i, total, onChange, onMover, onBorrar }) {
                 <option value="apertura">Al recibir el turno — se confirma una vez y queda fijo</option>
               </select>
               <p className="text-xs text-ahg-text/50 mt-1">
-                Solo para formularios en dos etapas, como el de barista. Si ningún campo es de apertura, el formulario es de una sola etapa.
+                Si ningún campo es de apertura, el formulario se carga de una sola vez (así están todos hoy, el de barista incluido).
               </p>
             </div>
           )}

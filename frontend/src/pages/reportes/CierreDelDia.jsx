@@ -133,61 +133,65 @@ function MantenimientoDia({ items, planes, onPlan, cerrado }) {
   );
 }
 
-// El café del día, de los reportes de barista: con cuánto recibió y entregó cada
-// turno, cuánto consumió, y si el pesaje del cambio de turno coincidió.
+// El café del día, de los reportes de barista: lo que pesó la de la mañana al entrar,
+// lo que pesó la de la tarde al terminar, cuánto se consumió y cómo da contra el
+// teórico de lo vendido.
 const kg = v => v === null || v === undefined ? '—' : `${String(v).replace('.', ',')} kg`;
 
 function CafeDelDia({ cafe }) {
   if (!cafe?.turnos?.length) return null;
+  const pesaje = turno => cafe.turnos.find(t => t.turno === turno);
+  const ctl = cafe.control;
+  const bien = ctl && ctl.diferencia !== null && Math.abs(ctl.diferencia) <= Math.max(0.1, ctl.teorico * 0.1);
   return (
     <div className="card p-5 space-y-3">
       <div className="flex items-baseline gap-2 flex-wrap">
         <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Café del día</h2>
-        <span className="text-xs text-ahg-text/40">lo que pesaron los baristas al recibir y entregar cada turno</span>
+        <span className="text-xs text-ahg-text/40">lo que pesaron los baristas al empezar y al terminar el día</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {cafe.turnos.map(t => (
-          <div key={t.turno} className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Consumo {t.turno.toLowerCase()}</p>
-            <p className="text-xl font-bold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{kg(t.consumo)}</p>
-            <p className="text-xs text-ahg-text/50">{t.usuario} · recibió {kg(t.recibio)} · entregó {kg(t.entrego)}</p>
-          </div>
-        ))}
+        {[['Mañana', 'Al empezar'], ['Tarde', 'Al terminar']].map(([turno, titulo]) => {
+          const t = pesaje(turno);
+          return (
+            <div key={turno} className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">{titulo}</p>
+              <p className="text-xl font-bold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{kg(t?.total ?? null)}</p>
+              <p className="text-xs text-ahg-text/50">
+                {t ? `${t.usuario} · ${kg(t.abierta_kg)} abierta + ${kg(t.cerradas_kg)} cerradas` : `sin pesaje de la ${turno.toLowerCase()}`}
+              </p>
+            </div>
+          );
+        })}
         <div className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Queda en el café</p>
-          <p className="text-xl font-bold tabular-nums text-ahg-primary" style={{ fontFamily: 'Nunito, sans-serif' }}>{kg(cafe.queda)}</p>
-          <p className="text-xs text-ahg-text/50">consumo del día {kg(cafe.consumo)}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Consumo del día</p>
+          <p className="text-xl font-bold tabular-nums text-ahg-primary" style={{ fontFamily: 'Nunito, sans-serif' }}>{kg(cafe.consumo)}</p>
+          <p className="text-xs text-ahg-text/50">{cafe.consumo === null ? 'faltan los dos pesajes' : `queda ${kg(cafe.queda)} en el café`}</p>
         </div>
       </div>
-      {cafe.control && cafe.control.teorico !== null && (
+      {ctl && ctl.teorico !== null && (
         <div className="rounded-xl border border-ahg-accent/40 bg-ahg-bg p-3 text-sm space-y-1">
           <p>
-            Según lo vendido, el café debería haber consumido <strong>{kg(cafe.control.teorico)}</strong>
-            {cafe.control.real !== null && cafe.control.diferencia !== null && (
-              <> · pesado <strong>{kg(cafe.control.real)}</strong> · diferencia{' '}
-                <strong className={Math.abs(cafe.control.diferencia) <= Math.max(0.1, cafe.control.teorico * 0.1) ? 'text-green-700' : 'text-red-700'}>
-                  {cafe.control.diferencia > 0 ? '+' : ''}{kg(cafe.control.diferencia)}
+            Según lo vendido, el café debería haber consumido <strong>{kg(ctl.teorico)}</strong>
+            {ctl.real !== null && ctl.diferencia !== null && (
+              <> · pesado <strong>{kg(ctl.real)}</strong> · diferencia{' '}
+                <strong className={bien ? 'text-green-700' : 'text-red-700'}>
+                  {ctl.diferencia > 0 ? '+' : ''}{kg(ctl.diferencia)}
                 </strong>
               </>
             )}
           </p>
-          {cafe.control.turnos.some(t => t.teorico !== null) && (
-            <p className="text-xs text-ahg-text/50">
-              Por turno (pesado / teórico): {cafe.control.turnos.map(t => `${t.turno.toLowerCase()} ${kg(t.real)} / ${kg(t.teorico)}`).join(' · ')}
-            </p>
-          )}
-          {cafe.control.sin_definir > 0 && (
+          {ctl.sin_definir > 0 && (
             <p className="text-xs text-amber-700">
-              {cafe.control.sin_definir} unidades vendidas de {cafe.control.productos_sin_definir} productos sin gramos en el maestro de café: el teórico queda corto.
+              {ctl.sin_definir} unidades vendidas de {ctl.productos_sin_definir} productos sin gramos en el maestro de café: el teórico queda corto.
             </p>
           )}
         </div>
       )}
-      {cafe.turnos.map(t => t.coincide === false ? (
-        <p key={t.turno} className="text-sm text-red-700 pl-3 border-l-2 border-red-400">
-          El pesaje con el que {t.usuario} recibió el turno {t.turno.toLowerCase()} no coincidió con lo que entregó {t.previa_nombre || 'el turno anterior'}: abrí los dos reportes y mirá las fotos.
+      {cafe.consumo === null && (
+        <p className="text-sm text-red-700 pl-3 border-l-2 border-red-400">
+          Falta el pesaje de la {cafe.manana === null ? 'mañana' : 'tarde'}: sin los dos no se sabe cuánto café se consumió.
         </p>
-      ) : null)}
+      )}
     </div>
   );
 }

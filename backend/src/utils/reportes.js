@@ -39,4 +39,12 @@ function esNovedad(texto) {
   return t !== '' && !NADA.includes(t);
 }
 
-module.exports = { PESO_ESTADO, elegirReporte, unoPorTurno, esNovedad };
+// Un campo puede decir distinto según el turno ("por_turno": { Mañana: {label, ayuda},
+// Tarde: {...} }): el pesaje de café de la mañana es "al empezar el día" y el de la
+// tarde "al terminar". Devuelve el campo con los textos del turno pisados.
+function campoParaTurno(campo, turno) {
+  const extra = campo.por_turno?.[turno];
+  return extra ? { ...campo, ...extra } : campo;
+}
+
+module.exports = { PESO_ESTADO, elegirReporte, unoPorTurno, esNovedad, campoParaTurno };

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import { cantidadConUnidad, precioPor } from '../../utils/unidades';
-import { camposApertura, camposEntrega, tieneApertura, fotosPesaje, totalPesaje, kg, hora, resumenEntrega } from './etapas';
+import { camposApertura, camposEntrega, tieneApertura, hora } from './etapas';
+import { fotosPesaje, totalPesaje, kg, campoParaTurno } from './pesaje';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
@@ -89,25 +90,13 @@ function Visor({ fotos, urls, indice, onCambiar, onCerrar }) {
 }
 
 // Muestra el valor de un campo según su tipo, con el label de la plantilla.
-function Respuesta({ campo, valor, equipo, items = [], respuestas = {}, campos = [], children }) {
+function Respuesta({ campo, valor, equipo, items = [], children }) {
   let cuerpo;
 
   if (campo.tipo === 'pesaje_cafe') {
     const t = totalPesaje(valor);
-    const r = !campo.etapa ? resumenEntrega(campos, respuestas) : null;
     cuerpo = t === null ? <span className="text-ahg-text/40">Sin pesaje</span> : (
-      <div className="space-y-0.5">
-        <p>Bolsa abierta <strong>{kg(valor.abierta_kg)}</strong> + bolsas cerradas <strong>{kg(valor.cerradas_kg)}</strong> = <strong>{kg(t)}</strong></p>
-        {campo.con_previa && valor.coincide === true && (
-          <p className="text-xs text-green-700">Confirmó el pesaje con el que entregó {valor.previa_nombre || 'el turno anterior'} ✓ (las fotos están en ese reporte)</p>
-        )}
-        {campo.con_previa && valor.coincide === false && (
-          <p className="text-xs text-red-700">No coincidió con lo que entregó {valor.previa_nombre || 'el turno anterior'}: cargó su propio pesaje</p>
-        )}
-        {r?.consumo !== null && r?.consumo !== undefined && (
-          <p>Consumo del turno: <strong className="text-ahg-primary">{kg(r.consumo)}</strong> <span className="text-ahg-text/50">(recibió con {kg(r.recibio)})</span></p>
-        )}
-      </div>
+      <p>Bolsa abierta <strong>{kg(valor.abierta_kg)}</strong> + bolsas cerradas <strong>{kg(valor.cerradas_kg)}</strong> = <strong>{kg(t)}</strong></p>
     );
   } else if (campo.tipo === 'mantenimiento' && typeof valor === 'object' && valor !== null) {
     // Lo que dijo el turno de cada pendiente, más lo que reportó nuevo.
@@ -172,6 +161,9 @@ function Respuesta({ campo, valor, equipo, items = [], respuestas = {}, campos =
         <p className="text-xs text-ahg-text/50 mt-1">Total del turno: {total.toFixed(1)} h</p>
       </>
     );
+  } else if (campo.tipo === 'si_no') {
+    cuerpo = typeof valor !== 'boolean' ? <span className="text-ahg-text/40">Sin responder</span>
+      : valor ? <span>Sí</span> : <span className="font-semibold text-red-700">No</span>;
   } else if (campo.tipo === 'moneda') {
     cuerpo = <span className="tabular-nums font-semibold">$ {money.format(valor || 0)}</span>;
   } else if (campo.tipo === 'checklist') {
@@ -231,7 +223,8 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
   }
 
   const equipo = Object.fromEntries((r.equipo || []).map(e => [String(e.id), e]));
-  const campos = r.plantilla?.campos || [];
+  // Con los textos del turno del reporte ("Café al empezar el día", no "Café").
+  const campos = (r.plantilla?.campos || []).map(c => campoParaTurno(c, r.turno));
   const fotos  = r.adjuntos || [];
   const fotosDe = codigo => fotos.filter(a => a.campo_codigo === codigo);
   const Miniaturas = ({ lista }) => lista.length ? (
@@ -254,8 +247,7 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
     }
     const extra = c.tipo === 'pesaje_cafe' ? [...fotosDe(fotosPesaje(c.codigo).abierta), ...fotosDe(fotosPesaje(c.codigo).cerradas)] : [];
     return (
-      <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} items={r.mantenimiento_items || []}
-                 respuestas={r.respuestas || {}} campos={campos}>
+      <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} items={r.mantenimiento_items || []}>
         {extra.length > 0 && <Miniaturas lista={extra} />}
       </Respuesta>
     );

@@ -5,11 +5,10 @@ const { uploadToR2, getFromR2 } = require('../config/r2');
 const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
-const { elegirReporte } = require('../utils/reportes');
+const { elegirReporte, campoParaTurno } = require('../utils/reportes');
 const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte } = require('../utils/mantenimiento');
-const {
-  camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura, faltantesPesaje, entregaPrevia,
-} = require('../utils/etapas');
+const { camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura } = require('../utils/etapas');
+const { faltantesPesaje } = require('../utils/pesaje');
 
 const router = express.Router();
 
@@ -171,8 +170,10 @@ function validar(campos, respuestas) {
 }
 
 // Todo lo que le falta a un grupo de campos: respuestas, fotos obligatorias y pesajes.
-// Es lo mismo al confirmar la apertura (solo sus campos) que al enviar (todos).
-function faltantesDe(campos, respuestas, adjuntos) {
+// Es lo mismo al confirmar la apertura (solo sus campos) que al enviar (todos). Los
+// avisos usan el texto del turno ("Café al empezar el día", no "Café").
+function faltantesDe(camposPlantilla, respuestas, adjuntos) {
+  const campos = camposPlantilla.map(c => campoParaTurno(c, respuestas.turno));
   const faltan = validar(campos, respuestas);
   for (const campo of campos) {
     if (campo.tipo === 'foto' && campo.requerido && !adjuntos.some(a => a.campo_codigo === campo.codigo)) {
@@ -375,11 +376,9 @@ router.get('/mio', requireAuth, async (req, res) => {
                       .map(r => ({ id: r.id, local_nombre: r.local_nombre, plantilla_codigo: r.plantilla_codigo, turno: r.turno, estado: r.estado })),
         equipo:    await equipoDe(elegida.local_id),
         // Lo que sigue abierto en ese local, para que el turno diga si se solucionó.
-        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha),
-        // El pesaje con el que el turno anterior entregó, para confirmarlo al recibir.
-        entrega_previa: plantilla.campos.some(c => c.con_previa)
-          ? await entregaPrevia(plantilla.campos, elegida.local_id, elegida.plantilla_codigo, fecha, propios[0]?.id)
-          : null,
+        // Se pide como si fuera la tarde (lo de días anteriores más lo de la mañana de
+        // hoy): la pantalla filtra según el turno elegido, con la misma regla.
+        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha, 'Tarde'),
       },
     });
   } catch (err) {
@@ -794,7 +793,7 @@ router.post('/:id/apertura', requireAuth, async (req, res) => {
     if (!tieneApertura(plantilla.campos)) return res.status(400).json({ ok: false, error: 'Este formulario no tiene apertura' });
     if (aperturaBloqueada(reporte)) return res.json({ ok: true, data: { apertura_at: reporte.apertura_at } });
 
-    const faltan = faltantesDe(camposApertura(plantilla.campos), reporte.respuestas || {}, await adjuntosDe(reporte.id));
+    const faltan = faltantesDe(camposApertura(plantilla.campos), { ...reporte.respuestas, turno: reporte.turno }, await adjuntosDe(reporte.id));
     if (faltan.length) {
       return res.status(400).json({ ok: false, error: 'Te falta completar algo para recibir el turno', data: { faltan } });
     }

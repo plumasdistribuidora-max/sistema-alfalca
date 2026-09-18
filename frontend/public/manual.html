@@ -647,7 +647,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <tr>
               <td><strong>Barista</strong></td>
               <td>Solo <em>Mi reporte de hoy</em></td>
-              <td>Carga el reporte de barista: cómo recibe la máquina y la tolva, cuánto café hay, y cómo deja todo al cerrar</td>
+              <td>Carga el reporte de barista: cómo recibió la máquina, el pesaje del café (al empezar el día si es de la mañana, al terminar si es de la tarde), mantenimiento y faltantes</td>
             </tr>
           </tbody>
         </table>
@@ -874,9 +874,12 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <h3>Mantenimiento — lo pendiente aparece solo</h3>
       <p>
         Lo que alguien reportó de mantenimiento en tu local <strong>no hay que volver a escribirlo</strong>.
-        Al día siguiente ya aparece en la pregunta de mantenimiento, con quién lo reportó y cuándo, y
-        vos solo tenés que tocar <strong>Ya se solucionó</strong> o <strong>Sigue igual</strong> en cada
-        uno. Hasta que no contestes por todos, el reporte no se envía: te lo dice en el cartel amarillo.
+        En el turno siguiente ya aparece en la pregunta de mantenimiento (si lo reportó la mañana, la
+        tarde de ese mismo día lo ve; si lo reportó la tarde, aparece al día siguiente), con quién lo
+        reportó y cuándo, y vos solo tenés que tocar <strong>Ya se solucionó</strong> o <strong>Sigue
+        igual</strong> en cada uno. Hasta que no contestes por todos, el reporte no se envía: te lo dice
+        en el cartel amarillo. Lo nuevo va <strong>un problema por renglón</strong> (Enter abre otro):
+        así cada uno tiene su propio seguimiento y su propia solución.
       </p>
 
       <figure class="figura">
@@ -952,23 +955,32 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         pieza (paquetes, botellas, cajas) queda en <em>unid.</em>, que es lo que sale de entrada.
       </p>
 
-      <h3>Si sos barista: recibís y entregás el turno</h3>
+      <h3>Si sos barista: dos pesajes por día</h3>
       <p>
-        El reporte de barista tiene <strong>dos momentos</strong>, no uno. Al llegar,
-        <em>Recibo el turno</em>; al irte, <em>Entrego el turno</em>. Lo del medio no se
-        toca: lo que confirmaste al recibir queda fijo hasta que entregues.
+        El café se pesa <strong>dos veces por día</strong>: la barista de la mañana al entrar y la
+        de la tarde al terminar. La diferencia entre los dos es lo que consumió el café ese día, y
+        el encargado lo compara con lo que dicen las ventas. Cada una carga <strong>un solo
+        reporte</strong>, de una vez, en cuatro preguntas.
       </p>
+      <p><strong>Si sos la de la mañana</strong>, al entrar:</p>
       <ol class="pasos">
-        <li><div><strong>Elegí el turno</strong> y contestá cómo recibís el <strong>equipamiento</strong> (en orden y limpio, sí o no) con una foto, y si la <strong>tolva está vacía</strong>, también con foto. La tolva se entrega siempre vacía: el café no se deja de un turno a otro porque se pone malo.</div></li>
-        <li><div><strong>Pesá el café.</strong> Si sos la primera del día, con la tolva vacía pesás la bolsa abierta en la balanza de cocina (foto) y sumás lo que dice cada bolsa cerrada del depósito (foto). Si entrás en el cambio de turno, la que se va ya pesó <strong>con vos</strong>: te aparece su pesaje con las fotos y solo tocás <em>Sí, coincide</em>. Si no coincide, <em>No, cargo otro</em> y cargás el tuyo con tus fotos; el encargado ve los dos.</div></li>
-        <li><div>Abajo se arma la frase — <em>Tolva vacía. Café: 1,8 kg + 10 kg = 11,8 kg</em> — y tocás <strong>Confirmar que recibí el turno</strong>. Queda en verde con la hora y ya no se puede cambiar. Si algo está mal, avisale al encargado: si te devuelve el reporte, se abre de nuevo.</div></li>
-        <li><div><strong>Al entregar</strong>: foto del equipamiento limpio, foto de la tolva vacía, y el pesaje de las bolsas hecho <strong>junto con quien recibe</strong> (es un solo pesaje para las dos: a vos te cierra el turno y a ella se lo abre). El sistema te dice <em>cerrás con tanto café</em> y <strong>cuánto consumió tu turno</strong>.</div></li>
-        <li><div>Después, el mantenimiento de la máquina (con seguimiento, igual que en las tiendas) y si te faltó algún insumo. <strong>Entregar turno y enviar al Encargado</strong>.</div></li>
+        <li><div><strong>Elegí el turno</strong> (Mañana) y contestá si recibiste la <strong>máquina en orden y limpia</strong>, sí o no. Sin foto.</div></li>
+        <li><div><strong>Café al empezar el día.</strong> Antes de cargar la tolva: pesá la bolsa abierta en la balanza de cocina (foto de la balanza) y sumá lo que dice cada bolsa cerrada del depósito (foto de las bolsas). Abajo te dice el total.</div></li>
+        <li><div><strong>¿Hay que hacer algún mantenimiento?</strong> Lo que ya está reportado aparece solo: decís si se solucionó o sigue igual. Lo nuevo, un problema por renglón.</div></li>
+        <li><div><strong>¿Te faltó algún insumo?</strong> y <strong>Enviar al Encargado</strong>. Listo: el reporte de la mañana se cierra ahí.</div></li>
+      </ol>
+      <p><strong>Si sos la de la tarde</strong>, al terminar el día, cuando ya no se saca más café:</p>
+      <ol class="pasos">
+        <li><div><strong>Elegí el turno</strong> (Tarde) y contestá si recibiste la <strong>máquina en orden</strong> del turno de la mañana, sí o no. Sin foto.</div></li>
+        <li><div><strong>Café al terminar el día.</strong> Vaciá la tolva de vuelta a la bolsa abierta, pesala en la balanza (foto) y sumá las bolsas cerradas (foto).</div></li>
+        <li><div><strong>Mantenimiento.</strong> Si la de la mañana reportó algo hoy, te aparece: decís si <em>sigue igual</em> o <em>ya se solucionó</em>, y podés agregar otro problema, siempre uno por renglón.</div></li>
+        <li><div><strong>¿Te faltó algún insumo?</strong> y <strong>Enviar al Encargado</strong>.</div></li>
       </ol>
       <div class="aviso tip">
         <span class="mk">◆</span>
-        <p>Cada cambio de turno queda con <strong>dos fotos de cada cosa</strong>: la de quien
-        entrega y la de quien recibe. Si hay una diferencia, se ve quién la reportó y cuándo.</p>
+        <p>Los dos pesajes se hacen <strong>con la tolva vacía</strong>: a la mañana antes de
+        cargarla, a la tarde después de vaciarla. Si no, el café que está en la tolva no se cuenta
+        y el consumo del día sale mal.</p>
       </div>
 
       <h3>Si el encargado te lo devuelve, o te quedó sin enviar</h3>
@@ -1266,10 +1278,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <h3>Café del día</h3>
       <p>
         Con los reportes de barista, antes de las facturas aparece <strong>Café del día</strong>:
-        cuánto consumió cada turno (lo que recibió menos lo que entregó), con cuánto queda el
-        café, y un aviso en rojo si la que recibió un turno no confirmó el mismo pesaje que la
-        que lo entregó. Va en una línea al mensaje de los dueños y, los viernes, el total de
-        la semana.
+        el pesaje de la mañana (al empezar), el de la tarde (al terminar), el <strong>consumo
+        del día</strong> (uno menos el otro) y cómo da contra el teórico de lo vendido. Si falta
+        uno de los dos pesajes, lo avisa en rojo: sin los dos no hay consumo. Va al PDF de los
+        dueños y, los viernes, el total de la semana.
       </p>
 
       <h3>Facturas de proveedores</h3>
@@ -1827,7 +1839,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p>
         Cada pregunta tiene además una <strong>etapa</strong>. Lo normal es <em>al entregar el turno</em>.
         Las marcadas <em>al recibir el turno</em> se contestan al llegar y se confirman en bloque:
-        desde ahí quedan fijas. Así funciona el formulario de barista; los otros no usan etapas.
+        desde ahí quedan fijas. Hoy ningún formulario usa etapas: todos se cargan de una vez.
       </p>
       <h3>Los tipos de pregunta</h3>
       <div class="tabla-caja">
@@ -1844,7 +1856,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <tr><td><strong>Fotos</strong></td><td>Botón de cámara, con un máximo configurable.</td></tr>
             <tr><td><strong>Facturas</strong></td><td>El formulario de factura con proveedor, renglones y total.</td></tr>
             <tr><td><strong>Mantenimiento con seguimiento</strong></td><td>Lo pendiente del local ya cargado, con <em>Ya se solucionó</em> / <em>Sigue igual</em>, y un botón para agregar algo nuevo. Cada cosa queda como ítem hasta que alguien la marque resuelta.</td></tr>
-            <tr><td><strong>Pesaje de café</strong></td><td>Kilos en la bolsa abierta y en las bolsas cerradas, cada uno con su foto. Con <em>Al recibir el turno</em> como etapa, primero ofrece confirmar el pesaje con el que entregó el turno anterior.</td></tr>
+            <tr><td><strong>Pesaje de café</strong></td><td>Kilos en la bolsa abierta y en las bolsas cerradas, cada uno con su foto, y el total abajo. En el formulario de barista el título cambia según el turno: <em>al empezar el día</em> a la mañana, <em>al terminar</em> a la tarde.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1900,7 +1912,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         Cuántos <strong>gramos de café</strong> lleva cada producto de la cafetería. Entran solos
         todos los productos que alguna vez se vendieron en el café; los de las tiendas no aparecen.
         Con esto, lo que se vende cada día tiene un <strong>consumo teórico</strong> de café, y se
-        compara contra lo que pesan los baristas al recibir y entregar el turno.
+        compara contra lo que pesan los baristas al empezar y al terminar el día.
       </p>
       <h3>Los tres estados</h3>
       <ul class="simple">
@@ -1915,12 +1927,12 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </p>
       <h3>Control: lo pesado contra lo vendido</h3>
       <p>
-        Abajo del listado, una tabla por día: <strong>Real</strong> (lo que consumió cada turno según
-        el pesaje de los baristas), <strong>Teórico</strong> (lo vendido por los gramos del maestro) y
-        la diferencia, en kilos y en porcentaje: verde hasta 10%, ámbar hasta 25%, rojo más. También
-        por turno: el corte entre mañana y tarde es la hora en que la barista de la tarde recibió el
-        turno. Lo mismo aparece resumido en <em>Cerrar el día</em>, en el bloque de café, y en el
-        mensaje a los dueños.
+        Abajo del listado, una tabla por día: <strong>Real</strong> (lo que pesó la barista de la
+        mañana al entrar menos lo que pesó la de la tarde al terminar), <strong>Teórico</strong> (lo
+        vendido por los gramos del maestro) y la diferencia, en kilos y en porcentaje: verde hasta
+        10%, ámbar hasta 25%, rojo más. Al lado, los dos pesajes con quién los hizo; si falta uno,
+        lo dice. Lo mismo aparece resumido en <em>Cerrar el día</em>, en el bloque de café, y en el
+        PDF de los dueños.
       </p>
       <div class="aviso ojo">
         <span class="mk">⚠</span>

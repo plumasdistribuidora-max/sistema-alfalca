@@ -27,19 +27,25 @@ function valorMantenimiento(v) {
 
 // Lo que sigue abierto en un local, con quién lo reportó y qué dijo el encargado.
 // Se excluyen los ítems que nacieron en los reportes indicados: el propio reporte no
-// tiene que confirmarse a sí mismo. Y solo entra lo reportado en días ANTERIORES a
-// `fecha`: un turno de la mañana no puede confirmar lo que la tarde reportó después,
-// y al corregir un reporte viejo no tiene que contestar por lo que apareció después.
-async function pendientesDe(localId, excluirReportes = [], fecha = null) {
+// tiene que confirmarse a sí mismo. Y entra lo reportado en días ANTERIORES a `fecha`
+// más, si el turno es la tarde, lo que reportó la mañana de ese mismo día: cada
+// problema tiene que tener su seguimiento en el turno siguiente. Una mañana no puede
+// confirmar lo que la tarde reportó después, y al corregir un reporte viejo no tiene
+// que contestar por lo que apareció después.
+// Cada ítem trae el turno del reporte que lo creó, así la pantalla puede aplicar la
+// misma regla según el turno elegido.
+async function pendientesDe(localId, excluirReportes = [], fecha = null, turno = null) {
   const { rows } = await pool.query(`
-    SELECT m.id, m.texto, m.fecha::text AS fecha, m.plan, u.nombre AS reportado_por
+    SELECT m.id, m.texto, m.fecha::text AS fecha, m.plan, u.nombre AS reportado_por, r.turno
     FROM mantenimiento_items m
     LEFT JOIN usuarios u ON u.id = m.reportado_por
+    LEFT JOIN reportes r ON r.id = m.reporte_id
     WHERE m.local_id = $1 AND m.estado = 'abierto'
       AND (m.reporte_id IS NULL OR NOT (m.reporte_id = ANY($2::int[])))
-      AND ($3::date IS NULL OR m.fecha < $3::date)
+      AND ($3::date IS NULL OR m.fecha < $3::date
+           OR ($4::text = 'Tarde' AND m.fecha = $3::date AND r.turno = 'Mañana'))
     ORDER BY m.fecha, m.id
-  `, [localId, excluirReportes.filter(Boolean), fecha]);
+  `, [localId, excluirReportes.filter(Boolean), fecha, turno]);
   return rows;
 }
 
@@ -47,8 +53,8 @@ async function pendientesDe(localId, excluirReportes = [], fecha = null) {
 // tiene que tener un "sigue igual" o un "se solucionó".
 async function faltantesMantenimiento(reporte) {
   const v = valorMantenimiento((reporte.respuestas || {}).mantenimiento);
-  const fecha = (await pool.query('SELECT fecha::text AS fecha FROM reportes WHERE id = $1', [reporte.id])).rows[0].fecha;
-  const pendientes = await pendientesDe(reporte.local_id, [reporte.id], fecha);
+  const { fecha, turno } = (await pool.query('SELECT fecha::text AS fecha, turno FROM reportes WHERE id = $1', [reporte.id])).rows[0];
+  const pendientes = await pendientesDe(reporte.local_id, [reporte.id], fecha, turno);
   return pendientes
     .filter(p => !v.seguimiento[String(p.id)])
     .map(p => `Mantenimiento — decí si sigue igual o se solucionó: “${p.texto}”`);

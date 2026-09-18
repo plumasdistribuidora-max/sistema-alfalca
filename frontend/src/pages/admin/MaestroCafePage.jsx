@@ -143,9 +143,9 @@ function Control({ pendientes, version }) {
             {actualizando && filas && <span className="ml-2 text-xs font-normal text-stone-400">actualizando…</span>}
           </h2>
           <p className="text-xs text-stone-400 max-w-2xl mt-0.5">
-            <strong>Real</strong> es lo que consumió cada turno según el pesaje de los baristas (recibió menos entregó).
+            <strong>Real</strong> es lo que consumió el café ese día según los baristas: lo que pesó la de la mañana
+            al entrar menos lo que pesó la de la tarde al terminar.
             <strong> Teórico</strong> es lo vendido ese día multiplicado por los gramos de este maestro.
-            El corte entre mañana y tarde es la hora en que la barista de la tarde recibió el turno.
             Tocá el teórico de un día para ver qué se vendió y cuántos gramos lleva cada cosa.
           </p>
         </div>
@@ -179,7 +179,7 @@ function Control({ pendientes, version }) {
                 <th className="text-right py-2 px-3">Real</th>
                 <th className="text-right py-2 px-3">Teórico</th>
                 <th className="text-right py-2 px-3">Diferencia</th>
-                <th className="text-left py-2 pl-3">Por turno (real / teórico)</th>
+                <th className="text-left py-2 pl-3">Pesajes (mañana → tarde)</th>
                 <th className="text-right py-2 pl-3">Sin gramos</th>
               </tr>
             </thead>
@@ -201,8 +201,9 @@ function Control({ pendientes, version }) {
                     </td>
                     <td className="py-2 pl-3 text-xs text-stone-500">
                       {f.turnos.length ? f.turnos.map(t => (
-                        <span key={t.turno} className="mr-3">{t.turno.toLowerCase()} {t.usuario ? `(${t.usuario}) ` : ''}<strong className="text-stone-700">{kg(t.real)}</strong> / {kg(t.teorico)}</span>
+                        <span key={t.turno} className="mr-3">{t.turno.toLowerCase()} {t.usuario ? `(${t.usuario}) ` : ''}<strong className="text-stone-700">{kg(t.total)}</strong></span>
                       )) : '—'}
+                      {f.turnos.length === 1 && <span className="text-amber-700">falta el de la {f.manana === null ? 'mañana' : 'tarde'}</span>}
                     </td>
                     <td className="py-2 pl-3 text-right tabular-nums text-xs text-stone-400">{f.sin_definir ? `${formatNumber(f.sin_definir)} u. · ${f.productos_sin_definir} prod.` : '—'}</td>
                   </tr>
@@ -345,8 +346,8 @@ export default function MaestroCafePage() {
         <h1 className="text-xl font-bold text-stone-900">Maestro de café</h1>
         <p className="text-stone-500 text-sm mt-1 max-w-2xl">
           Cuántos gramos de café lleva cada producto de la cafetería. Con eso, lo que se vende cada
-          día tiene un consumo teórico, y se compara contra lo que pesan los baristas al recibir y
-          entregar el turno.
+          día tiene un consumo teórico, y se compara contra lo que pesan los baristas al empezar y
+          al terminar el día.
         </p>
       </div>
 

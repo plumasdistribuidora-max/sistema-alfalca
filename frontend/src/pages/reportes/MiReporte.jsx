@@ -3,7 +3,7 @@ import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import Campo, { soloNumero, FotoAdjunta } from './campos';
 import { UNIDADES, precioPor } from '../../utils/unidades';
-import { camposApertura, camposEntrega, tieneApertura, fotosPesaje, resumenApertura, hora } from './etapas';
+import { camposApertura, camposEntrega, tieneApertura, codigosFotoApertura, resumenApertura, hora } from './etapas';
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -191,9 +191,7 @@ function TituloEtapa({ titulo, nota, apagado }) {
 
 // La apertura ya confirmada: lo que se recibió, con hora y fotos, y sin nada editable.
 function AperturaConfirmada({ campos, respuestas, adjuntos, aperturaAt }) {
-  const codigos = camposApertura(campos).flatMap(c =>
-    c.tipo === 'foto' ? [c.codigo] : c.tipo === 'pesaje_cafe' ? Object.values(fotosPesaje(c.codigo)) : []
-  );
+  const codigos = codigosFotoApertura(campos);
   const fotos = adjuntos.filter(a => codigos.includes(a.campo_codigo));
   return (
     <div className="rounded-xl border border-green-300 bg-green-50 p-3 space-y-2">
@@ -291,17 +289,6 @@ export default function MiReporte() {
     if (corrigiendo) params.fecha = corrigiendo.fecha;
     api.get('/reportes/mio', { params })
       .then(r => setData(d => ({ ...d, mantenimiento_pendientes: r.data.data.mantenimiento_pendientes || [] })))
-      .catch(() => {});
-  }
-
-  // La entrega del turno anterior puede llegar después de abrir la pantalla (la otra
-  // barista envía su reporte mientras esta ya está cargando): se vuelve a pedir.
-  function refrescarPrevia() {
-    if (!data) return;
-    const params = { local_id: data.local?.id, plantilla: data.plantilla?.codigo };
-    if (corrigiendo) params.fecha = corrigiendo.fecha;
-    api.get('/reportes/mio', { params })
-      .then(r => setData(d => ({ ...d, entrega_previa: r.data.data.entrega_previa || null })))
       .catch(() => {});
   }
 
@@ -495,12 +482,15 @@ export default function MiReporte() {
   const aperturaEditable = !aperturaAt || estadoReporte === 'observado';
   const entregaVisible = !!aperturaAt;
 
+  // Mantenimiento pendiente: lo de días anteriores siempre; lo de hoy solo si lo
+  // reportó la mañana y este es el turno de la tarde (misma regla que el backend).
+  const mantenimientoPendientes = (data.mantenimiento_pendientes || [])
+    .filter(p => p.fecha < fecha || (turno === 'Tarde' && p.turno === 'Mañana'));
+
   const ctx = {
     equipo: data.equipo || [],
-    mantenimientoPendientes: data.mantenimiento_pendientes || [],
-    entregaPrevia: data.entrega_previa || null,
-    onRefrescarPrevia: refrescarPrevia,
-    fecha, plantilla, respuestas,
+    mantenimientoPendientes,
+    turno, fecha, plantilla, respuestas,
     adjuntos, facturas, subiendo,
     onSubirFoto: subirFoto,
     onBorrarFoto: borrarFoto,

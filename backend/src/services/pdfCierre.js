@@ -341,14 +341,11 @@ function Documento({ d, cerradoPor }) {
 
       h(Cuadro, {
         titulo: 'Café · lo que pesaron los baristas contra lo que se vendió',
-        sub: 'teórico = lo vendido × los gramos del maestro de café',
-        cols: [{ t: 'Turno', w: 1 }, { t: 'Barista', w: 1.4 }, { t: 'Recibió', w: 1.1, num: true }, { t: 'Entregó', w: 1.1, num: true }, { t: 'Consumo real', w: 1.3, num: true }, { t: 'Teórico', w: 1.1, num: true }, { t: 'Diferencia', w: 1.8, num: true }],
+        sub: 'consumo = mañana − tarde · teórico = lo vendido × los gramos del maestro',
+        cols: [{ t: 'Pesaje', w: 1.6 }, { t: 'Barista', w: 1.4 }, { t: 'Bolsa abierta', w: 1.2, num: true }, { t: 'Cerradas', w: 1.1, num: true }, { t: 'Total', w: 1.1, num: true }, { t: 'Teórico', w: 1.1, num: true }, { t: 'Diferencia', w: 1.8, num: true }],
         filas: !d.cafe?.turnos?.length ? [] : [
-          ...d.cafe.turnos.map(tr => {
-            const ctl = cafeCtl?.turnos?.find(x => x.turno === tr.turno);
-            return { c: [tr.turno, tr.usuario, kg(tr.recibio), kg(tr.entrego), kg(tr.consumo), kg(ctl?.teorico), difCafe(ctl)] };
-          }),
-          { fondo: C.fondo, c: [{ t: 'Día', bold: true }, '', '', { t: `queda ${kg(d.cafe.queda)}`, bold: true }, { t: kg(d.cafe.consumo), bold: true }, { t: kg(cafeCtl?.teorico), bold: true }, difCafe(cafeCtl, true)] },
+          ...d.cafe.turnos.map(tr => ({ c: [tr.turno === 'Mañana' ? 'Mañana · al entrar' : 'Tarde · al terminar', tr.usuario, kg(tr.abierta_kg), kg(tr.cerradas_kg), kg(tr.total), '', ''] })),
+          { fondo: C.fondo, c: [{ t: 'Consumo del día', bold: true }, '', '', { t: `queda ${kg(d.cafe.queda)}` }, { t: kg(d.cafe.consumo), bold: true }, { t: kg(cafeCtl?.teorico), bold: true }, difCafe(cafeCtl, true)] },
         ],
         nota: cafeAvisos(d.cafe),
       }),
@@ -394,8 +391,10 @@ function difCafe(ctl, bold = false) {
 function cafeAvisos(cafe) {
   if (!cafe?.turnos?.length) return null;
   const avisos = [];
-  for (const tr of cafe.turnos) if (tr.coincide === false) {
-    avisos.push(`El pesaje con el que ${tr.usuario} recibió el turno ${tr.turno.toLowerCase()} no coincidió con lo que entregó ${tr.previa_nombre || 'el turno anterior'}.`);
+  if (cafe.consumo === null) {
+    avisos.push(cafe.manana === null
+      ? 'Falta el pesaje de la mañana: sin él no se sabe cuánto café se consumió.'
+      : 'Falta el pesaje de la tarde: sin él no se sabe cuánto café se consumió.');
   }
   if (cafe.control?.sin_definir > 0) {
     avisos.push(`${cafe.control.sin_definir} unidades vendidas de ${cafe.control.productos_sin_definir} productos sin gramos en el maestro de café: el teórico queda corto.`);
@@ -460,12 +459,15 @@ function DocumentoSemana({ w, R }) {
   const planesEncargado = w.dias.filter(d => d.consolidado?.mantenimiento?.trim()).map(d => ({ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, diaCorto(d.fecha), '', { t: d.consolidado.mantenimiento.trim() }, '', ''] }));
   const faltasEncargado = w.dias.filter(d => d.consolidado?.faltas_tardanzas?.trim()).map(d => ({ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, diaCorto(d.fecha), '', '', '', { t: d.consolidado.faltas_tardanzas.trim() }] }));
 
+  // Solo suman los días con los dos pesajes: con uno solo no hay consumo que comparar.
   const diasCafe = w.dias.filter(d => d.cafe?.turnos?.length);
-  const totalCafe = Math.round(diasCafe.reduce((s, d) => s + (d.cafe.consumo || 0), 0) * 100) / 100;
-  const teoCafe = diasCafe.every(d => d.cafe.control?.teorico != null) && diasCafe.length
-    ? Math.round(diasCafe.reduce((s, d) => s + d.cafe.control.teorico, 0) * 100) / 100 : null;
+  const diasCompletos = diasCafe.filter(d => d.cafe.consumo !== null);
+  const totalCafe = diasCompletos.length ? Math.round(diasCompletos.reduce((s, d) => s + d.cafe.consumo, 0) * 100) / 100 : null;
+  const teoCafe = diasCompletos.length && diasCompletos.every(d => d.cafe.control?.teorico != null)
+    ? Math.round(diasCompletos.reduce((s, d) => s + d.cafe.control.teorico, 0) * 100) / 100 : null;
   const ultimoCafe = [...diasCafe].reverse().find(d => d.cafe.queda !== null);
-  const avisosCafe = diasCafe.flatMap(d => d.cafe.turnos.filter(t => t.coincide === false).map(t => `${diaCorto(d.fecha)} ${t.turno.toLowerCase()}: el pesaje con el que ${t.usuario} recibió no coincidió con la entrega anterior.`));
+  const avisosCafe = diasCafe.filter(d => d.cafe.consumo === null)
+    .map(d => `${diaCorto(d.fecha)}: falta el pesaje de la ${d.cafe.manana === null ? 'mañana' : 'tarde'}, no se sabe cuánto se consumió.`);
 
   const totalGastos = todas.gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const p = w.proveedores;
@@ -534,8 +536,8 @@ function DocumentoSemana({ w, R }) {
         cols: [{ t: 'Día', w: 1 }, { t: 'Baristas', w: 2.2 }, { t: 'Consumo real', w: 1.3, num: true }, { t: 'Teórico', w: 1.2, num: true }, { t: 'Diferencia', w: 1.8, num: true }, { t: 'Queda', w: 1.2, num: true }],
         filas: !diasCafe.length ? [] : [
           ...diasCafe.map(d => ({ c: [diaCorto(d.fecha), d.cafe.turnos.map(t => t.usuario).join(', '), kg(d.cafe.consumo), kg(d.cafe.control?.teorico), difCafe(d.cafe.control), kg(d.cafe.queda)] })),
-          { fondo: C.fondo, c: [{ t: 'Semana', bold: true }, `${diasCafe.length} día${diasCafe.length === 1 ? '' : 's'}`, { t: kg(totalCafe), bold: true }, { t: kg(teoCafe), bold: true },
-            difCafe(teoCafe != null ? { diferencia: Math.round((totalCafe - teoCafe) * 100) / 100, teorico: teoCafe } : null, true),
+          { fondo: C.fondo, c: [{ t: 'Semana', bold: true }, `${diasCompletos.length} día${diasCompletos.length === 1 ? '' : 's'} con los dos pesajes`, { t: kg(totalCafe), bold: true }, { t: kg(teoCafe), bold: true },
+            difCafe(teoCafe != null && totalCafe != null ? { diferencia: Math.round((totalCafe - teoCafe) * 100) / 100, teorico: teoCafe } : null, true),
             { t: ultimoCafe ? kg(ultimoCafe.cafe.queda) : '—', bold: true }] },
         ],
         nota: avisosCafe.length ? h(View, null, avisosCafe.map((a, i) => h(View, { key: i, style: S.nota }, h(Text, { style: { color: C.rojo, fontWeight: 700 } }, '!'), h(Text, { style: { flex: 1, color: C.oscuro } }, a)))) : null,

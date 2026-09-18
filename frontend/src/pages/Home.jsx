@@ -12,7 +12,7 @@ import logoSenzen   from '../assets/marcas/senzen-blanco.png';
 const MARCAS = [
   { nombre: 'Entre Dos', rubro: 'Tiendas y cafetería', logo: logoEntreDos, fondo: '#000000' },
   { nombre: 'Kankay',    rubro: 'Marca del grupo',     logo: logoKankay,   fondo: '#000000' },
-  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', nueva: true },
+  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', alto: 68, nueva: true },
 ];
 
 const DIAS  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -134,7 +134,7 @@ export default function Home() {
         {MARCAS.map(m => (
           <div key={m.nombre} className="card p-3.5 flex flex-col gap-3">
             <div className="h-24 rounded-xl flex items-center justify-center overflow-hidden" style={{ background: m.fondo }}>
-              <img src={m.logo} alt={m.nombre} className="h-[84px] w-auto max-w-[90%] object-contain" />
+              <img src={m.logo} alt={m.nombre} className="w-auto max-w-[90%] object-contain" style={{ height: m.alto || 84 }} />
             </div>
             <div className="flex items-end justify-between gap-2 px-1">
               <div>

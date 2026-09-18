@@ -31,7 +31,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-ahg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src={logo} alt="AHG" className="w-16 h-16 mx-auto mb-4 rounded-full" />
+          <img src={logo} alt="AHG" className="w-16 h-16 mx-auto mb-4 rounded-full shadow-sm" />
           <h1 className="text-2xl font-bold text-ahg-text" style={{ fontFamily: 'Nunito, sans-serif' }}>Alfalca Holding Group</h1>
           <p className="text-ahg-text/50 text-sm mt-1">Ingresá con tu cuenta</p>
         </div>

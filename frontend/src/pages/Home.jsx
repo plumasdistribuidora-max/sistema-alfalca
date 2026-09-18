@@ -12,7 +12,7 @@ import logoSenzen   from '../assets/marcas/senzen-blanco.png';
 const MARCAS = [
   { nombre: 'Entre Dos', rubro: 'Tiendas y cafetería', logo: logoEntreDos, fondo: '#000000' },
   { nombre: 'Kankay',    rubro: 'Retail',              logo: logoKankay,   fondo: '#000000' },
-  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', alto: 68, nueva: true },
+  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', alto: 68 },
 ];
 
 const DIAS  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -146,11 +146,6 @@ export default function Home() {
                 <p className="font-bold text-ahg-text" style={{ fontFamily: 'Nunito, sans-serif' }}>{m.nombre}</p>
                 <p className="text-xs text-ahg-text/50">{m.rubro}</p>
               </div>
-              {m.nueva && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-ahg-bronce bg-ahg-bronce/10 rounded-full px-2 py-0.5">
-                  Nueva
-                </span>
-              )}
             </div>
           </div>
         ))}

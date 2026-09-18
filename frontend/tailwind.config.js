@@ -27,7 +27,6 @@ export default {
         'ahg-primary':   '#45484c',   // menú, cabeceras, botones
         'ahg-secondary': '#6b6e72',   // hover, texto secundario (Nardo)
         'ahg-accent':    '#c3c2bd',   // bordes, foco
-        'ahg-bronce':    '#a8834a',   // único acento: badges, logo
         'ahg-bg':        '#ecebe7',   // fondo de pantalla (Chalk)
         'ahg-text':      '#1f2022',
       },

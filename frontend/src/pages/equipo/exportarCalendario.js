@@ -9,7 +9,7 @@ const MES_LARGO = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numer
 
 const COLOR = {
   fondo:      '#FFFFFF',
-  cabecera:   '#4C1D95',
+  cabecera:   '#45484c',
   cabTexto:   '#FFFFFF',
   cabSuave:   'rgba(255,255,255,0.65)',
   tinta:      '#1F2937',
@@ -17,7 +17,7 @@ const COLOR = {
   linea:      '#E4E0DC',
   lineaFuerte:'#B9AEDB',
   bloque:     '#F1ECFB',
-  bloqueTxt:  '#4C1D95',
+  bloqueTxt:  '#45484c',
   finde:      '#FAFAF7',
   cubierto:   '#EAF6EE',
   cubiertoTxt:'#15803D',

@@ -16,11 +16,11 @@ export const TIENDA_ORDEN = [
 ];
 
 export const TIENDA_COLORS = {
-  'Peatonal Tienda de Alfajores':   '#4b7fb5', // azul
-  '9 de Julio Tienda de Alfajores': '#227d5a', // verde
-  'Amigorena Tienda de Alfajores':  '#c6832e', // ámbar
-  'Sheraton Tienda de Alfajores':   '#6aabde', // azul claro
-  'Café Peatonal Cafetería':        '#794106', // marrón
+  'Peatonal Tienda de Alfajores':   '#2b5991', // azul marino mate
+  '9 de Julio Tienda de Alfajores': '#00633a', // verde racing mate
+  'Amigorena Tienda de Alfajores':  '#b06f2d', // bronce satinado
+  'Sheraton Tienda de Alfajores':   '#0581a3', // azul petróleo mate
+  'Café Peatonal Cafetería':        '#833f1d', // cobre mate
 };
 
 // Slots libres para una tienda que todavía no esté en el mapa.

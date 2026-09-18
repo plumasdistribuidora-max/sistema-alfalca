@@ -23,9 +23,9 @@ const CS = {
   venta:     { bg: '#f0fdf4', border: '#bbf7d0', title: '#14532d', sub: '#166534' },
   cmv:       { bg: '#fffbeb', border: '#fde68a', title: '#78350f', sub: '#b45309' },
   margen:    { bg: '#fafaf9', border: '#e7e5e4', title: '#1c1917', sub: '#78716c' },
-  gastos:    { bg: '#f5f3ff', border: '#ddd6fe', title: '#3b0764', sub: '#6d28d9' },
+  gastos:    { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
   ebitda:    { bg: '#f0fdf4', border: '#86efac', title: '#14532d', sub: '#166534' },
-  impuestos: { bg: '#f5f3ff', border: '#ddd6fe', title: '#3b0764', sub: '#6d28d9' },
+  impuestos: { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
   resultado: { bg: '#16a34a', border: '#16a34a', title: '#ffffff', sub: 'rgba(255,255,255,0.7)' },
 };
 
@@ -85,7 +85,7 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
           <div className="px-6 py-4 border-t border-stone-100 flex-shrink-0">
             <button onClick={onSave} disabled={saving}
               className="w-full py-2.5 rounded-xl font-semibold text-white transition-colors disabled:opacity-50"
-              style={{ background: '#4C1D95' }}>
+              style={{ background: '#45484c' }}>
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </div>

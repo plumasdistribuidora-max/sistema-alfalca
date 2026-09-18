@@ -389,7 +389,7 @@ function UmbralesModal({ kpis, onClose, onSaved }) {
         <div className="px-6 py-4 border-t border-stone-100 flex-shrink-0">
           <button onClick={save} disabled={saving}
             className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-50 transition-opacity"
-            style={{ background: '#4C1D95' }}>
+            style={{ background: '#45484c' }}>
             {saving ? 'Guardando…' : 'Guardar umbrales'}
           </button>
         </div>

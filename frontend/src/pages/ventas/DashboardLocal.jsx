@@ -7,7 +7,7 @@ import {
 import api from '../../api';
 import { formatARS, formatDate, formatNumber, firstOfMonth, today } from '../../utils/format';
 
-const PIE_COLORS = ['#4C1D95', '#7C3AED', '#6D28D9', '#8B5CF6', '#C4B5FD', '#A78BFA'];
+const PIE_COLORS = ['#45484c', '#6b6e72', '#55585c', '#7d8085', '#c3c2bd', '#9a9c9e'];
 
 function KpiCard({ label, value, sub, highlight }) {
   return (
@@ -106,7 +106,7 @@ export default function VentasDashboardLocal() {
                   <YAxis tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={v => formatARS(v)} />
                   <Legend />
-                  <Line type="monotone" dataKey="ventas" name="Ventas" stroke="#4C1D95" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="ventas" name="Ventas" stroke="#45484c" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

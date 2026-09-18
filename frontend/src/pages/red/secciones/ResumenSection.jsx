@@ -31,7 +31,7 @@ function Skeleton({ className = '' }) {
 function KpiCard({ label, value, sub, primary }) {
   if (primary) {
     return (
-      <div className="rounded-2xl p-5 text-white" style={{ background: '#4C1D95' }}>
+      <div className="rounded-2xl p-5 text-white" style={{ background: '#45484c' }}>
         <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-1">{label}</p>
         <p className="text-3xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>{value}</p>
         {sub && <p className="text-sm opacity-60 mt-1">{sub}</p>}
@@ -399,7 +399,7 @@ export default function ResumenSection() {
 
           {/* Total consolidado */}
           {comp && (
-            <div className="rounded-xl px-5 py-4 text-white" style={{ background: '#4C1D95', opacity: compLoading ? 0.6 : 1 }}>
+            <div className="rounded-xl px-5 py-4 text-white" style={{ background: '#45484c', opacity: compLoading ? 0.6 : 1 }}>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-0.5">
@@ -641,7 +641,7 @@ export default function ResumenSection() {
 
             <div className="px-6 py-4 overflow-y-auto flex-1">
               <div className="rounded-xl px-4 py-3 mb-4 text-white flex items-baseline justify-between gap-4"
-                   style={{ background: '#4C1D95' }}>
+                   style={{ background: '#45484c' }}>
                 <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Total red</span>
                 <span className="text-2xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
                   {fmtARS(modalVentas.total)}

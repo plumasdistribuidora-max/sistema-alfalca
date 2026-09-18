@@ -20,7 +20,7 @@
 <style>
 /* ─────────────────────────────────────────────────────────
    Manual de Alfalca — hereda la identidad del sistema:
-   violeta AHG #4C1D95, Nunito para títulos, Inter para texto.
+   gris mate AHG #45484c con acento bronce #a8834a, Nunito para títulos, Inter para texto.
    El acento cálido (dulce de leche) es propio del manual.
    ───────────────────────────────────────────────────────── */
 
@@ -34,10 +34,10 @@
   --linea:      #E4DCD2;
   --linea-2:    #D3C9BC;
 
-  --violeta:    #4C1D95;
-  --violeta-2:  #7C3AED;
-  --lila:       #C4B5FD;
-  --lila-suave: #F1ECFE;
+  --violeta:    #45484c;
+  --violeta-2:  #6b6e72;
+  --lila:       #c3c2bd;
+  --lila-suave: #ecebe7;
 
   --dulce:      #B4661C;
   --dulce-suave:#FBEEDD;
@@ -70,10 +70,10 @@
     --linea:      #322A3D;
     --linea-2:    #43384F;
 
-    --violeta:    #A78BFA;
-    --violeta-2:  #C4B5FD;
-    --lila:       #6D4FC4;
-    --lila-suave: #292040;
+    --violeta:    #9a9c9e;
+    --violeta-2:  #c3c2bd;
+    --lila:       #9a9c9e;
+    --lila-suave: #35383b;
 
     --dulce:      #E8A55C;
     --dulce-suave:#3A2A18;
@@ -99,10 +99,10 @@
   --linea:      #322A3D;
   --linea-2:    #43384F;
 
-  --violeta:    #A78BFA;
-  --violeta-2:  #C4B5FD;
-  --lila:       #6D4FC4;
-  --lila-suave: #292040;
+  --violeta:    #9a9c9e;
+  --violeta-2:  #c3c2bd;
+  --lila:       #9a9c9e;
+  --lila-suave: #35383b;
 
   --dulce:      #E8A55C;
   --dulce-suave:#3A2A18;
@@ -150,12 +150,11 @@ a{ color: var(--violeta); }
 .marca{ display: flex; align-items: center; gap: 14px; }
 .iso{
   width: 46px; height: 46px; border-radius: 50%;
-  background: #fff; color: var(--violeta);
+  background: #a8834a; color: #1f2022;
   display: grid; place-items: center;
   font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: .04em;
   flex: 0 0 auto;
 }
-:root[data-theme="dark"] .iso, :root:not([data-theme="light"]) .iso{ color: #4C1D95; }
 .marca-txt strong{ display:block; font-family: var(--display); font-size: 15px; font-weight: 800; }
 .marca-txt span{ display:block; font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: rgba(255,255,255,.6); }
 
@@ -314,8 +313,8 @@ dl.glosario dd{ margin: 0; color: var(--tinta-2); font-size: 14.5px; }
 .figura figcaption b{ color: var(--tinta-2); font-weight: 600; }
 
 .mock{
-  --m-bg:#FAFAF7; --m-card:#FFFFFF; --m-txt:#1F2937; --m-txt2:#6B6472; --m-txt3:#9C94A6;
-  --m-line:#E7E2EC; --m-vio:#4C1D95; --m-vio2:#7C3AED; --m-lila:#EDE9FE;
+  --m-bg:#ecebe7; --m-card:#FFFFFF; --m-txt:#1F2937; --m-txt2:#6B6472; --m-txt3:#9C94A6;
+  --m-line:#dcdbd6; --m-vio:#45484c; --m-vio2:#6b6e72; --m-lila:#ecebe7;
   --m-verde:#15803D; --m-vsuave:#DCFCE7; --m-amb:#92400E; --m-asuave:#FEF3C7;
   --m-rojo:#B91C1C; --m-rsuave:#FEE2E2; --m-gris:#F4F2F0;
   background: var(--m-bg); color: var(--m-txt);
@@ -336,7 +335,7 @@ dl.glosario dd{ margin: 0; color: var(--tinta-2); font-size: 14.5px; }
 @media (max-width: 640px){ .mock-cuerpo{ grid-template-columns: minmax(0,1fr); } .mock-cuerpo .m-side{ display:none; } }
 .m-side{ background: var(--m-vio); padding: 12px 8px; color: #fff; }
 .m-side .m-marca{ display:flex; align-items:center; gap:8px; padding: 2px 6px 12px; border-bottom: 1px solid rgba(255,255,255,.12); margin-bottom: 8px; }
-.m-side .m-iso{ width: 22px; height: 22px; border-radius: 50%; background:#fff; color: var(--m-vio); display:grid; place-items:center; font-family: var(--display); font-weight: 800; font-size: 8px; }
+.m-side .m-iso{ width: 22px; height: 22px; border-radius: 50%; background:#a8834a; color: #1f2022; display:grid; place-items:center; font-family: var(--display); font-weight: 800; font-size: 8px; }
 .m-side .m-marca b{ font-family: var(--display); font-size: 11.5px; font-weight: 800; display:block; line-height:1.1; }
 .m-side .m-marca em{ font-style: normal; font-size: 7.5px; letter-spacing:.14em; text-transform: uppercase; color: rgba(255,255,255,.55); }
 .m-side .m-tit{ font-size: 8px; letter-spacing:.14em; text-transform: uppercase; color: rgba(255,255,255,.42); padding: 10px 8px 3px; font-weight: 700; }
@@ -476,6 +475,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
   <nav class="indice" aria-label="Índice del manual">
     <p class="tit">Para empezar</p>
     <a href="#entrar"><span class="ic">→</span>Cómo entrar</a>
+    <a href="#inicio"><span class="ic">⌂</span>La portada</a>
     <a href="#quien-ve"><span class="ic">◐</span>Quién ve qué</a>
     <a href="#menu"><span class="ic">☰</span>El menú</a>
 
@@ -521,8 +521,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <figure class="figura dos">
         <div class="mock" style="max-width:340px">
           <div class="mock-bar"><i></i><i></i><i></i><span>alfalca</span></div>
-          <div style="padding:34px 26px; display:grid; gap:14px; justify-items:center; background:#FAFAF7">
-            <div style="width:46px;height:46px;border-radius:50%;background:#4C1D95;color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:14px">AHG</div>
+          <div style="padding:34px 26px; display:grid; gap:14px; justify-items:center; background:#ecebe7">
+            <div style="width:46px;height:46px;border-radius:50%;background:#a8834a;color:#1f2022;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:14px">AHG</div>
             <div style="text-align:center">
               <div style="font-family:var(--display);font-weight:800;font-size:15px;color:#1F2937">Alfalca Holding Group</div>
               <div style="font-size:10.5px;color:#9C94A6">Ingresá con tu cuenta</div>
@@ -551,6 +551,54 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <p>Si dice <strong>error al ingresar</strong>, casi siempre es el mail mal escrito o la contraseña.
             Nadie más te la puede ver: si te la olvidaste, el dueño te pone una nueva desde
             <strong>Usuarios y accesos</strong>.</p>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <!-- ══════════ LA PORTADA ══════════ -->
+    <section class="seccion" id="inicio">
+      <p class="eyebrow">Para empezar</p>
+      <h2>La portada</h2>
+      <p>
+        Si sos dueño o Encargado General, al entrar ves la portada. Arriba están las
+        <strong>tres marcas del grupo</strong> — Entre Dos (tiendas y cafetería), Kankay y Senzen —
+        y debajo <strong>Hoy en la red</strong>: cómo viene el día sin tener que abrir ningún módulo.
+      </p>
+
+      <figure class="figura dos">
+        <div class="mock" style="max-width:420px">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca / inicio</span></div>
+          <div class="m-main" style="background:#ecebe7; padding:14px; display:grid; gap:12px">
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px">
+              <div class="m-card" style="padding:6px"><div style="height:34px;border-radius:7px;background:#000;display:grid;place-items:center;color:#fff;font-family:cursive;font-size:11px">entre dos</div><div style="font-family:var(--display);font-weight:800;font-size:10px;margin-top:5px">Entre Dos</div></div>
+              <div class="m-card" style="padding:6px"><div style="height:34px;border-radius:7px;background:#000;display:grid;place-items:center;color:#fff;font-weight:800;font-size:9px;letter-spacing:.1em">KANKAY</div><div style="font-family:var(--display);font-weight:800;font-size:10px;margin-top:5px">Kankay</div></div>
+              <div class="m-card" style="padding:6px"><div style="height:34px;border-radius:7px;background:#fff;border:1px solid var(--m-line);display:grid;place-items:center;color:#00A79D;font-weight:800;font-size:11px">Senzen</div><div style="font-family:var(--display);font-weight:800;font-size:10px;margin-top:5px">Senzen</div></div>
+            </div>
+            <div style="font-family:var(--display);font-weight:800;font-size:11.5px">Hoy en la red <span style="font-weight:500;font-size:9px;color:var(--m-txt3)">ventas cargadas hoy (día incompleto)</span></div>
+            <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px">
+              <div class="m-card" style="padding:8px"><div style="font-size:8.5px;color:var(--m-txt2)">Ventas de hoy (5 locales)</div><div style="font-family:var(--display);font-weight:800;font-size:14px">$ 1.842.300</div><div style="font-size:8px;color:var(--m-txt3)">Parcial · cargado a las 14:40</div></div>
+              <div class="m-card" style="padding:8px"><div style="font-size:8.5px;color:var(--m-txt2)">Reportes de hoy</div><div style="font-family:var(--display);font-weight:800;font-size:14px;color:#b06f2d">3 de 5</div><div style="font-size:8px;color:var(--m-txt3)">Faltan Amigorena, Sheraton</div></div>
+            </div>
+            <div class="m-card" style="padding:8px;font-size:9.5px">
+              <div style="font-family:var(--display);font-weight:800;font-size:10.5px;margin-bottom:4px">Turnos de hoy</div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--m-line)"><span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2b5991;margin-right:6px"></span>Peatonal</span><span style="color:var(--m-verde)">● Completo 14:10</span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--m-line)"><span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#00633a;margin-right:6px"></span>9 de Julio</span><span style="color:var(--m-verde)">● Completo 14:32</span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#b06f2d;margin-right:6px"></span>Amigorena</span><span style="color:var(--m-txt3)">● Pendiente</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <ol class="pasos">
+            <li><div><strong>Ventas y docenas</strong> del último día que tenga ventas cargadas. Si el Excel se importó ese mismo día, el número es <strong>parcial</strong> (dice a qué hora se cargó) y no se compara contra el día anterior, porque mentiría. Si el día ya está completo, abajo aparece la variación contra el día anterior.</div></li>
+            <li><div><strong>Reportes de hoy</strong>: cuántos turnos llegaron de los que se esperaban, y qué locales faltan.</div></li>
+            <li><div><strong>Turnos de hoy</strong>, local por local, con la hora del último reporte que entró. El punto verde es completo; el ámbar, parcial; el gris, todavía nada.</div></li>
+            <li><div>A la derecha, tres accesos: <strong>Reportes</strong> (el botón oscuro te dice cuántos turnos hay que reclamar), <strong>Red de tiendas</strong> y <strong>Proveedores</strong>.</div></li>
+          </ol>
+          <div class="aviso tip" style="margin-top:18px">
+            <span class="mk">i</span>
+            <p>Las ventas de la portada salen del Excel importado, no de la caja en vivo. Si el número parece
+            viejo, fijate la fecha que dice al lado de <strong>Hoy en la red</strong>: es hasta cuándo hay ventas cargadas.</p>
           </div>
         </div>
       </figure>
@@ -650,7 +698,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <section class="seccion" id="menu">
       <h2>El menú</h2>
       <p>
-        Es la barra violeta de la izquierda. Está agrupada por para qué sirve cada cosa,
+        Es la barra gris oscura de la izquierda. Está agrupada por para qué sirve cada cosa,
         no por orden alfabético.
       </p>
 
@@ -714,7 +762,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <figure class="figura dos">
         <div class="tel">
-          <div class="m-main" style="background:#FAFAF7">
+          <div class="m-main" style="background:#ecebe7">
             <div class="m-hdr" style="padding:11px 14px">
               <div class="m-eye">Lunes, 7 de septiembre</div>
               <h5 style="font-size:14px">Reporte de tienda</h5>
@@ -728,7 +776,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div>
                 <div style="font-size:10px;font-weight:700;margin-bottom:5px">Turno <span style="color:#B91C1C">*</span></div>
                 <div style="display:flex;gap:6px">
-                  <div style="flex:1;text-align:center;padding:6px;border-radius:7px;background:#4C1D95;color:#fff;font-size:10.5px;font-weight:700">Mañana</div>
+                  <div style="flex:1;text-align:center;padding:6px;border-radius:7px;background:#45484c;color:#fff;font-size:10.5px;font-weight:700">Mañana</div>
                   <div style="flex:1;text-align:center;padding:6px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10.5px;font-weight:700">Tarde</div>
                 </div>
               </div>
@@ -743,18 +791,18 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
                     <div class="m-input" style="flex:1">Sofía · vendedor</div>
                     <div class="m-input" style="width:44px;text-align:right">8</div>
                   </div>
-                  <div style="margin-top:5px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#4C1D95;font-weight:700">+ Agregar persona</div>
+                  <div style="margin-top:5px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#45484c;font-weight:700">+ Agregar persona</div>
                 </div>
                 <div>
                   <div style="font-size:10px;font-weight:700">Foto de la caja <span style="color:#B91C1C">*</span></div>
                   <div style="margin-top:3px;display:flex;gap:5px">
-                    <div style="width:40px;height:40px;border-radius:7px;background:#EDE9FE"></div>
-                    <div style="width:40px;height:40px;border-radius:7px;border:1px dashed #D6CCFB;display:grid;place-items:center;color:#4C1D95">+</div>
+                    <div style="width:40px;height:40px;border-radius:7px;background:#ecebe7"></div>
+                    <div style="width:40px;height:40px;border-radius:7px;border:1px dashed #D6CCFB;display:grid;place-items:center;color:#45484c">+</div>
                   </div>
                 </div>
                 <div>
                   <div style="font-size:10px;font-weight:700">Facturas que entraron</div>
-                  <div style="margin-top:3px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#4C1D95;font-weight:700">+ Agregar factura</div>
+                  <div style="margin-top:3px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#45484c;font-weight:700">+ Agregar factura</div>
                 </div>
               </div>
             </div>
@@ -833,7 +881,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <figure class="figura">
         <div class="tel" style="margin:0 auto">
-          <div class="m-main" style="background:#FAFAF7">
+          <div class="m-main" style="background:#ecebe7">
             <div class="m-card" style="display:grid;gap:8px">
               <div>
                 <div style="font-size:10px;font-weight:700">Mantenimiento</div>
@@ -843,7 +891,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div style="border:1px solid #F0D08A;background:#FEF3C7;border-radius:8px;padding:8px">
                 <div style="font-size:10.5px;color:#1F2937">Tapa del baño rota</div>
                 <div style="font-size:9px;color:#9C94A6">Cami · 14 sept</div>
-                <div style="font-size:9px;color:#6B6472;margin-top:4px;padding-left:6px;border-left:2px solid #C4B5FD">Encargado: la compro el jueves y la cambio el viernes</div>
+                <div style="font-size:9px;color:#6B6472;margin-top:4px;padding-left:6px;border-left:2px solid #c3c2bd">Encargado: la compro el jueves y la cambio el viernes</div>
                 <div style="display:flex;gap:5px;margin-top:6px">
                   <div style="flex:1;text-align:center;padding:5px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10px;font-weight:700">Ya se solucionó</div>
                   <div style="flex:1;text-align:center;padding:5px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10px;font-weight:700">Sigue igual</div>
@@ -857,7 +905,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
                   <div style="flex:1;text-align:center;padding:5px;border-radius:7px;border:1px solid #D6CCFB;color:#6B6472;font-size:10px;font-weight:700">Sigue igual</div>
                 </div>
               </div>
-              <div style="text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:5px;font-size:10px;color:#4C1D95;font-weight:700">+ Agregar algo más</div>
+              <div style="text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:5px;font-size:10px;color:#45484c;font-weight:700">+ Agregar algo más</div>
             </div>
           </div>
         </div>
@@ -1090,7 +1138,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p>
         Es el reporte del Encargado: junta lo de todos los turnos, lo compara contra el
         Excel del sistema y lo manda a los dueños. Se abre con el botón <em>Abrir</em>
-        del recuadro violeta.
+        del recuadro gris oscuro.
       </p>
 
       <figure class="figura">
@@ -1439,7 +1487,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div class="m-tit">Comparativo por tienda</div>
               <div class="m-sub" style="margin-bottom:7px">1–7 sep 2026 · ranking por facturación</div>
               <div class="m-fila" style="gap:4px;flex-wrap:wrap">
-                <span class="m-pill vio" style="background:#4C1D95;color:#fff;border-color:#4C1D95">Mes en curso</span>
+                <span class="m-pill vio" style="background:#45484c;color:#fff;border-color:#45484c">Mes en curso</span>
                 <span class="m-pill gris">Mes pasado</span>
                 <span class="m-pill gris">Últimos 30 días</span>
                 <span class="m-pill gris">Año completo</span>
@@ -1534,7 +1582,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             </div>
             <div style="font-size:10.5px;color:#6B6472">
               Proyección hacia <b>Octubre</b> · velocidad base <b>62,4 doc/sem</b> · estacional <b>×1.08</b> · tendencia <b>×0.97</b>
-              <span style="color:#4C1D95;font-weight:700;margin-left:6px">¿Cómo se calcula? →</span>
+              <span style="color:#45484c;font-weight:700;margin-left:6px">¿Cómo se calcula? →</span>
             </div>
             <div class="m-grid m-g3">
               <div class="m-kpi viola"><div class="k">Demanda proyectada</div><div class="v">104,72</div><div class="s">docenas totales</div></div>

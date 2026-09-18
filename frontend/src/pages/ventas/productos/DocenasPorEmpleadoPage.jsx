@@ -6,7 +6,7 @@ import {
 import api from '../../../api';
 import { formatNumber, firstOfMonth, today } from '../../../utils/format';
 
-const EMP_COLORS = ['#4C1D95', '#7C3AED', '#8B5CF6', '#A78BFA', '#C4B5FD', '#6D28D9', '#5B21B6'];
+const EMP_COLORS = ['#45484c', '#6b6e72', '#7d8085', '#9a9c9e', '#c3c2bd', '#55585c', '#45484c'];
 
 export default function DocenasPorEmpleadoPage() {
   const [searchParams, setSearchParams] = useSearchParams();

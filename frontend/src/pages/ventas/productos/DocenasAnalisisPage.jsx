@@ -146,15 +146,15 @@ export default function DocenasAnalisisPage() {
                   <AreaChart data={serie} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                     <defs>
                       <linearGradient id="gradDoc" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#7C3AED" stopOpacity={0.28} />
-                        <stop offset="95%" stopColor="#7C3AED" stopOpacity={0.02} />
+                        <stop offset="5%"  stopColor="#6b6e72" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#6b6e72" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f0ef" />
                     <XAxis dataKey="fecha" tick={{ fontSize: 10 }} tickFormatter={v => v?.slice(5)} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={v => [`${Number(v).toFixed(2)} doc`, 'Docenas']} />
-                    <Area type="monotone" dataKey="docenas" stroke="#7C3AED" strokeWidth={2} fill="url(#gradDoc)" dot={false} activeDot={{ r: 4 }} />
+                    <Area type="monotone" dataKey="docenas" stroke="#6b6e72" strokeWidth={2} fill="url(#gradDoc)" dot={false} activeDot={{ r: 4 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

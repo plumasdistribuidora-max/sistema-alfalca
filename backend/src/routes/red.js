@@ -378,6 +378,78 @@ function prevNMeses(mes, n) {
 
 // ── A) GET /resumen ──────────────────────────────────────────────────────────
 
+// ── GET /inicio ──────────────────────────────────────────────────────────────
+// Lo que muestra la portada: el último día con ventas cargadas, por local, con
+// facturación y docenas, comparado contra el día anterior. Las ventas entran por
+// import, así que "último día" puede no ser hoy: el front lo dice con la fecha.
+
+router.get('/inicio', requireAuth, async (req, res) => {
+  try {
+    const ult = (await pool.query(`
+      SELECT MAX(vt.fecha)::text AS fecha,
+             (SELECT created_at FROM imports_log WHERE status = 'completado' ORDER BY created_at DESC LIMIT 1) AS importado_at
+      FROM ventas_tickets vt WHERE vt.estado = 'cerrada'
+    `)).rows[0];
+    if (!ult?.fecha) return res.json({ ok: true, data: null });
+    const fecha = ult.fecha;
+    // Si el import se hizo el mismo día que la última venta, ese día está a medias:
+    // el front lo marca como parcial y no lo compara contra el anterior.
+    const diaImport = ult.importado_at
+      ? new Date(ult.importado_at).toLocaleDateString('en-CA', { timeZone: TZ })
+      : null;
+    const parcial = !diaImport || diaImport <= fecha;
+
+    const [locRes, docRes] = await Promise.all([
+      pool.query(`
+        SELECT l.id, l.nombre, l.es_alfajorera,
+          COALESCE(SUM(vt.total)  FILTER (WHERE vt.fecha = $1::date),     0) AS facturacion,
+          COALESCE(SUM(vt.total)  FILTER (WHERE vt.fecha = $1::date - 1), 0) AS facturacion_ant,
+          COUNT(DISTINCT vt.id)   FILTER (WHERE vt.fecha = $1::date)         AS tickets
+        FROM locales l
+        LEFT JOIN ventas_tickets vt ON vt.local_id = l.id AND vt.estado = 'cerrada'
+          AND vt.fecha BETWEEN $1::date - 1 AND $1::date
+        WHERE l.activo = true
+        GROUP BY l.id, l.nombre, l.es_alfajorera
+        ORDER BY l.id
+      `, [fecha]),
+      // La hora de los renglones está guardada como UTC pero es hora de Mendoza:
+      // el día se corta en UTC a propósito (igual que maestros/docenas/por-dia).
+      pool.query(`
+        SELECT vi.local_id,
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE (vi.fecha_creacion AT TIME ZONE 'UTC')::date = $1::date),     0) AS docenas,
+          COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE (vi.fecha_creacion AT TIME ZONE 'UTC')::date = $1::date - 1), 0) AS docenas_ant
+        FROM ventas_items vi
+        WHERE NOT COALESCE(vi.cancelada, false)
+          AND (vi.fecha_creacion AT TIME ZONE 'UTC')::date BETWEEN $1::date - 1 AND $1::date
+        GROUP BY vi.local_id
+      `, [fecha]),
+    ]);
+
+    const docPorLocal = Object.fromEntries(docRes.rows.map(r => [r.local_id, r]));
+    const locales = locRes.rows.map(l => {
+      const d = docPorLocal[l.id] || {};
+      return {
+        id: l.id, nombre: l.nombre, es_alfajorera: l.es_alfajorera,
+        facturacion:     n(l.facturacion),
+        facturacion_ant: n(l.facturacion_ant),
+        tickets:         n(l.tickets),
+        docenas:         Math.round(n(d.docenas) * 100) / 100,
+        docenas_ant:     Math.round(n(d.docenas_ant) * 100) / 100,
+      };
+    });
+    const sum = k => locales.reduce((t, l) => t + l[k], 0);
+    const total = {
+      facturacion: sum('facturacion'), facturacion_ant: sum('facturacion_ant'),
+      docenas: Math.round(sum('docenas') * 100) / 100, docenas_ant: Math.round(sum('docenas_ant') * 100) / 100,
+      tickets: sum('tickets'),
+    };
+    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total } });
+  } catch (err) {
+    console.error('[red/inicio]', err);
+    res.status(500).json({ ok: false, error: 'Error al armar la portada' });
+  }
+});
+
 router.get('/resumen', requireAuth, async (req, res) => {
   try {
     const range = parseRange(req);

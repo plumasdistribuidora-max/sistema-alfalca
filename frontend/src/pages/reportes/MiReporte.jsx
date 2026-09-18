@@ -549,7 +549,7 @@ export default function MiReporte() {
   return (
     <div className={`max-w-lg mx-auto pb-24 transition-opacity ${cargando ? 'opacity-50 pointer-events-none' : ''}`}>
       {/* Cabecera con lo que no se tipea */}
-      <div className="rounded-2xl px-5 py-4 mb-4" style={{ background: corrigiendo ? '#7F1D1D' : '#4C1D95' }}>
+      <div className="rounded-2xl px-5 py-4 mb-4" style={{ background: corrigiendo ? '#7F1D1D' : '#45484c' }}>
         <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>
           {corrigiendo ? `Corrigiendo · ${fechaTxt}` : fechaTxt}
         </p>

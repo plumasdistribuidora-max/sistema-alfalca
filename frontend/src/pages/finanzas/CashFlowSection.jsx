@@ -168,7 +168,7 @@ function ModalShell({ title, onClose, onSave, saving, children, wide }) {
           <div className="px-6 py-4 border-t border-stone-100 flex-shrink-0">
             <button onClick={onSave} disabled={saving}
               className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-50"
-              style={{ background: '#4C1D95' }}>
+              style={{ background: '#45484c' }}>
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
@@ -551,7 +551,7 @@ export default function CashFlowSection() {
 
         <button onClick={() => openAddGasto()}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ background: '#4C1D95' }}>
+          style={{ background: '#45484c' }}>
           <span>+</span> Agregar gasto manual
         </button>
 
@@ -566,7 +566,7 @@ export default function CashFlowSection() {
       <div className="card p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4C1D95" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#45484c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
             <span className="text-sm font-bold text-stone-800">Piso de seguridad de caja</span>
@@ -589,7 +589,7 @@ export default function CashFlowSection() {
               <div className="pt-5">
                 <button onClick={handleSaveConfig} disabled={savingConfig}
                   className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ background: '#4C1D95' }}>
+                  style={{ background: '#45484c' }}>
                   {savingConfig ? 'Guardando…' : 'Guardar'}
                 </button>
               </div>

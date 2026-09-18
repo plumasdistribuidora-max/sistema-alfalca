@@ -34,9 +34,9 @@ const CS = {
   venta:     { bg: '#f0fdf4', border: '#bbf7d0', title: '#14532d', sub: '#166534' },
   cmv:       { bg: '#fffbeb', border: '#fde68a', title: '#78350f', sub: '#b45309' },
   margen:    { bg: '#fafaf9', border: '#e7e5e4', title: '#1c1917', sub: '#78716c' },
-  gastos:    { bg: '#f5f3ff', border: '#ddd6fe', title: '#3b0764', sub: '#6d28d9' },
+  gastos:    { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
   ebitda:    { bg: '#f0fdf4', border: '#86efac', title: '#14532d', sub: '#166534' },
-  impuestos: { bg: '#f5f3ff', border: '#ddd6fe', title: '#3b0764', sub: '#6d28d9' },
+  impuestos: { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
   resultado: { bg: '#16a34a', border: '#16a34a', title: '#ffffff', sub: 'rgba(255,255,255,0.7)' },
 };
 
@@ -126,7 +126,7 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
               onClick={onSave}
               disabled={saving}
               className="w-full py-2.5 rounded-xl font-semibold text-white transition-colors disabled:opacity-50"
-              style={{ background: '#4C1D95' }}
+              style={{ background: '#45484c' }}
             >
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
@@ -200,14 +200,14 @@ function FormulaRows({ rows }) {
         <div
           key={i}
           className="flex items-center justify-between px-4 py-3 border-b border-stone-50 last:border-0"
-          style={{ background: r.highlight ? '#f5f3ff' : i % 2 === 0 ? '#fff' : '#fafaf9' }}
+          style={{ background: r.highlight ? '#f4f4f2' : i % 2 === 0 ? '#fff' : '#fafaf9' }}
         >
           <span style={{ fontWeight: r.highlight ? 700 : 500, color: r.highlight ? '#3b0764' : '#44403c' }}>
             {r.label}
           </span>
           <div className="text-right">
             <span style={{ fontWeight: 700, color: r.highlight ? '#3b0764' : '#1c1917' }}>{fmt$(r.value)}</span>
-            <span className="ml-2 text-xs" style={{ color: r.highlight ? '#6d28d9' : '#a8a29e' }}>{fmtP(r.pct)}</span>
+            <span className="ml-2 text-xs" style={{ color: r.highlight ? '#55585c' : '#a8a29e' }}>{fmtP(r.pct)}</span>
           </div>
         </div>
       ))}

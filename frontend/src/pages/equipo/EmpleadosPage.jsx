@@ -146,7 +146,7 @@ export default function EmpleadosPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl px-6 py-5" style={{ background: '#4C1D95' }}>
+      <div className="rounded-2xl px-6 py-5" style={{ background: '#45484c' }}>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>

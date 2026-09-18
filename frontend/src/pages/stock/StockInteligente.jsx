@@ -238,7 +238,7 @@ export default function StockInteligente() {
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-2xl p-5 text-white" style={{ background: '#4C1D95' }}>
+        <div className="rounded-2xl p-5 text-white" style={{ background: '#45484c' }}>
           <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-1">Demanda proyectada</p>
           <p className="text-3xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
             {loadingProy ? '…' : fmtDoc(proyeccion?.demanda_total_doc ?? 0)}
@@ -405,7 +405,7 @@ export default function StockInteligente() {
           onClick={calcularPedido}
           disabled={submitting || loadingProy || !proyeccion}
           className="px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: submitting ? '#7C3AED' : '#4C1D95' }}
+          style={{ background: submitting ? '#6b6e72' : '#45484c' }}
         >
           {submitting ? 'Guardando…' : 'Guardar el pedido'}
         </button>

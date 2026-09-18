@@ -37,7 +37,7 @@ export default function ProveedoresPage() {
 
   return (
     <div className="space-y-0 -mt-2">
-      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#4C1D95' }}>
+      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#45484c' }}>
         <div className="flex items-center gap-4 px-6 pt-5 pb-3">
           <img src={logo} alt="AHG" className="w-11 h-11 rounded-full border-2 border-white/25 flex-shrink-0" />
           <div>

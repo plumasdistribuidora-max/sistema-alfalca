@@ -85,9 +85,9 @@ function StackTooltip({ active, payload, titulo, formato, unidad }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 14px', minWidth: 210, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
       <p style={{ fontWeight: 600, marginBottom: 8, color: '#1c1917', fontSize: 13 }}>{fmtMesLabelFull(mesRaw)}</p>
-      <div style={{ background: '#EEEDFE', borderRadius: 6, padding: '5px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>{titulo}</span>
-        <span style={{ color: '#26215C', fontWeight: 700, fontSize: 13 }}>{formato(total)}{unidad}</span>
+      <div style={{ background: '#ecebe7', borderRadius: 6, padding: '5px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <span style={{ color: '#1f2022', fontWeight: 700, fontSize: 13 }}>{titulo}</span>
+        <span style={{ color: '#1f2022', fontWeight: 700, fontSize: 13 }}>{formato(total)}{unidad}</span>
       </div>
       {[...payload].reverse().map((p, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>

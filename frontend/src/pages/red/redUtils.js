@@ -1,12 +1,16 @@
 // ── Paleta por tienda (consistente en todos los gráficos) ───────────────────
-// Tomada del tablero "Entre Dos" que eligió Martín: azul, verde, ámbar, azul
-// claro y marrón. Tres de los cinco quedaron tal cual la foto; el gris azulado
-// de Sheraton y el marrón del Café tuvieron que moverse un poco — el gris casi
-// no tenía color (croma 0,04) y se leía gris, y el marrón caía por debajo de la
-// banda de luminosidad. Con ese ajuste la paleta pasa los cuatro chequeos.
+// Opción "grises + cobre" que eligió Martín el 18/9/2026: las cuatro tiendas de
+// alfajores van en la escala de gris mate del sistema (de grafito a chalk) y el
+// Café, que es el único negocio distinto, en cobre mate. Así los gráficos usan
+// los mismos tonos que el menú y las tarjetas en vez de pelearse con ellos.
 //
-// El ORDEN es fijo y no por ranking: los pares validados son los que quedan
-// pegados en el apilado, y así los dos azules nunca se tocan.
+// Los pasos de gris se separaron para que cada par contiguo del apilado se
+// distinga (ΔE ≥ 16 en visión normal y con daltonismo). Los dos más claros
+// tienen poco contraste contra el blanco: por eso el apilado lleva un hilo
+// blanco entre segmentos y la leyenda + tooltip siempre nombran la tienda.
+//
+// El ORDEN es fijo y no por ranking: el color identifica a la tienda, nunca a
+// su puesto.
 export const TIENDA_ORDEN = [
   'Peatonal Tienda de Alfajores',
   '9 de Julio Tienda de Alfajores',
@@ -16,15 +20,16 @@ export const TIENDA_ORDEN = [
 ];
 
 export const TIENDA_COLORS = {
-  'Peatonal Tienda de Alfajores':   '#2b5991', // azul marino mate
-  '9 de Julio Tienda de Alfajores': '#00633a', // verde racing mate
-  'Amigorena Tienda de Alfajores':  '#b06f2d', // bronce satinado
-  'Sheraton Tienda de Alfajores':   '#0581a3', // azul petróleo mate
-  'Café Peatonal Cafetería':        '#833f1d', // cobre mate
+  'Peatonal Tienda de Alfajores':   '#26282a', // grafito
+  '9 de Julio Tienda de Alfajores': '#5c5f63', // nardo
+  'Amigorena Tienda de Alfajores':  '#989a9f', // gris medio
+  'Sheraton Tienda de Alfajores':   '#cfceca', // chalk
+  'Café Peatonal Cafetería':        '#8a5a3c', // cobre mate
 };
 
-// Slots libres para una tienda que todavía no esté en el mapa.
-export const TIENDA_FALLBACK = ['#7a4f9c', '#9c2f2f', '#4f6b1f'];
+// Slots libres para una tienda que todavía no esté en el mapa: tonos apagados
+// que no se confunden con los de arriba.
+export const TIENDA_FALLBACK = ['#5e6b5a', '#6a5f6e', '#3f5566'];
 
 export function colorDeTienda(nombre, idx = 0) {
   return TIENDA_COLORS[nombre] ?? TIENDA_FALLBACK[idx % TIENDA_FALLBACK.length];

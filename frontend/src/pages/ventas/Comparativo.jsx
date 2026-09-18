@@ -4,8 +4,7 @@ import {
 } from 'recharts';
 import api from '../../api';
 import { formatARS, formatDate, formatNumber, firstOfMonth, today } from '../../utils/format';
-
-const LINE_COLORS = ['#d97706', '#b45309', '#92400e', '#78350f', '#fbbf24'];
+import { colorDeTienda } from '../red/redUtils';
 
 export default function VentasComparativo() {
   const [desde, setDesde]         = useState(firstOfMonth());
@@ -79,7 +78,7 @@ export default function VentasComparativo() {
                       key={name}
                       type="monotone"
                       dataKey={name}
-                      stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                      stroke={colorDeTienda(name, i)}
                       strokeWidth={2}
                       dot={false}
                       activeDot={{ r: 4 }}
@@ -120,7 +119,7 @@ export default function VentasComparativo() {
                       <tr key={l.local_id} className="hover:bg-stone-50">
                         <td className="table-td font-medium">
                           <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ background: LINE_COLORS[i % LINE_COLORS.length] }} />
+                            <div className="w-3 h-3 rounded-full" style={{ background: colorDeTienda(l.local_nombre, i) }} />
                             {l.local_nombre}
                           </div>
                         </td>

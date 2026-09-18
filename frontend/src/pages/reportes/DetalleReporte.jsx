@@ -339,25 +339,29 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
           <Visor fotos={fotos} urls={urls} indice={abierta} onCambiar={setAbierta} onCerrar={() => setAbierta(null)} />
         )}
 
-        {r.estado !== 'aprobado' && (
-          <div className="px-5 py-4 border-t border-ahg-accent/30 space-y-3">
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <textarea
-              className="input" rows={2} value={comentario}
-              placeholder="Si lo devolvés, escribí qué tiene que corregir"
-              onChange={e => setComentario(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <button onClick={() => revisar('observo')} disabled={enviando}
-                      className="btn-secondary flex-1 !text-red-600 !border-red-300">
-                Devolver
-              </button>
+        {/* Un aprobado también se puede devolver (por si se aprobó por error); lo que no tiene sentido es volver a aprobarlo. */}
+        <div className="px-5 py-4 border-t border-ahg-accent/30 space-y-3">
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {r.estado === 'aprobado' && (
+            <p className="text-sm text-ahg-text/60">Ya está aprobado. Si fue por error, escribí qué tiene que corregir y devolvelo.</p>
+          )}
+          <textarea
+            className="input" rows={2} value={comentario}
+            placeholder="Si lo devolvés, escribí qué tiene que corregir"
+            onChange={e => setComentario(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button onClick={() => revisar('observo')} disabled={enviando}
+                    className="btn-secondary flex-1 !text-red-600 !border-red-300">
+              Devolver
+            </button>
+            {r.estado !== 'aprobado' && (
               <button onClick={() => revisar('aprobo')} disabled={enviando} className="btn-primary flex-1">
                 Aprobar
               </button>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

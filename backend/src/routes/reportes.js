@@ -954,10 +954,20 @@ router.post('/:id/revisar', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), as
       return res.status(400).json({ ok: false, error: 'Escribí qué tiene que corregir' });
     }
 
-    const { rows } = await pool.query('SELECT estado FROM reportes WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query('SELECT estado, fecha::text AS fecha FROM reportes WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Reporte no encontrado' });
     if (rows[0].estado === 'borrador') {
       return res.status(409).json({ ok: false, error: 'Todavía no lo enviaron' });
+    }
+    // Un aprobado se puede devolver (aprobaron por error), salvo que el día ya
+    // esté cerrado: el consolidado se armó con ese reporte adentro, así que
+    // primero hay que reabrir el día.
+    if (rows[0].estado === 'aprobado') {
+      if (accion === 'aprobo') return res.json({ ok: true, data: { estado: 'aprobado' } });
+      const dia = await pool.query('SELECT estado FROM consolidados WHERE fecha = $1', [rows[0].fecha]);
+      if (dia.rows[0]?.estado === 'cerrado') {
+        return res.status(409).json({ ok: false, error: 'El día ya está cerrado. Para devolver este reporte, un dueño tiene que reabrir el día primero.' });
+      }
     }
 
     const nuevo = accion === 'aprobo' ? 'aprobado' : 'observado';

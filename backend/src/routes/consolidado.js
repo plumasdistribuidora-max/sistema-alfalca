@@ -189,40 +189,41 @@ async function armarDia(fecha) {
 
     // Novedades que el encargado tiene que mirar y resumir para los dueños.
     const local = porLocal[rep.local_id].nombre;
+    const quien = rep.usuario_nombre;
     if (r.vencimientos?.hubo) {
       for (const it of filasConDatos(r.vencimientos.items)) {
-        novedades.vencimientos.push({ local, turno: rep.turno, ...it });
+        novedades.vencimientos.push({ local, turno: rep.turno, quien, ...it });
       }
     }
     // Mantenimiento: lo que dijo el turno sobre cada ítem (nuevo, sigue igual, se
     // solucionó). Los reportes anteriores al seguimiento traen un texto suelto.
     const m = valorMantenimiento(r.mantenimiento);
     if (m.legado) {
-      novedades.mantenimiento.push({ id: null, local, local_id: rep.local_id, turno: rep.turno, texto: m.legado, legado: true, hoy: [] });
+      novedades.mantenimiento.push({ id: null, local, local_id: rep.local_id, turno: rep.turno, quien, texto: m.legado, legado: true, hoy: [] });
     }
     for (const [id, resp] of Object.entries(m.seguimiento)) {
-      dichoHoy.push({ id: Number(id), turno: rep.turno, respuesta: resp });
+      dichoHoy.push({ id: Number(id), turno: rep.turno, quien, respuesta: resp });
     }
     for (const nuevo of m.nuevos) {
-      if (nuevo.item_id) dichoHoy.push({ id: nuevo.item_id, turno: rep.turno, respuesta: 'nuevo' });
+      if (nuevo.item_id) dichoHoy.push({ id: nuevo.item_id, turno: rep.turno, quien, respuesta: 'nuevo' });
     }
     if (r.faltantes?.hubo) {
       for (const it of filasConDatos(r.faltantes.items)) {
-        novedades.faltantes.push({ local, turno: rep.turno, ...it });
+        novedades.faltantes.push({ local, turno: rep.turno, quien, ...it });
       }
     }
     if (r.ausencias?.hubo) {
       for (const it of filasConDatos(r.ausencias.items)) {
-        novedades.ausencias.push({ local, turno: rep.turno, ...it });
+        novedades.ausencias.push({ local, turno: rep.turno, quien, ...it });
       }
     }
     if (esNovedad(r.quejas)) {
-      novedades.quejas.push({ local, turno: rep.turno, texto: r.quejas.trim() });
+      novedades.quejas.push({ local, turno: rep.turno, quien, texto: r.quejas.trim() });
     }
     // Plata que salió de la caja del turno: pagos a proveedores, compras de insumos.
     if (r.gastos?.hubo) {
       for (const it of filasConDatos(r.gastos.items)) {
-        novedades.gastos.push({ local, turno: rep.turno, ...it, monto: n(it.monto) });
+        novedades.gastos.push({ local, turno: rep.turno, quien, ...it, monto: n(it.monto) });
       }
     }
   }
@@ -243,6 +244,7 @@ async function armarDia(fecha) {
       hoy: dichoHoy.filter(d => d.id === it.id).map(({ turno, respuesta }) => ({ turno, respuesta })),
       // El turno de hoy que lo informó, para mostrarlo como el resto de las novedades.
       turno: dichoHoy.find(d => d.id === it.id)?.turno || '',
+      quien: dichoHoy.find(d => d.id === it.id)?.quien || it.reportado_por || '',
     });
   }
   const orden = it => it.legado ? 3 : it.estado === 'resuelto' ? 2 : it.fecha === fecha ? 0 : 1;
@@ -716,6 +718,27 @@ router.post('/', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, r
   }
 });
 
+// ── GET /pdf ──────────────────────────────────────────────────────────────────
+// El cierre del día en PDF, para mandarlo como adjunto. Se arma en el momento con
+// los mismos datos de la pantalla: no hay archivo guardado que pueda quedar viejo.
+router.get('/pdf', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
+  try {
+    const fecha = req.query.fecha || hoyStr();
+    const d = await armarDia(fecha);
+    const cerradoPor = d.consolidado?.usuario_id
+      ? (await pool.query('SELECT nombre FROM usuarios WHERE id = $1', [d.consolidado.usuario_id])).rows[0]?.nombre
+      : null;
+    const { pdfCierre } = require('../services/pdfCierre');
+    const buffer = await pdfCierre(d, cerradoPor);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Cierre ${fecha}.pdf"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('[consolidado/pdf]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo armar el PDF' });
+  }
+});
+
 // ── POST /cerrar ──────────────────────────────────────────────────────────────
 
 router.post('/cerrar', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
@@ -805,3 +828,4 @@ router.post('/reabrir', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.armarDia = armarDia;

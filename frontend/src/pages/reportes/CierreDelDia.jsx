@@ -6,7 +6,8 @@ import { soloNumero } from './campos';
 import { plata, fechaCorta, fechaLarga, medioLabel } from '../proveedores/comunes';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+// "jueves 17/9" para el encabezado del mensaje.
+const fechaMensaje = f => { const d = new Date(`${f}T12:00:00`); return `${d.toLocaleDateString('es-AR', { weekday: 'long' })} ${d.getDate()}/${d.getMonth() + 1}`; };
 
 function hoyStr() {
   const t = new Date();
@@ -191,114 +192,68 @@ function CafeDelDia({ cafe }) {
   );
 }
 
-// El texto que el encargado le manda a los dueños al cerrar. Va en texto plano con
-// los asteriscos de WhatsApp: lo que importa es que se lea en el celular sin abrir
-// nada, y que diga primero lo que hay que saber (venta, personal, qué no cerró).
-function armarMensaje({ d, form, fecha, user }) {
+// El texto que el encargado le manda a los dueños al cerrar: cuatro renglones, el
+// detalle va en el PDF adjunto. Lo que importa es que se lea en el celular sin abrir
+// nada: venta, ticket promedio de tiendas y cuánto gasta cada persona en el café.
+function armarMensaje({ d, fecha }) {
   const t = d.totales;
-  const n = v => `$ ${money.format(v)}`;
-  const pct = v => v == null ? 's/d' : `${v.toFixed(1)}%`;
-  const corto = nombre => nombre.replace(' Tienda de Alfajores', '').replace(' Cafetería', '');
+  const n = v => `$ ${money.format(Math.round(v))}`;
+  const cafe = d.locales.find(l => l.tipo === 'cafeteria');
+  const personas = cafe?.personas_reportadas || 0;
   const L = [];
-
-  L.push(`*Cierre del día — ${FECHA_LARGA.format(new Date(`${fecha}T12:00:00`))}*`);
-  L.push(`Venta: ${n(t.ventas_sistema)} · ${t.tickets} tickets`);
-  L.push(`Ticket prom.: tiendas ${t.ticket_promedio_tiendas ? n(t.ticket_promedio_tiendas) : 's/d'} · café ${t.ticket_promedio_cafe ? n(t.ticket_promedio_cafe) : 's/d'}`);
-  L.push(`Personal: ${t.horas.toFixed(1)} h${t.gasto_personal ? ` · ${n(t.gasto_personal)}` : ''}`
-    + (t.horas_sobre_ventas != null ? ` · ${pct(t.horas_sobre_ventas)} de la venta ${t.horas_sobre_ventas <= t.objetivo ? '✅' : '🔴'} (meta ${pct(t.objetivo)})` : ''));
-  if (t.horas_sin_valor > 0) L.push(`⚠️ ${t.horas_sin_valor.toFixed(1)} h sin valor hora cargado (no cuentan en personal)`);
-
-  L.push('');
-  L.push('*Por local*');
-  for (const l of d.locales) {
-    if (!l.ventas_sistema && !l.reportes.length) continue;
-    const cierra = l.diferencia == null ? '' : Math.abs(l.diferencia) < 1 ? ' · cierra ✅' : ` · NO cierra 🔴 (${l.diferencia > 0 ? '+' : '−'}${money.format(Math.abs(l.diferencia))})`;
-    const kpi = l.horas_sobre_ventas != null
-      ? ` · personal ${pct(l.horas_sobre_ventas)}${l.objetivo != null ? (l.horas_sobre_ventas <= l.objetivo ? ' ✅' : ' 🔴') + ` (meta ${pct(l.objetivo)})` : ''}`
-      : '';
-    L.push(`• ${corto(l.nombre)}: ${n(l.ventas_sistema)} · ${l.tickets_sistema} tk · ${l.horas ? l.horas.toFixed(1) + ' h' : 'sin horas'}${kpi}${cierra}`);
+  L.push(`*Reporte del día · ${fechaMensaje(fecha)}*`);
+  L.push(`Ventas ${n(t.ventas_sistema)}`);
+  L.push(`Ticket promedio tiendas ${t.ticket_promedio_tiendas ? n(t.ticket_promedio_tiendas) : 's/d'}`);
+  if (cafe?.ventas_sistema) {
+    L.push(personas
+      ? `Café: ${n(cafe.ventas_sistema / personas)} por persona atendida (${money.format(personas)} personas)`
+      : `Café: ${t.ticket_promedio_cafe ? n(t.ticket_promedio_cafe) : 's/d'} por ticket`);
   }
-  for (const l of d.locales) {
-    if (l.diferencia == null || Math.abs(l.diferencia) < 1) continue;
-    const exp = form.explicaciones?.[l.local_id]?.trim();
-    L.push(`  ${corto(l.nombre)} no cerró: reportaron ${n(l.ventas_reportadas)} contra ${n(l.ventas_sistema)} del sistema.${exp ? ` ${exp}` : ''}`);
-  }
-
-  const nv = d.novedades;
-  const seccion = (titulo, items, f) => {
-    if (!items?.length) return;
-    L.push('');
-    L.push(`*${titulo}*`);
-    for (const it of items) L.push(`• ${corto(it.local)} (${it.turno.toLowerCase()}): ${f(it)}`);
-  };
-  seccion('Vencimientos', nv.vencimientos, it => `${it.producto || ''}${it.dias ? ` — ${it.dias} días` : ''}`);
-  if (nv.vencimientos.length && form.acciones_vencimientos?.trim()) L.push(`  Acciones: ${form.acciones_vencimientos.trim()}`);
-  // Mantenimiento: cada pendiente con cómo se va a resolver, y lo que se solucionó hoy.
-  if (nv.mantenimiento.length) {
-    const abiertos  = nv.mantenimiento.filter(it => it.estado !== 'resuelto');
-    const resueltos = nv.mantenimiento.filter(it => it.estado === 'resuelto');
-    L.push('');
-    L.push(`*Mantenimiento*${abiertos.length ? ` · ${abiertos.length} pendiente${abiertos.length === 1 ? '' : 's'}` : ''}`);
-    for (const it of abiertos) {
-      const desde = it.legado ? ` (${it.turno.toLowerCase()})` : it.dias > 0 ? ` (desde hace ${it.dias} día${it.dias === 1 ? '' : 's'})` : ' (nuevo hoy)';
-      const plan = (form.planes?.[it.id] ?? it.plan ?? '').trim();
-      L.push(`• ${corto(it.local)}: ${it.texto}${desde}${plan ? ` — ${plan}` : ''}`);
-    }
-    for (const it of resueltos) L.push(`✅ ${corto(it.local)}: ${it.texto} — solucionado`);
-  }
-  if (d.consolidado?.mantenimiento?.trim()) { if (!nv.mantenimiento.length) { L.push(''); L.push('*Mantenimiento*'); } L.push(`  Encargado: ${d.consolidado.mantenimiento.trim()}`); }
-  seccion('Faltantes de insumos', nv.faltantes, it => `${it.insumo}${it.proveedor ? ` (${it.proveedor})` : ''}`);
-  seccion('Faltas y tardanzas', nv.ausencias, it => `${it.empleado} — ${it.motivo}`);
-  if (form.faltas_tardanzas?.trim()) { if (!nv.ausencias.length) { L.push(''); L.push('*Faltas y tardanzas*'); } L.push(`  Encargado: ${form.faltas_tardanzas.trim()}`); }
-  seccion('Quejas', nv.quejas, it => it.texto);
-  if (nv.gastos?.length) {
-    L.push('');
-    L.push(`*Gastos de caja* · ${n(nv.total_gastos)}`);
-    for (const g of nv.gastos) L.push(`• ${corto(g.local)} (${g.turno.toLowerCase()}): ${g.tipo ? `${g.tipo} — ` : ''}${g.detalle || ''} ${n(g.monto)}`);
-  }
-
-  // Café: consumo por turno y con cuánto queda el café.
-  if (d.cafe?.turnos?.length) {
-    L.push('');
-    L.push(`*Café* · ${d.cafe.turnos.map(t => `${t.turno.toLowerCase()} ${kg(t.consumo)}`).join(' · ')} · quedan ${kg(d.cafe.queda)}`);
-    if (d.cafe.control?.teorico !== null && d.cafe.control?.diferencia !== null && d.cafe.control?.diferencia !== undefined) {
-      L.push(`  Según ventas debía consumir ${kg(d.cafe.control.teorico)} → diferencia ${d.cafe.control.diferencia > 0 ? '+' : ''}${kg(d.cafe.control.diferencia)}`);
-    }
-    for (const t of d.cafe.turnos) if (t.coincide === false) L.push(`🔴 El pesaje de ${t.usuario} al recibir no coincidió con la entrega anterior`);
-  }
-
-  // Facturas: las que entraron hoy y las que se pagaron, una por renglón, con el medio.
-  const p = d.proveedores;
-  if (p && (p.cargadas?.length || p.pagos.length || p.vencidas.length)) {
-    L.push('');
-    L.push('*Facturas*');
-    if (p.cargadas?.length) {
-      L.push(`Cargadas hoy: ${p.cargadas.length} por ${n(p.total_cargadas)}`);
-      for (const f of p.cargadas) {
-        L.push(`• ${f.proveedor}${f.numero ? ` ${f.numero}` : ''} — ${n(f.total)} (${corto(f.local_nombre || '')}${f.vencimiento ? `, vence ${fechaCorta(f.vencimiento)}` : ''})`);
-      }
-    } else {
-      L.push('Cargadas hoy: ninguna');
-    }
-    if (p.pagos.length) {
-      L.push(`Pagadas hoy: ${p.pagos.length} por ${n(p.pagado_hoy)}`);
-      for (const pg of p.pagos) {
-        L.push(`• ${pg.proveedor}${pg.factura_numero ? ` ${pg.factura_numero}` : ''} — ${n(pg.monto)} por ${medioLabel(pg.medio)}${pg.comprobante ? ` (${pg.comprobante})` : ''}`);
-      }
-    } else {
-      L.push('Pagadas hoy: ninguna');
-    }
-    if (p.vencidas.length) L.push(`🔴 Vencidas sin pagar: ${p.vencidas.length} por ${n(p.total_vencido)}`);
-    L.push(`Deuda total: ${n(p.deuda_total)} en ${p.facturas_abiertas} facturas`);
-  }
-
-  L.push('');
-  L.push(`Controles: vencimientos ${form.vencimientos_ok ? '✅' : '❌'} · tienda ${form.control_tienda_ok ? '✅' : '❌'}`);
-  L.push(`Cerrado por ${user?.nombre || 'el encargado'}`);
   return L.join('\n');
 }
 
-function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'Ya está armado. Copialo y pegalo en el grupo, o abrilo directo en WhatsApp.' }) {
+// El PDF del cierre viene del servidor con el token de sesión, así que no se puede
+// abrir con un link común. Se baja como archivo y, en el celular, se comparte con
+// el menú del teléfono (WhatsApp lo recibe como adjunto).
+async function pdfDelDia(fecha) {
+  const r = await api.get('/consolidado/pdf', { params: { fecha }, responseType: 'blob' });
+  return new File([r.data], `Cierre ${fecha}.pdf`, { type: 'application/pdf' });
+}
+
+function BotonPdf({ fecha, texto }) {
+  const [estado, setEstado] = useState('');   // '' | 'armando' | 'error'
+  const puedeCompartir = typeof navigator !== 'undefined' && !!navigator.share && !!navigator.canShare;
+
+  async function compartir() {
+    setEstado('armando');
+    try {
+      const archivo = await pdfDelDia(fecha);
+      if (puedeCompartir && navigator.canShare({ files: [archivo] })) {
+        try {
+          await navigator.share({ files: [archivo], text: texto, title: archivo.name });
+        } catch (err) {
+          if (err?.name !== 'AbortError') throw err;   // cerró el menú sin elegir: no es error
+        }
+      } else {
+        const url = URL.createObjectURL(archivo);
+        const a = document.createElement('a');
+        a.href = url; a.download = archivo.name; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      setEstado('');
+    } catch {
+      setEstado('error');
+    }
+  }
+
+  return (
+    <button onClick={compartir} disabled={estado === 'armando'} className="btn-primary flex-1">
+      {estado === 'armando' ? 'Armando el PDF…' : estado === 'error' ? 'No se pudo armar, probá de nuevo' : puedeCompartir ? 'Compartir PDF' : 'Bajar PDF'}
+    </button>
+  );
+}
+
+function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'El detalle va en el PDF. Compartilo al grupo con el mensaje corto abajo.', pdfFecha = null }) {
   const [copiado, setCopiado] = useState(false);
   const ref = useRef(null);
 
@@ -324,7 +279,8 @@ function MensajeDuenos({ texto, titulo = 'Mensaje para los dueños', sub = 'Ya e
       <textarea ref={ref} readOnly value={texto} rows={Math.min(22, texto.split('\n').length + 1)}
                 className="input text-sm font-mono leading-relaxed whitespace-pre" />
       <div className="flex gap-2 flex-wrap">
-        <button onClick={copiar} className="btn-primary flex-1">{copiado ? '✓ Copiado' : 'Copiar mensaje'}</button>
+        {pdfFecha && <BotonPdf fecha={pdfFecha} texto={texto} />}
+        <button onClick={copiar} className={`${pdfFecha ? 'btn-secondary' : 'btn-primary'} flex-1`}>{copiado ? '✓ Copiado' : 'Copiar mensaje'}</button>
         <a href={`https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer"
            className="btn-secondary flex-1 text-center">Abrir en WhatsApp</a>
       </div>
@@ -763,12 +719,12 @@ export default function CierreDelDia({ fecha, onCambio }) {
         )}
       </div>
 
-      {cerrado && <MensajeDuenos texto={armarMensaje({ d, form, fecha, user })} />}
+      {cerrado && <MensajeDuenos texto={armarMensaje({ d, fecha })} pdfFecha={fecha} />}
 
       {esViernes && (
         semana?.texto
           ? <MensajeDuenos texto={semana.texto} titulo="Resumen de la semana"
-                           sub={`Sábado a viernes, para mandar a los dueños junto con el diario.${cerrado ? '' : ' Se actualiza cuando cierres el día.'}`} />
+                           sub={`Sábado a viernes, para mandar a los dueños junto con el diario. Copialo y pegalo en el grupo.${cerrado ? '' : ' Se actualiza cuando cierres el día.'}`} />
           : <div className="card p-5 text-sm text-ahg-text/50">
               {semana?.error || 'Armando el resumen de la semana…'}
             </div>

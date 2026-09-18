@@ -1197,7 +1197,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><strong>Sistema contra Reportado.</strong> Son dos fuentes distintas: una viene del Excel del punto de venta, la otra la escribió a mano el turno mirando la caja. Cuando coinciden aparece un tilde verde.</li>
         <li><strong>La explicación.</strong> Si un local no cierra, se abre un recuadro rojo para que escribas por qué. Sin eso el día no se cierra.</li>
         <li><strong>Lo que reportaron los turnos.</strong> Vencimientos, mantenimiento (con un casillero por ítem para decir cómo lo vas a resolver), faltantes de insumos, faltas y tardanzas, quejas y los gastos de caja del café con su total — todo junto acá, sin tener que abrir reporte por reporte.</li>
-        <li><strong>El botón de cerrar.</strong> Recién cuando está todo, el día se cierra y les llega a los dueños.</li>
+        <li><strong>El botón de cerrar.</strong> Recién cuando está todo, el día se cierra y aparecen el PDF y el mensaje para mandar a los dueños.</li>
       </ol>
 
       <h3>Mantenimiento — cómo lo vas a resolver</h3>
@@ -1215,15 +1215,27 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li>Cuando un turno lo marca como solucionado, aparece tachado con <em>Solucionado hoy</em> y al día siguiente desaparece. Vos no marcás nada como resuelto: lo confirma la gente que está en el local.</li>
       </ul>
 
-      <h3>El mensaje para los dueños</h3>
+      <h3>El PDF y el mensaje para los dueños</h3>
       <p>
-        Apenas cerrás el día, abajo aparece <strong>el mensaje ya armado</strong> para el grupo:
-        la venta y el personal del día, cada local con su porcentaje contra la meta y si cerró
-        contra lo reportado, y todas las novedades de los turnos (vencimientos con lo que hiciste,
-        cada mantenimiento pendiente con tu plan y lo que se solucionó, faltantes, faltas, quejas,
-        gastos de caja). Tocás <em>Copiar mensaje</em> y lo pegás en
-        WhatsApp, o <em>Abrir en WhatsApp</em> y elegís a quién mandárselo. No hay que redactar nada.
+        Apenas cerrás el día, abajo aparece <strong>el mensaje ya armado</strong> para el grupo
+        y el botón <strong>Compartir PDF</strong>. El mensaje son cuatro renglones: la venta del
+        día, el ticket promedio de las tiendas y cuánto gastó cada persona atendida en el café.
+        Todo el detalle va en el PDF, que se arma solo con lo que ya está en el sistema:
       </p>
+      <ul class="simple">
+        <li>Arriba, la fecha, quién cerró y los cuatro números (venta, ticket promedio, horas y personal sobre ventas con su semáforo).</li>
+        <li>El cuadro por local: sistema contra reportado, si cierra, tickets, horas y el porcentaje de personal contra la meta de cada uno. Debajo, la explicación de cada local que no cerró.</li>
+        <li>Un cuadro por tema, cada uno con <strong>local, turno y quién lo reportó</strong>: vencimientos, mantenimiento (con tu plan al lado de cada pendiente), faltas y tardanzas, quejas, faltantes, el café (lo que pesaron los baristas contra lo que se vendió), las facturas cargadas y pagadas ese día, y los gastos de caja. Los temas sin nada ese día no aparecen.</li>
+      </ul>
+      <ol class="pasos">
+        <li><div>Tocá <strong>Compartir PDF</strong>. En el celular se abre el menú de compartir del teléfono: elegí WhatsApp y el grupo, y va como archivo adjunto. En la computadora se baja el archivo y lo adjuntás vos.</div></li>
+        <li><div>Tocá <strong>Copiar mensaje</strong> y pegalo debajo del PDF, o <strong>Abrir en WhatsApp</strong>.</div></li>
+      </ol>
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p>El PDF se arma en el momento, cada vez que lo pedís, con los datos de ese día. Si un
+        dueño reabre el día y corregís algo, volvés a tocar <em>Compartir PDF</em> y sale actualizado.</p>
+      </div>
 
       <h3>Los viernes, el resumen de la semana</h3>
       <p>

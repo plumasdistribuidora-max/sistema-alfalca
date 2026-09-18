@@ -375,7 +375,7 @@ router.get('/mio', requireAuth, async (req, res) => {
                       .map(r => ({ id: r.id, local_nombre: r.local_nombre, plantilla_codigo: r.plantilla_codigo, turno: r.turno, estado: r.estado })),
         equipo:    await equipoDe(elegida.local_id),
         // Lo que sigue abierto en ese local, para que el turno diga si se solucionó.
-        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id)),
+        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha),
         // El pesaje con el que el turno anterior entregó, para confirmarlo al recibir.
         entrega_previa: plantilla.campos.some(c => c.con_previa)
           ? await entregaPrevia(plantilla.campos, elegida.local_id, elegida.plantilla_codigo, fecha, propios[0]?.id)

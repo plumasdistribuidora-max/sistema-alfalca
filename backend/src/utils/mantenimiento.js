@@ -34,7 +34,10 @@ function valorMantenimiento(v) {
 // que contestar por lo que apareció después.
 // Cada ítem trae el turno del reporte que lo creó, así la pantalla puede aplicar la
 // misma regla según el turno elegido.
-async function pendientesDe(localId, excluirReportes = [], fecha = null, turno = null) {
+// Los baristas van aparte: lo que reportan (la máquina) lo siguen solo los reportes
+// de barista, y ellos no ven lo de la encargada ni lo de cocina, aunque compartan
+// local. El resto de los formularios comparten lo del local, como siempre.
+async function pendientesDe(localId, excluirReportes = [], fecha = null, turno = null, plantilla = null) {
   const { rows } = await pool.query(`
     SELECT m.id, m.texto, m.fecha::text AS fecha, m.plan, u.nombre AS reportado_por, r.turno
     FROM mantenimiento_items m
@@ -44,8 +47,9 @@ async function pendientesDe(localId, excluirReportes = [], fecha = null, turno =
       AND (m.reporte_id IS NULL OR NOT (m.reporte_id = ANY($2::int[])))
       AND ($3::date IS NULL OR m.fecha < $3::date
            OR ($4::text = 'Tarde' AND m.fecha = $3::date AND r.turno = 'Mañana'))
+      AND (($5::text = 'barista') = (r.plantilla_codigo = 'barista'))
     ORDER BY m.fecha, m.id
-  `, [localId, excluirReportes.filter(Boolean), fecha, turno]);
+  `, [localId, excluirReportes.filter(Boolean), fecha, turno, plantilla]);
   return rows;
 }
 
@@ -53,8 +57,8 @@ async function pendientesDe(localId, excluirReportes = [], fecha = null, turno =
 // tiene que tener un "sigue igual" o un "se solucionó".
 async function faltantesMantenimiento(reporte) {
   const v = valorMantenimiento((reporte.respuestas || {}).mantenimiento);
-  const { fecha, turno } = (await pool.query('SELECT fecha::text AS fecha, turno FROM reportes WHERE id = $1', [reporte.id])).rows[0];
-  const pendientes = await pendientesDe(reporte.local_id, [reporte.id], fecha, turno);
+  const { fecha, turno, plantilla_codigo } = (await pool.query('SELECT fecha::text AS fecha, turno, plantilla_codigo FROM reportes WHERE id = $1', [reporte.id])).rows[0];
+  const pendientes = await pendientesDe(reporte.local_id, [reporte.id], fecha, turno, plantilla_codigo);
   return pendientes
     .filter(p => !v.seguimiento[String(p.id)])
     .map(p => `Mantenimiento — decí si sigue igual o se solucionó: “${p.texto}”`);

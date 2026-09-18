@@ -378,7 +378,7 @@ router.get('/mio', requireAuth, async (req, res) => {
         // Lo que sigue abierto en ese local, para que el turno diga si se solucionó.
         // Se pide como si fuera la tarde (lo de días anteriores más lo de la mañana de
         // hoy): la pantalla filtra según el turno elegido, con la misma regla.
-        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha, 'Tarde'),
+        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha, 'Tarde', elegida.plantilla_codigo),
       },
     });
   } catch (err) {

@@ -11,7 +11,7 @@ import logoSenzen   from '../assets/marcas/senzen-blanco.png';
 // vino. Senzen es turquesa: se usa una versión blanca sobre negro para que las tres queden parejas.
 const MARCAS = [
   { nombre: 'Entre Dos', rubro: 'Tiendas y cafetería', logo: logoEntreDos, fondo: '#000000' },
-  { nombre: 'Kankay',    rubro: 'Marca del grupo',     logo: logoKankay,   fondo: '#000000' },
+  { nombre: 'Kankay',    rubro: 'Retail',              logo: logoKankay,   fondo: '#000000' },
   { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', alto: 68, nueva: true },
 ];
 

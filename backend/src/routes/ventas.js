@@ -362,6 +362,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
             ON CONFLICT (local_id, pos_id) DO UPDATE SET
               total             = EXCLUDED.total,
               fecha             = EXCLUDED.fecha,
+              -- También la hora: si un import la guardó corrida (pasó el 15/9/2026,
+              -- 954 tickets tres horas adelante), el siguiente la deja bien.
+              creacion          = EXCLUDED.creacion,
               medio_pago        = EXCLUDED.medio_pago,
               caja              = EXCLUDED.caja,
               mesa              = EXCLUDED.mesa,
@@ -581,7 +584,8 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         await client.query(`
           INSERT INTO ventas_descuentos (local_id, ticket_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado)
           VALUES ($1,$2,$3,$4,$5,$6,$7)
-          ON CONFLICT DO NOTHING
+          ON CONFLICT (local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado)
+          DO UPDATE SET ticket_id = COALESCE(ventas_descuentos.ticket_id, EXCLUDED.ticket_id)
         `, [local_id, ticketDbId, posTicketId, valor, porcentaje, fechaDesc, cancelado]);
         descInsertados++;
         if (valor) descTotalPesos += Math.abs(valor);

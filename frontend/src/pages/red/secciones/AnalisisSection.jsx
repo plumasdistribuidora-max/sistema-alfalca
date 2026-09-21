@@ -172,7 +172,7 @@ export default function AnalisisSection() {
   const [data,    setData]    = useState(null);
   const [semanal, setSemanal] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [modoTot, setModoTot] = useState('facturacion'); // 'facturacion' | 'docenas'
+  const [modoTot, setModoTot] = useState('facturacion'); // 'facturacion' | 'docenas' | 'precio'
   // Semana a semana y hora por hora son largos: se muestra uno por vez, y ninguno
   // hasta que se elige. El de hora además tiene su propia consulta, que no se
   // pide hasta que alguien lo abre.
@@ -214,6 +214,22 @@ export default function AnalisisSection() {
   const fmtTot = modoTot === 'docenas'
     ? v => fmtDoc(v)
     : v => fmtARS(v);
+  // En $/docena el pie no es una suma: es la docena promedio del año.
+  const labelPie = modoTot === 'precio' ? 'Promedio' : 'Total';
+
+  // Precio por docena: el del último mes, con su variación; el promedio del año
+  // mezcla listas distintas, así que va abajo, solo como referencia.
+  const pa = kpis.precio_docena_actual;
+  const varPrecio = pa?.variacion_pct;
+  const precioSub = pa
+    ? [
+        mesShort(pa.mes),
+        varPrecio !== null && varPrecio !== undefined
+          ? `${varPrecio >= 0 ? '▲' : '▼'} ${Math.abs(varPrecio).toFixed(1)}% vs ${mesShort(pa.mes_anterior)}`
+          : null,
+        kpis.precio_implicito_docena ? `promedio del año ${fmtARS(kpis.precio_implicito_docena)}` : null,
+      ].filter(Boolean).join(' · ')
+    : 'Facturación y docenas de tiendas';
 
   return (
     <div className="space-y-5">
@@ -221,7 +237,7 @@ export default function AnalisisSection() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KpiCard accent label="Facturación total red" value={fmtARS(kpis.facturacion_total)} sub={`Año ${new Date().getFullYear()} · todas las unidades`} />
         <KpiCard       label="Docenas acumuladas"    value={fmtDoc(kpis.docenas_acumuladas)} sub="Tiendas y cafetería" />
-        <KpiCard       label="Precio implícito/docena" value={kpis.precio_implicito_docena ? fmtARS(kpis.precio_implicito_docena) : '—'} sub="Facturación y docenas de tiendas" />
+        <KpiCard       label="Precio por docena"     value={pa ? fmtARS(pa.valor) : '—'} sub={precioSub} />
         <KpiCard       label="Tickets totales"       value={fmtNum(kpis.tickets_totales)} sub={`Prom ticket ${fmtARS(kpis.ticket_promedio)}`} />
       </div>
 
@@ -233,7 +249,11 @@ export default function AnalisisSection() {
               <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
                 Totalizador mensual por tienda
               </h2>
-              <p className="text-xs text-stone-400 mt-0.5">Valor + variación % vs mes anterior</p>
+              <p className="text-xs text-stone-400 mt-0.5">
+                {modoTot === 'precio'
+                  ? 'Facturación sobre docenas de cada tienda · variación % vs mes anterior'
+                  : 'Valor + variación % vs mes anterior'}
+              </p>
             </div>
             <div className="flex rounded-xl border border-stone-200 overflow-hidden text-sm">
               <button
@@ -248,6 +268,12 @@ export default function AnalisisSection() {
               >
                 Docenas
               </button>
+              <button
+                onClick={() => setModoTot('precio')}
+                className={`px-3 py-1.5 font-medium transition-colors ${modoTot === 'precio' ? 'bg-violet-800 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+              >
+                $ / docena
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -260,7 +286,7 @@ export default function AnalisisSection() {
                       {shortName(nombre)}
                     </th>
                   ))}
-                  <th className="text-right py-2.5 px-4 text-xs text-stone-400 font-semibold uppercase">Total</th>
+                  <th className="text-right py-2.5 px-4 text-xs text-stone-400 font-semibold uppercase">{modoTot === 'precio' ? 'Tiendas' : 'Total'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
@@ -281,7 +307,7 @@ export default function AnalisisSection() {
               </tbody>
               <tfoot className="bg-violet-50 border-t-2 border-violet-100">
                 <tr>
-                  <td className="py-2.5 px-4 font-bold text-violet-900">Total</td>
+                  <td className="py-2.5 px-4 font-bold text-violet-900">{labelPie}</td>
                   {tiendaNombresTot.map(nombre => (
                     <td key={nombre} className="py-2.5 px-3 text-right font-bold text-violet-900">
                       {fmtTot(totalesTot[nombre] || 0)}

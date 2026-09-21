@@ -87,6 +87,44 @@ function buildTotalizador(rows, tiendas) {
   };
 }
 
+// Precio implícito por docena, mes a mes y tienda por tienda: facturación sobre
+// docenas de esa tienda en ese mes. Los totales no son sumas sino el mismo cociente
+// sobre el acumulado (la docena promedio del año), y el total de cada mes es el de
+// las cuatro tiendas juntas. Sirve para ver los saltos de cada cambio de lista.
+function buildTotalizadorPrecio(factRows, docRows, tiendas) {
+  const meses = [...new Set(docRows.map(r => r.mes))].sort();
+  const fact = {}, doc = {};
+  factRows.forEach(r => { fact[`${r.nombre}|${r.mes}`] = n(r.valor); });
+  docRows.forEach(r =>  { doc[`${r.nombre}|${r.mes}`]  = n(r.valor); });
+  const precio = (f, d) => d > 0 ? Math.round(f / d) : 0;
+
+  const filas = meses.map((mes, idx) => {
+    const por_tienda = {};
+    let fMes = 0, dMes = 0;
+    tiendas.forEach(({ nombre }) => {
+      const f = fact[`${nombre}|${mes}`] || 0;
+      const d = doc[`${nombre}|${mes}`]  || 0;
+      const valor = precio(f, d);
+      const prev  = idx > 0
+        ? precio(fact[`${nombre}|${meses[idx - 1]}`] || 0, doc[`${nombre}|${meses[idx - 1]}`] || 0) : 0;
+      const var_pct = (idx > 0 && prev > 0 && valor > 0) ? Math.round((valor - prev) / prev * 1000) / 10 : null;
+      por_tienda[nombre] = { valor, variacion_pct: var_pct };
+      fMes += f; dMes += d;
+    });
+    return { mes, por_tienda, total: precio(fMes, dMes) };
+  });
+
+  let fTot = 0, dTot = 0;
+  const totales_tienda = Object.fromEntries(tiendas.map(({ nombre }) => {
+    const f = meses.reduce((s, mes) => s + (fact[`${nombre}|${mes}`] || 0), 0);
+    const d = meses.reduce((s, mes) => s + (doc[`${nombre}|${mes}`]  || 0), 0);
+    fTot += f; dTot += d;
+    return [nombre, precio(f, d)];
+  }));
+
+  return { filas, totales_tienda, total_general: precio(fTot, dTot) };
+}
+
 // Quincenal: comparación de primeros N días del mes actual vs mes anterior
 async function queryQuincenal(hasta) {
   return pool.query(`
@@ -1219,15 +1257,16 @@ router.get('/analisis', requireAuth, async (req, res) => {
         GROUP BY l.nombre, l.es_alfajorera, mes ORDER BY mes, l.nombre
       `, p),
 
-      // Docenas mensuales por tienda (solo alfajoreras)
+      // Docenas mensuales por tienda. es_alfajorera hace falta para el precio por
+      // docena: sin la columna, el cálculo no encontraba ninguna tienda y daba vacío.
       pool.query(`
-        SELECT l.nombre,
+        SELECT l.nombre, l.es_alfajorera,
           TO_CHAR(DATE_TRUNC('month', vi.fecha_creacion AT TIME ZONE '${TZ}'), 'YYYY-MM') AS mes,
           COALESCE(SUM(vi.docenas_equivalentes) FILTER (WHERE NOT vi.cancelada), 0) AS valor
         FROM ventas_items vi
         JOIN locales l ON l.id = vi.local_id AND l.activo = true
         WHERE DATE(vi.fecha_creacion AT TIME ZONE '${TZ}') BETWEEN $1::date AND $2::date
-        GROUP BY l.nombre, mes ORDER BY mes, l.nombre
+        GROUP BY l.nombre, l.es_alfajorera, mes ORDER BY mes, l.nombre
       `, p),
 
       // KPIs globales
@@ -1295,6 +1334,22 @@ router.get('/analisis', requireAuth, async (req, res) => {
     const precio_implicito_docena = docenas_alfajoreras > 0
       ? Math.round(fact_alfajoreras / docenas_alfajoreras) : null;
 
+    // El precio del último mes con docenas, con su variación: el promedio del año
+    // mezcla listas de precios distintas y no sirve para saber a cuánto está hoy.
+    const mesesConPrecio = docMeses.filter(m => (docAlfaPorMes[m] || 0) > 0 && (factAlfaMes[m] || 0) > 0);
+    const precioMes = m => Math.round(factAlfaMes[m] / docAlfaPorMes[m]);
+    let precio_docena_actual = null;
+    if (mesesConPrecio.length > 0) {
+      const mes  = mesesConPrecio[mesesConPrecio.length - 1];
+      const ant  = mesesConPrecio.length > 1 ? mesesConPrecio[mesesConPrecio.length - 2] : null;
+      const valor = precioMes(mes);
+      precio_docena_actual = {
+        mes, valor,
+        mes_anterior:  ant,
+        variacion_pct: ant ? Math.round((valor - precioMes(ant)) / precioMes(ant) * 1000) / 10 : null,
+      };
+    }
+
     // Crecimiento promedio mensual (meses completos consecutivos)
     const monthlyTotals = mesesComp.map(mes =>
       factRows.filter(r => r.mes === mes).reduce((s, r) => s + n(r.valor), 0)
@@ -1342,6 +1397,7 @@ router.get('/analisis', requireAuth, async (req, res) => {
     const totalizador_mensual = {
       modo_facturacion: buildTotalizador(factRows, todasTiendas),
       modo_docenas:     buildTotalizador(docRows, alfajorerasTiendas),
+      modo_precio:      buildTotalizadorPrecio(factRows, docRows, alfajorerasTiendas),
     };
 
     // ── Pivot facturación mensual (todas las unidades) ───────────────────────
@@ -1370,6 +1426,7 @@ router.get('/analisis', requireAuth, async (req, res) => {
           facturacion_total:            Math.round(facturacion_total),
           docenas_acumuladas:           Math.round(docenas_acumuladas * 100) / 100,
           precio_implicito_docena,
+          precio_docena_actual,
           tickets_totales:              n(totGlobal?.tickets_totales),
           ticket_promedio:              Math.round(n(totGlobal?.ticket_promedio)),
           crecimiento_prom_mensual_pct,

@@ -298,25 +298,43 @@ export default function AnalisisSection() {
       )}
 
 
-      {/* Semana a semana y hora por hora: un botón para cada uno, se ve uno por vez */}
-      <div className="pt-2 space-y-4">
-        <div className="flex flex-wrap gap-2">
+      {/* Semana a semana y hora por hora: dos botones grandes, centrados, con una línea
+          que dice qué muestra cada uno. Se ve uno por vez. */}
+      <div className="pt-4 space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
           {[
-            { id: 'semana', label: 'Análisis por semana' },
-            { id: 'hora',   label: 'Análisis por hora' },
-          ].map(b => (
-            <button
-              key={b.id}
-              onClick={() => setAnalisis(a => a === b.id ? null : b.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-                analisis === b.id
-                  ? 'bg-violet-800 text-white border-violet-800 hover:bg-violet-700'
-                  : 'bg-white text-violet-800 border-violet-300 hover:bg-violet-50'
-              }`}
-            >
-              {b.label}
-            </button>
-          ))}
+            { id: 'semana', label: 'Análisis por semana',
+              detalle: 'Cómo viene cada tienda semana a semana: facturación, docenas y la variación contra la semana anterior.' },
+            { id: 'hora',   label: 'Análisis por hora',
+              detalle: 'A qué hora vende cada local, para decidir el horario de apertura y cierre.' },
+          ].map(b => {
+            const activo = analisis === b.id;
+            return (
+              <button
+                key={b.id}
+                onClick={() => setAnalisis(a => a === b.id ? null : b.id)}
+                className={`h-full text-left px-6 py-5 rounded-2xl border-2 shadow-sm transition-all ${
+                  activo
+                    ? 'bg-violet-800 border-violet-800 text-white shadow-md'
+                    : 'bg-white border-violet-200 text-stone-800 hover:border-violet-500 hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-lg font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                    {b.label}
+                  </span>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    activo ? 'bg-white/20 text-white' : 'bg-violet-50 text-violet-800'
+                  }`}>
+                    {activo ? 'Ocultar' : 'Ver'}
+                  </span>
+                </div>
+                <p className={`text-sm mt-1.5 ${activo ? 'text-white/80' : 'text-stone-500'}`}>
+                  {b.detalle}
+                </p>
+              </button>
+            );
+          })}
         </div>
 
         {analisis === 'semana' && semanal?.tiendas?.length > 0 && (

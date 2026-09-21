@@ -173,9 +173,10 @@ export default function AnalisisSection() {
   const [semanal, setSemanal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modoTot, setModoTot] = useState('facturacion'); // 'facturacion' | 'docenas'
-  // El análisis por hora se pide aparte: tiene su propio período y su propia consulta,
-  // así que no se trae hasta que alguien lo abre.
-  const [verPorHora, setVerPorHora] = useState(false);
+  // Semana a semana y hora por hora son largos: se muestra uno por vez, y ninguno
+  // hasta que se elige. El de hora además tiene su propia consulta, que no se
+  // pide hasta que alguien lo abre.
+  const [analisis, setAnalisis] = useState(null); // null | 'semana' | 'hora'
 
   useEffect(() => {
     const { desde, hasta } = yearRange();
@@ -297,45 +298,54 @@ export default function AnalisisSection() {
       )}
 
 
-      {/* Semana a semana, por tienda */}
-      {semanal?.tiendas?.length > 0 && (
-        <div className="space-y-6 pt-2">
-          <div>
-            <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
-              Semana a semana
-            </h2>
-            <p className="text-xs text-stone-400 mt-0.5">
-              Semanas de lunes a domingo · se omiten las semanas cortadas por el inicio o el fin del período
-            </p>
-          </div>
-          {semanal.tiendas.map(t => <BloqueSemanal key={t.local_id} tienda={t} />)}
-        </div>
-      )}
-
-      {/* Análisis por hora */}
+      {/* Semana a semana y hora por hora: un botón para cada uno, se ve uno por vez */}
       <div className="pt-2 space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div>
-            <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
-              Hora por hora
-            </h2>
-            <p className="text-xs text-stone-400 mt-0.5">
-              A qué hora vende cada local, para decidir el horario de apertura
-            </p>
-          </div>
-          <button
-            onClick={() => setVerPorHora(v => !v)}
-            className={`ml-auto px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-              verPorHora
-                ? 'bg-white text-violet-800 border-violet-300 hover:bg-violet-50'
-                : 'bg-violet-800 text-white border-violet-800 hover:bg-violet-700'
-            }`}
-          >
-            {verPorHora ? 'Ocultar el análisis por hora' : '+ Agregar análisis por hora'}
-          </button>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: 'semana', label: 'Análisis por semana' },
+            { id: 'hora',   label: 'Análisis por hora' },
+          ].map(b => (
+            <button
+              key={b.id}
+              onClick={() => setAnalisis(a => a === b.id ? null : b.id)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                analisis === b.id
+                  ? 'bg-violet-800 text-white border-violet-800 hover:bg-violet-700'
+                  : 'bg-white text-violet-800 border-violet-300 hover:bg-violet-50'
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
         </div>
 
-        {verPorHora && <PorHoraSection />}
+        {analisis === 'semana' && semanal?.tiendas?.length > 0 && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                Semana a semana
+              </h2>
+              <p className="text-xs text-stone-400 mt-0.5">
+                Semanas de lunes a domingo · se omiten las semanas cortadas por el inicio o el fin del período
+              </p>
+            </div>
+            {semanal.tiendas.map(t => <BloqueSemanal key={t.local_id} tienda={t} />)}
+          </div>
+        )}
+
+        {analisis === 'hora' && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>
+                Hora por hora
+              </h2>
+              <p className="text-xs text-stone-400 mt-0.5">
+                A qué hora vende cada local, para decidir el horario de apertura
+              </p>
+            </div>
+            <PorHoraSection />
+          </div>
+        )}
       </div>
 
     </div>

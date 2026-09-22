@@ -285,8 +285,18 @@ async function armarDia(fecha) {
     FROM empleados WHERE activo = true AND carga_reporte = true
   `)).rows;
 
+  // Un local cerrado ese día no espera ningún turno. Sin esto el domingo del café
+  // quedaba como un día incompleto y arrastraba el cierre y el resumen de la semana.
+  const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
+  const abiertos = new Set(
+    (await pool.query('SELECT id, dias_abierto FROM locales')).rows
+      .filter(l => (l.dias_abierto || [0, 1, 2, 3, 4, 5, 6]).includes(diaSemana))
+      .map(l => l.id)
+  );
+
   const esperadosPorLocal = {};
   for (const { local_id, area } of areasQueReportan) {
+    if (!abiertos.has(local_id)) continue;
     const p = plantillas.find(x => x.area === area);
     if (!p) continue;
     const pideVentas = p.campos.some(c => c.codigo === 'ventas');

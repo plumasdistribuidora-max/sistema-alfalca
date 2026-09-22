@@ -861,7 +861,7 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
     }
 
     const locales = (await pool.query(
-      'SELECT id, nombre, tipo FROM locales WHERE activo = true ORDER BY id'
+      'SELECT id, nombre, tipo, dias_abierto FROM locales WHERE activo = true ORDER BY id'
     )).rows;
 
     const plantillas = (await pool.query(
@@ -884,8 +884,13 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
       WHERE r.fecha = $1
     `, [fecha])).rows;
 
+    // 0 domingo … 6 sábado. Un local cerrado no espera nada: sin esto, el domingo del
+    // café aparecían seis reportes faltando que en realidad no faltan.
+    const diaSemana = new Date(`${fecha}T12:00:00`).getDay();
+
     const filas = locales.map(local => {
-      const areas = areasPorLocal.filter(a => a.local_id === local.id).map(a => a.area);
+      const abierto = (local.dias_abierto || [0, 1, 2, 3, 4, 5, 6]).includes(diaSemana);
+      const areas = abierto ? areasPorLocal.filter(a => a.local_id === local.id).map(a => a.area) : [];
       const slots = [];
 
       for (const area of areas) {
@@ -912,6 +917,7 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
       const recibidos = slots.filter(s => ['enviado', 'observado', 'aprobado'].includes(s.estado)).length;
       return {
         local_id: local.id, nombre: local.nombre, tipo: local.tipo,
+        cerrado: !abierto,
         esperados: slots.length, recibidos, slots,
       };
     });

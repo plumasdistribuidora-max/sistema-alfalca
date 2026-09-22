@@ -170,11 +170,16 @@ export default function Reportes() {
                 <span className={`text-xs font-semibold ${
                   l.esperados === 0 ? 'text-ahg-text/30'
                   : l.recibidos === l.esperados ? 'text-green-600' : 'text-amber-700'}`}>
-                  {l.esperados === 0 ? 'sin gente que reporte' : `${l.recibidos} de ${l.esperados}`}
+                  {l.cerrado ? 'cerrado' : l.esperados === 0 ? 'sin gente que reporte' : `${l.recibidos} de ${l.esperados}`}
                 </span>
               </div>
 
-              {l.esperados === 0 ? (
+              {/* Un local cerrado ese día no tiene reportes faltando: no abrió. */}
+              {l.cerrado ? (
+                <p className="text-sm text-ahg-text/40">
+                  Hoy no abre. No se espera ningún reporte.
+                </p>
+              ) : l.esperados === 0 ? (
                 <p className="text-sm text-ahg-text/40">
                   Todavía no hay empleados con acceso cargando reportes en este local.
                 </p>

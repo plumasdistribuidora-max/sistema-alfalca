@@ -114,6 +114,7 @@ const ANCHO_UTIL = 595 - 33 * 2 - 2;   // A4 menos márgenes y el borde del cuad
 const ALTO_TANDA = 620;                  // lo que entra en una hoja debajo de la cabecera
 
 function altoEstimado(fila, cols) {
+  if (fila.titulo) return 10.8 + 9;   // una fila de título es siempre un renglón
   const sumW = cols.reduce((s, c) => s + c.w, 0);
   let lineas = 1;
   cols.forEach((c, i) => {
@@ -142,6 +143,9 @@ function enTandas(filas, cols) {
 function Cuadro({ titulo, sub, cols, filas, nota }) {
   if (!filas.length) return null;
   const celda = (v, col, i, esCab) => {
+    // null = el casillero va en blanco a propósito (lo que sobra de una fila de título).
+    // '' sigue siendo un dato que falta, y ése lleva guión.
+    if (v === null) return h(Text, { key: i, style: [S.td, { flex: col.w }] }, ' ');
     const o = (v && typeof v === 'object') ? v : { t: v };
     return h(Text, {
       key: i,
@@ -155,8 +159,13 @@ function Cuadro({ titulo, sub, cols, filas, nota }) {
       h(Text, { style: S.cuadroH }, k === 0 ? titulo : `${titulo} (sigue)`),
       sub && k === 0 ? h(Text, { style: S.cuadroSub }, sub) : null),
     h(View, { style: S.th }, cols.map((c, i) => celda(c.t, c, i, true))),
-    tanda.map((f, r) => h(View, { key: r, style: [S.tr, f.fondo ? { backgroundColor: f.fondo } : {}] },
-      cols.map((c, i) => celda(f.c[i], c, i, false)))),
+    // Una fila con `titulo` no tiene columnas: es un renglón entero que separa un grupo
+    // (el local, en mantenimiento). Va centrado y de ancho completo, sin casilleros.
+    tanda.map((f, r) => f.titulo
+      ? h(View, { key: r, style: [S.tr, { backgroundColor: f.fondo || C.fondo }] },
+          h(Text, { style: [S.td, { flex: 1, textAlign: 'center', fontWeight: 700 }] }, f.titulo))
+      : h(View, { key: r, style: [S.tr, f.fondo ? { backgroundColor: f.fondo } : {}] },
+          cols.map((c, i) => celda(f.c[i], c, i, false)))),
     k === tandas.length - 1 ? (nota || null) : null,
   )));
 }
@@ -202,6 +211,11 @@ function Documento({ d, cerradoPor }) {
   const personasCafe = cafe ? (cafe.personas_reportadas || 0) : 0;
 
   const noCierran = locales.filter(l => l.diferencia != null && Math.abs(l.diferencia) >= 1);
+
+  // La grilla necesita que todos los avisos vengan del maestro. Un cierre viejo trae el
+  // producto escrito a mano y no se puede cruzar: ése sigue saliendo como lista.
+  const enGrilla = d.novedades.vencimientos.length > 0
+    && d.novedades.vencimientos.every(it => it.vence && it.producto);
 
   // Mantenimiento: estado de cada ítem tal como lo ve el encargado.
   const estadoMant = it => {
@@ -301,28 +315,65 @@ function Documento({ d, cerradoPor }) {
       h(Cuadro, {
         titulo: 'Vencimientos',
         sub: resumenVencimientos(nv.vencimientos, c),
-        cols: [
-          { t: 'Local', w: 1.4 }, { t: 'Turno', w: 0.9 }, { t: 'Reportó', w: 1.4 }, { t: 'Producto', w: 3 },
-          { t: 'Cant.', w: 0.8, num: true }, { t: 'Vence', w: 1.2, num: true }, { t: 'Faltan', w: 1.1, num: true },
-        ],
-        filas: [
-          ...nv.vencimientos.map(it => ({ c: [
-            corto(it.local), it.turno, it.quien, it.producto,
-            it.cantidad ? num(it.cantidad) : '—',
-            it.vence ? fechaCorta(it.vence) : '—',
-            celdaDias(it.dias),
-          ]})),
-          ...(c?.acciones_vencimientos?.trim() ? [{ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, '', '', { t: c.acciones_vencimientos.trim() }, '', '', ''] }] : []),
-        ],
+        ...(enGrilla
+          ? (() => {
+              const g = grillaVencimientos(nv.vencimientos, locales);
+              return {
+                cols: [
+                  { t: 'Producto', w: 2.4 },
+                  ...g.tiendas.map(t => ({ t: corto(t), w: 1.2, num: true })),
+                  { t: 'Total', w: 1, num: true },
+                ],
+                filas: g.filas.map(f => ({ c: [
+                  { t: f.producto, bold: true },
+                  ...g.tiendas.map(t => celdaGrilla(f.porLocal.get(t))),
+                  { t: `${num(f.unidades)} u`, color: C.gris },
+                ]})),
+                nota: h(View, null,
+                  c?.acciones_vencimientos?.trim()
+                    ? h(View, { style: S.nota },
+                        h(Text, { style: { fontWeight: 700 } }, 'Qué hace el encargado:'),
+                        h(Text, { style: { flex: 1, color: C.oscuro } }, c.acciones_vencimientos.trim()))
+                    : null,
+                  h(View, { style: S.nota },
+                    h(Text, { style: { color: C.gris } },
+                      'Cada casillero dice cuántas unidades hay y en cuántos días vence lo más próximo de ese producto en esa tienda.'))),
+              };
+            })()
+          : {
+              cols: [
+                { t: 'Local', w: 1.4 }, { t: 'Turno', w: 0.9 }, { t: 'Reportó', w: 1.4 }, { t: 'Producto', w: 3 },
+                { t: 'Cant.', w: 0.8, num: true }, { t: 'Vence', w: 1.2, num: true }, { t: 'Faltan', w: 1.1, num: true },
+              ],
+              filas: [
+                ...nv.vencimientos.map(it => ({ c: [
+                  corto(it.local), it.turno, it.quien, it.producto,
+                  it.cantidad ? num(it.cantidad) : '—',
+                  it.vence ? fechaCorta(it.vence) : '—',
+                  celdaDias(it.dias),
+                ]})),
+                      ...(c?.acciones_vencimientos?.trim() ? [{ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, null, null, { t: c.acciones_vencimientos.trim() }, null, null, null] }] : []),
+              ],
+            }),
       }),
 
       h(Cuadro, {
         titulo: 'Mantenimiento',
-        sub: 'cada pendiente con cómo lo resuelve el encargado',
-        cols: [{ t: 'Local', w: 1.2 }, { t: 'Turno', w: 0.9 }, { t: 'Reportó', w: 1.1 }, { t: 'Qué pasa', w: 3.2 }, { t: 'Estado', w: 1.6 }, { t: 'Cómo se resuelve', w: 2.8 }],
+        sub: resumenMantenimiento(mant),
+        cols: [
+          { t: 'Días', w: 0.7, num: true }, { t: 'Qué cosa', w: 1.5 },
+          { t: 'Qué pasa', w: 3.6 }, { t: 'Reportó', w: 1.3 }, { t: 'Qué hace el encargado', w: 2.9 },
+        ],
         filas: [
-          ...mant.map(it => ({ c: [corto(it.local), it.turno || '—', it.quien, it.rubro ? `${it.rubro} · ${it.texto}` : it.texto, estadoMant(it), it.estado === 'resuelto' ? '—' : (it.plan || { t: 'sin plan', color: C.ambar })] })),
-          ...(c?.mantenimiento?.trim() ? [{ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, '', '', { t: c.mantenimiento.trim() }, '', ''] }] : []),
+          ...gruposMantenimiento(mant).flatMap(g => [
+            { titulo: corto(g.local) },
+            ...g.items.map(it => ({ c: [
+              celdaEdad(it), it.rubro || { t: 'sin rubro', color: C.grisClaro },
+              it.texto, it.quien || it.reportado_por,
+              it.estado === 'resuelto' ? '—' : (it.plan || { t: 'sin resolución propuesta por el encargado', color: C.ambar }),
+            ]})),
+          ]),
+          ...(c?.mantenimiento?.trim() ? [{ fondo: C.fondo, c: [null, { t: 'Encargado', bold: true }, { t: c.mantenimiento.trim() }, null, null] }] : []),
         ],
       }),
 
@@ -347,16 +398,7 @@ function Documento({ d, cerradoPor }) {
         filas: nv.faltantes.map(it => ({ c: [corto(it.local), it.turno, it.quien, it.insumo, it.proveedor] })),
       }),
 
-      h(Cuadro, {
-        titulo: 'Café · lo que pesaron los baristas contra lo que se vendió',
-        sub: 'consumo = mañana − tarde · teórico = lo vendido × los gramos del maestro',
-        cols: [{ t: 'Pesaje', w: 1.6 }, { t: 'Barista', w: 1.4 }, { t: 'Bolsa abierta', w: 1.2, num: true }, { t: 'Cerradas', w: 1.1, num: true }, { t: 'Total', w: 1.1, num: true }, { t: 'Teórico', w: 1.1, num: true }, { t: 'Diferencia', w: 1.8, num: true }],
-        filas: !d.cafe?.turnos?.length ? [] : [
-          ...d.cafe.turnos.map(tr => ({ c: [tr.turno === 'Mañana' ? 'Mañana · al entrar' : 'Tarde · al terminar', tr.usuario, kg(tr.abierta_kg), kg(tr.cerradas_kg), kg(tr.total), '', ''] })),
-          { fondo: C.fondo, c: [{ t: 'Consumo del día', bold: true }, '', '', { t: `queda ${kg(d.cafe.queda)}` }, { t: kg(d.cafe.consumo), bold: true }, { t: kg(cafeCtl?.teorico), bold: true }, difCafe(cafeCtl, true)] },
-        ],
-        nota: cafeAvisos(d.cafe),
-      }),
+      h(CuadroCafe, { cafe: d.cafe, ctl: cafeCtl }),
 
       h(Cuadro, {
         titulo: 'Facturas de proveedores',
@@ -399,11 +441,110 @@ function resumenVencimientos(items, c) {
   if (!items.length) return control;
   const dias = items.map(it => Number(it.dias)).filter(Number.isFinite);
   const unidades = items.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
-  const partes = [`${items.length} producto${items.length === 1 ? '' : 's'}`];
+  // Se cuentan productos distintos, no avisos: el mismo ron reportado en tres tiendas
+  // es un solo producto para mirar, aunque sean tres renglones.
+  const cuantos = new Set(items.map(it => it.producto)).size;
+  const partes = [`${cuantos} producto${cuantos === 1 ? '' : 's'}`];
   if (unidades) partes.push(`${num(unidades)} unidades`);
   if (dias.length) partes.push(`el más próximo en ${Math.min(...dias)} días`);
   partes.push(control);
   return partes.join(' · ');
+}
+
+// La grilla de vencimientos: producto en las filas, tienda en las columnas.
+//
+// Esto solo se puede armar porque el producto sale de un maestro cerrado. Cuando cada
+// uno lo escribía a mano, "ron", "alfajor ron" y "alf ron y cognac" eran tres productos
+// distintos para la base y no había cruce posible. Ahora el mismo aviso repetido en tres
+// tiendas se ve en un renglón, que es justo lo que decide una promo.
+//
+// Si un local reportó el mismo producto dos veces (mañana y tarde), las unidades se
+// suman y queda el vencimiento más corto: lo que apura es el más próximo.
+function grillaVencimientos(items, locales) {
+  const tiendas = locales
+    .map(l => l.nombre)
+    .filter(nombre => items.some(it => it.local === nombre));
+
+  const porProducto = new Map();
+  for (const it of items) {
+    if (!porProducto.has(it.producto)) porProducto.set(it.producto, new Map());
+    const fila  = porProducto.get(it.producto);
+    const antes = fila.get(it.local);
+    fila.set(it.local, {
+      cantidad: (antes?.cantidad || 0) + (Number(it.cantidad) || 0),
+      dias: antes ? Math.min(antes.dias, Number(it.dias)) : Number(it.dias),
+    });
+  }
+
+  const filas = [...porProducto.entries()]
+    .map(([producto, porLocal]) => ({
+      producto, porLocal,
+      urgencia: Math.min(...[...porLocal.values()].map(v => v.dias)),
+      unidades: [...porLocal.values()].reduce((s, v) => s + v.cantidad, 0),
+    }))
+    .sort((a, b) => a.urgencia - b.urgencia || a.producto.localeCompare(b.producto));
+
+  return { tiendas, filas };
+}
+
+// Una celda de la grilla: unidades y días juntos, porque uno sin el otro no decide nada.
+function celdaGrilla(v) {
+  if (!v) return { t: '—', color: C.linea };
+  const dias = v.dias;
+  const color = !Number.isFinite(dias) ? C.tinta : dias <= 7 ? C.rojo : dias <= 15 ? C.ambar : C.tinta;
+  return {
+    t: `${v.cantidad ? num(v.cantidad) : '?'} · ${Number.isFinite(dias) ? `${dias} d` : 's/f'}`,
+    color, bold: Number.isFinite(dias) && dias <= 15,
+  };
+}
+
+// Los días que lleva abierto un pendiente, adelante y en grande: es lo que ordena la
+// lista y lo que duele. Lo de hoy en ámbar, lo que se arrastra en rojo.
+function celdaEdad(it) {
+  if (it.estado === 'resuelto') return { t: 'listo', color: C.verde, bold: true };
+  if (it.legado) return { t: '—', color: C.gris };
+  if (it.dias === 0) return { t: 'hoy', color: C.ambar, bold: true };
+  return { t: String(it.dias), color: it.dias >= 3 ? C.rojo : C.ambar, bold: true };
+}
+
+// El encabezado del cuadro de mantenimiento: cuántos hay, cuántos son de hoy, cuántos
+// se arrastran y qué rubro se repite. Con eso ya se sabe si hay que preocuparse.
+function resumenMantenimiento(items) {
+  const abiertos = items.filter(it => it.estado !== 'resuelto');
+  if (!abiertos.length) return 'nada pendiente';
+  const nuevos  = abiertos.filter(it => it.dias === 0).length;
+  const viejos  = abiertos.length - nuevos;
+  const sinPlan = abiertos.filter(it => !it.plan?.trim()).length;
+  const partes  = [`${abiertos.length} pendiente${abiertos.length === 1 ? '' : 's'}`];
+  if (nuevos) partes.push(`${nuevos} de hoy`);
+  if (viejos) partes.push(`${viejos} que se arrastra${viejos === 1 ? '' : 'n'}`);
+  const dias = abiertos.map(it => it.dias).filter(Number.isFinite);
+  if (dias.length && Math.max(...dias) > 0) partes.push(`el más viejo, ${Math.max(...dias)} días`);
+  partes.push(sinPlan ? `${sinPlan} sin resolución` : 'todos con resolución');
+  return partes.join(' · ');
+}
+
+// Mantenimiento agrupado por local: el nombre va una sola vez, arriba de los suyos,
+// con cuántos tiene y desde cuándo. Antes se repetía en cada renglón y cuatro
+// "9 de Julio" seguidos tapaban lo único que importa, que es qué está roto.
+//
+// Los grupos van por el problema más viejo de cada local, y adentro igual: lo que lleva
+// más días primero, lo resuelto al final.
+function gruposMantenimiento(items) {
+  const edad = it => (it.estado === 'resuelto' ? -1 : (Number.isFinite(it.dias) ? it.dias : 0));
+  const porLocal = new Map();
+  for (const it of items) {
+    if (!porLocal.has(it.local)) porLocal.set(it.local, []);
+    porLocal.get(it.local).push(it);
+  }
+  return [...porLocal.entries()]
+    .map(([local, suyos]) => ({
+      local,
+      items: [...suyos].sort((a, b) => edad(b) - edad(a)),
+      viejo: Math.max(...suyos.map(edad)),
+      abiertos: suyos.filter(it => it.estado !== 'resuelto').length,
+    }))
+    .sort((a, b) => b.viejo - a.viejo || a.local.localeCompare(b.local));
 }
 
 function medio(m) {
@@ -416,6 +557,64 @@ function difCafe(ctl, bold = false) {
   const p = Math.abs(ctl.diferencia) / ctl.teorico * 100;
   const color = p <= 10 ? C.verde : p <= 25 ? C.ambar : C.rojo;
   return { t: `${ctl.diferencia > 0 ? '+' : '−'}${kg(Math.abs(ctl.diferencia))} · ${Math.round(p)} %`, color, bold };
+}
+
+// ── El café, en barras ───────────────────────────────────────────────────────
+// Antes era una tabla de siete columnas para decir dos números: cuánto café se usó de
+// verdad y cuánto tendría que haberse usado según lo que se vendió. Dos barras lo
+// dicen sin leer: lo que importa es si una es más larga que la otra y por cuánto.
+//
+// El cobre es el color del Café en la identidad; el teórico va en gris porque es la
+// referencia, no el dato.
+function BarraCafe({ etiqueta, valor, max, color }) {
+  const ancho = max > 0 && valor > 0 ? Math.max(2, Math.round(valor / max * 100)) : 0;
+  return h(View, { style: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 } },
+    h(Text, { style: { width: 78, fontSize: 8, color: C.gris } }, etiqueta),
+    h(View, { style: { flex: 1, height: 13, borderRadius: 7, backgroundColor: C.lineaSuave } },
+      h(View, { style: { width: `${ancho}%`, height: 13, borderRadius: 7, backgroundColor: color } })),
+    h(Text, { style: { width: 56, fontFamily: 'Nunito', fontWeight: 800, fontSize: 10.5, textAlign: 'right' } }, kg(valor)));
+}
+
+const TONOS = {
+  verde: { texto: C.verde, fondo: C.verdeSuave, borde: C.verdeBorde },
+  ambar: { texto: C.ambar, fondo: '#fdf8ef',    borde: '#e8c99a' },
+  rojo:  { texto: C.rojo,  fondo: '#fef2f2',    borde: '#f3b9b4' },
+};
+
+function CuadroCafe({ cafe, ctl }) {
+  if (!cafe?.turnos?.length) return null;
+
+  const manana = cafe.turnos.find(t => t.turno === 'Mañana');
+  const tarde  = cafe.turnos.find(t => t.turno === 'Tarde');
+  const sub = [
+    manana ? `${manana.usuario} entró con ${kg(manana.total)}` : null,
+    tarde  ? `${tarde.usuario} terminó con ${kg(tarde.total)}` : null,
+  ].filter(Boolean).join(' · ');
+
+  const real = cafe.consumo, teorico = ctl?.teorico;
+  const max  = Math.max(real || 0, teorico || 0);
+  const dif  = real != null && teorico ? real - teorico : null;
+  const p    = dif != null ? Math.abs(dif) / teorico * 100 : null;
+  const tono = p == null ? TONOS.verde : p <= 10 ? TONOS.verde : p <= 25 ? TONOS.ambar : TONOS.rojo;
+
+  return h(View, { style: S.cuadro, wrap: false },
+    h(View, { style: S.cuadroTit },
+      h(Text, { style: S.cuadroH }, 'Café'),
+      h(Text, { style: S.cuadroSub }, sub)),
+
+    real == null
+      ? null
+      : h(View, { style: { paddingTop: 11, paddingBottom: 8, paddingHorizontal: 14, borderTopWidth: 1, borderColor: C.linea } },
+          h(BarraCafe, { etiqueta: 'Consumo real', valor: real, max, color: C.cobre }),
+          teorico ? h(BarraCafe, { etiqueta: 'Consumo teórico', valor: teorico, max, color: '#c8c7c2' }) : null,
+          dif == null ? null : h(View, { style: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, paddingLeft: 78 } },
+            h(View, { style: { backgroundColor: tono.fondo, borderWidth: 1, borderColor: tono.borde, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 } },
+              h(Text, { style: { fontSize: 9, fontWeight: 700, color: tono.texto } },
+                `${kg(Math.abs(dif))} ${dif < 0 ? 'menos' : 'más'} · ${Math.round(p)} %`)),
+            h(Text, { style: { fontSize: 8, color: C.gris } },
+              `de café del que dicen las ventas · quedan ${kg(cafe.queda)}`))),
+
+    cafeAvisos(cafe));
 }
 
 function cafeAvisos(cafe) {
@@ -486,7 +685,7 @@ function DocumentoSemana({ w, R }) {
   const estadoMant = it => it.legado ? { t: 'Reportado', color: C.ambar }
     : it.estado === 'resuelto' ? { t: `Resuelto ${it.dia}`, color: C.verde }
     : { t: it.fecha ? `Desde ${diaCorto(it.fecha)}` : it.dia, color: C.rojo };
-  const planesEncargado = w.dias.filter(d => d.consolidado?.mantenimiento?.trim()).map(d => ({ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, diaCorto(d.fecha), '', { t: d.consolidado.mantenimiento.trim() }, '', ''] }));
+  const planesEncargado = w.dias.filter(d => d.consolidado?.mantenimiento?.trim()).map(d => ({ fondo: C.fondo, c: [diaCorto(d.fecha), { t: 'Encargado', bold: true }, { t: d.consolidado.mantenimiento.trim() }, null, null] }));
   const faltasEncargado = w.dias.filter(d => d.consolidado?.faltas_tardanzas?.trim()).map(d => ({ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, diaCorto(d.fecha), '', '', '', { t: d.consolidado.faltas_tardanzas.trim() }] }));
 
   // Solo suman los días con los dos pesajes: con uno solo no hay consumo que comparar.
@@ -542,10 +741,17 @@ function DocumentoSemana({ w, R }) {
       h(Cuadro, {
         titulo: 'Mantenimiento',
         sub: 'lo que sigue pendiente, una vez por ítem, y lo que se resolvió en la semana',
-        cols: [{ t: 'Local', w: 1.2 }, { t: 'Desde', w: 1 }, { t: 'Reportó', w: 1.1 }, { t: 'Qué pasa', w: 3.2 }, { t: 'Estado', w: 1.4 }, { t: 'Cómo se resuelve', w: 2.6 }],
+        cols: [{ t: 'Desde', w: 1 }, { t: 'Qué cosa', w: 1.4 }, { t: 'Qué pasa', w: 3.4 }, { t: 'Estado', w: 1.4 }, { t: 'Qué hace el encargado', w: 2.7 }],
         filas: [
-          ...abiertos.map(it => ({ c: [corto(it.local), it.fecha ? diaCorto(it.fecha) : it.dia, it.quien || it.reportado_por, it.texto, estadoMant(it), it.plan || { t: 'sin plan', color: C.ambar }] })),
-          ...resueltos.map(it => ({ c: [corto(it.local), it.fecha ? diaCorto(it.fecha) : it.dia, it.quien || it.reportado_por, it.texto, estadoMant(it), '—'] })),
+          ...gruposMantenimiento([...abiertos, ...resueltos]).flatMap(g => [
+            { titulo: corto(g.local) },
+            ...g.items.map(it => ({ c: [
+              it.fecha ? diaCorto(it.fecha) : it.dia,
+              it.rubro || { t: 'sin rubro', color: C.grisClaro },
+              it.texto, estadoMant(it),
+              it.estado === 'resuelto' ? '—' : (it.plan || { t: 'sin resolución propuesta por el encargado', color: C.ambar }),
+            ]})),
+          ]),
           ...planesEncargado,
         ],
       }),

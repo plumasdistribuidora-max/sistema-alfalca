@@ -583,7 +583,7 @@ const UNIDADES_COCINA = ['unid.', 'bolsas', 'kg', 'cajas', 'paquetes', 'litros']
 router.get('/cocina/productos', requireAuth, async (_req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT p.id, p.proveedor, p.nombre, p.unidad, p.en_freezer, p.en_heladera,
+      SELECT p.id, p.proveedor, p.nombre, p.unidad, p.en_freezer, p.en_heladera, p.en_mostrador,
              p.dias_revision, p.orden, p.activo,
              EXISTS (SELECT 1 FROM cocina_lotes l WHERE l.producto_id = p.id) AS tiene_stock
       FROM cocina_productos p
@@ -600,14 +600,23 @@ router.get('/cocina/productos', requireAuth, async (_req, res) => {
 // edita, igual que el resto del sistema.
 router.put('/cocina/productos/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, activo } = req.body;
+    const { proveedor, nombre, unidad, en_freezer, en_heladera, en_mostrador, dias_revision, activo } = req.body;
 
     if (unidad !== undefined && !UNIDADES_COCINA.includes(unidad)) {
       return res.status(400).json({ ok: false, error: `Unidad desconocida: ${unidad}` });
     }
-    // Algo que no se guarda en ningún lado no se puede contar.
-    if (en_freezer === false && en_heladera === false) {
-      return res.status(400).json({ ok: false, error: 'Tiene que vivir por lo menos en un lugar' });
+    // Algo que no está en ningún lado no se puede contar. Se mira contra lo que queda
+    // después del cambio, no solo contra lo que vino: apagar el último lugar es lo que
+    // hay que frenar, y eso depende de los otros dos.
+    const previo = (await pool.query('SELECT en_freezer, en_heladera, en_mostrador FROM cocina_productos WHERE id = $1', [req.params.id])).rows[0];
+    if (!previo) return res.status(404).json({ ok: false, error: 'No existe ese producto' });
+    const queda = {
+      f: en_freezer   ?? previo.en_freezer,
+      h: en_heladera  ?? previo.en_heladera,
+      m: en_mostrador ?? previo.en_mostrador,
+    };
+    if (!queda.f && !queda.h && !queda.m) {
+      return res.status(400).json({ ok: false, error: 'Tiene que estar por lo menos en un lugar' });
     }
     const dias = dias_revision === undefined ? undefined
       : [...new Set((Array.isArray(dias_revision) ? dias_revision : []).map(Number))]
@@ -620,14 +629,14 @@ router.put('/cocina/productos/:id', requireAuth, requireAdmin, async (req, res) 
         unidad        = COALESCE($4, unidad),
         en_freezer    = COALESCE($5, en_freezer),
         en_heladera   = COALESCE($6, en_heladera),
-        dias_revision = COALESCE($7::smallint[], dias_revision),
-        activo        = COALESCE($8, activo)
+        en_mostrador  = COALESCE($7, en_mostrador),
+        dias_revision = COALESCE($8::smallint[], dias_revision),
+        activo        = COALESCE($9, activo)
       WHERE id = $1
-      RETURNING id, proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden, activo
+      RETURNING id, proveedor, nombre, unidad, en_freezer, en_heladera, en_mostrador, dias_revision, orden, activo
     `, [req.params.id, proveedor ?? null, nombre?.trim() ?? null, unidad ?? null,
-        en_freezer ?? null, en_heladera ?? null, dias ?? null, activo ?? null]);
+        en_freezer ?? null, en_heladera ?? null, en_mostrador ?? null, dias ?? null, activo ?? null]);
 
-    if (!rows.length) return res.status(404).json({ ok: false, error: 'No existe ese producto' });
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
     if (err.code === '23505') {
@@ -647,7 +656,7 @@ router.post('/cocina/productos', requireAuth, requireAdmin, async (req, res) => 
     const { rows } = await pool.query(`
       INSERT INTO cocina_productos (proveedor, nombre, orden)
       VALUES ($1, $2, COALESCE((SELECT max(orden) FROM cocina_productos WHERE proveedor = $1), 0) + 5)
-      RETURNING id, proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden, activo
+      RETURNING id, proveedor, nombre, unidad, en_freezer, en_heladera, en_mostrador, dias_revision, orden, activo
     `, [proveedor.trim(), nombre.trim()]);
     res.json({ ok: true, data: rows[0] });
   } catch (err) {

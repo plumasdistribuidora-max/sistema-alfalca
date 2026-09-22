@@ -19,7 +19,7 @@ const fechaCorta = f => (f ? String(f).split('-').reverse().join('/') : 'sin fec
 async function paraContar(fecha) {
   const dia = new Date(`${fecha}T12:00:00`).getDay();
   const { rows } = await pool.query(`
-    SELECT p.id, p.proveedor, p.nombre, p.unidad, p.en_freezer, p.en_heladera, p.orden,
+    SELECT p.id, p.proveedor, p.nombre, p.unidad, p.en_freezer, p.en_heladera, p.en_mostrador, p.orden,
            COALESCE(
              (SELECT jsonb_agg(jsonb_build_object('lote_id', l.id, 'vence', l.vence::text)
                      ORDER BY l.vence NULLS LAST, l.id)
@@ -55,7 +55,7 @@ async function repasoDe(fecha, localId) {
   const dia = new Date(`${fecha}T12:00:00`).getDay();
   const { rows } = await pool.query(`
     WITH conteo_hoy AS (
-      SELECT cl.lote_id, cl.freezer, cl.heladera
+      SELECT cl.lote_id, cl.freezer, cl.heladera, cl.mostrador
       FROM cocina_conteo_lineas cl
       JOIN cocina_conteos c ON c.id = cl.conteo_id
       WHERE c.fecha = $1::date AND c.local_id = $2
@@ -63,7 +63,7 @@ async function repasoDe(fecha, localId) {
     por_producto AS (
       SELECT p.id, p.nombre,
              min(l.vence) FILTER (WHERE l.vence IS NOT NULL) AS proximo,
-             sum(COALESCE(ch.freezer, 0) + COALESCE(ch.heladera, 0)) AS queda,
+             sum(COALESCE(ch.freezer, 0) + COALESCE(ch.heladera, 0) + COALESCE(ch.mostrador, 0)) AS queda,
              count(ch.lote_id)                               AS contados
       FROM cocina_productos p
       JOIN cocina_lotes l ON l.producto_id = p.id AND NOT l.cerrado
@@ -107,6 +107,7 @@ function valorConteo(v) {
       vence:       fecha(l?.vence),
       freezer:     num(l?.freezer),
       heladera:    num(l?.heladera),
+      mostrador:   num(l?.mostrador),
     }))
     .filter(l => l.producto_id);
 }
@@ -150,8 +151,9 @@ async function faltantesCocina(reporte) {
       if (!l.lote_id && l.vence === '') {
         faltan.push(`Stock — pusiste una fecha en ${p.nombre} y quedó sin completar`);
       }
-      if (p.en_freezer  && l.freezer  === null) faltan.push(`Stock — cuántos hay en el freezer de ${cual}`);
-      if (p.en_heladera && l.heladera === null) faltan.push(`Stock — cuántos hay en la heladera de ${cual}`);
+      if (p.en_freezer   && l.freezer   === null) faltan.push(`Stock — cuántos hay en el freezer de ${cual}`);
+      if (p.en_heladera  && l.heladera  === null) faltan.push(`Stock — cuántos hay en la heladera de ${cual}`);
+      if (p.en_mostrador && l.mostrador === null) faltan.push(`Stock — cuántos hay en el mostrador de ${cual}`);
     }
   }
   return faltan.slice(0, 12);
@@ -189,10 +191,11 @@ async function sincronizarCocina(reporte, usuarioId) {
         loteId = rows[0].id;
       }
       await client.query(`
-        INSERT INTO cocina_conteo_lineas (conteo_id, lote_id, freezer, heladera)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (conteo_id, lote_id) DO UPDATE SET freezer = EXCLUDED.freezer, heladera = EXCLUDED.heladera
-      `, [conteo.id, loteId, l.freezer, l.heladera]);
+        INSERT INTO cocina_conteo_lineas (conteo_id, lote_id, freezer, heladera, mostrador)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (conteo_id, lote_id) DO UPDATE SET
+          freezer = EXCLUDED.freezer, heladera = EXCLUDED.heladera, mostrador = EXCLUDED.mostrador
+      `, [conteo.id, loteId, l.freezer, l.heladera, l.mostrador]);
     }
 
     // Un lote que quedó en cero en los dos lados se cierra: deja de aparecer mañana.
@@ -200,7 +203,8 @@ async function sincronizarCocina(reporte, usuarioId) {
       UPDATE cocina_lotes SET cerrado = true
       WHERE id IN (
         SELECT cl.lote_id FROM cocina_conteo_lineas cl
-        WHERE cl.conteo_id = $1 AND COALESCE(cl.freezer, 0) = 0 AND COALESCE(cl.heladera, 0) = 0
+        WHERE cl.conteo_id = $1 AND COALESCE(cl.freezer, 0) = 0
+          AND COALESCE(cl.heladera, 0) = 0 AND COALESCE(cl.mostrador, 0) = 0
       )
     `, [conteo.id]);
 

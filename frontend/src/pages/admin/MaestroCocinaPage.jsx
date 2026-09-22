@@ -103,7 +103,8 @@ export default function MaestroCocinaPage() {
         <h1 className="text-xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Maestro de cocina</h1>
         <p className="text-sm text-ahg-text/60 mt-1">
           Lo que la cocina cuenta todos los días. Lo que cambies acá se ve en el formulario enseguida,
-          sin tocar el sistema. <strong>Guarda solo.</strong>
+          sin tocar el sistema. <strong>Guarda solo.</strong> Un producto puede estar en el freezer,
+          en la heladera, en el mostrador o en varios a la vez; el formulario muestra un casillero por cada uno.
         </p>
       </div>
 
@@ -134,7 +135,8 @@ export default function MaestroCocinaPage() {
             <span className="w-28">Se cuenta en</span>
             <span className="w-20 text-center">Freezer</span>
             <span className="w-20 text-center">Heladera</span>
-            <span className="w-52">Qué días se revisa</span>
+            <span className="w-20 text-center">Mostrador</span>
+            <span className="w-48">Qué días se revisa</span>
             <span className="w-8" />
           </div>
 
@@ -159,7 +161,11 @@ export default function MaestroCocinaPage() {
                 <Interruptor prendido={p.en_heladera} titulo={`${p.nombre} en heladera`}
                              onChange={v => guardar(p.id, { en_heladera: v })} />
               </div>
-              <div className="w-52 flex gap-1">
+              <div className="w-20 flex justify-center">
+                <Interruptor prendido={p.en_mostrador} titulo={`${p.nombre} en mostrador`}
+                             onChange={v => guardar(p.id, { en_mostrador: v })} />
+              </div>
+              <div className="w-48 flex gap-1">
                 {DIAS.map(d => {
                   const puesto = p.dias_revision.includes(d.n);
                   return (

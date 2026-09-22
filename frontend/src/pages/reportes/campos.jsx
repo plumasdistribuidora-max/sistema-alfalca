@@ -482,6 +482,13 @@ function StockCocina({ valor, productos, repaso, turno, onChange }) {
               ...(p.lotes.length || nuevas.length ? [] : [{ lote_id: null, vence: '', conocido: false }]),
               ...nuevas.map(l => ({ lote_id: null, vence: l.vence, conocido: false })),
             ];
+            // Solo los lugares donde ese producto vive: el pan está en el mostrador y no
+            // tiene sentido mostrarle un casillero de freezer que nunca va a usar.
+            const lugares = [
+              p.en_freezer   && { campo: 'freezer',   label: 'Freezer' },
+              p.en_heladera  && { campo: 'heladera',  label: 'Heladera' },
+              p.en_mostrador && { campo: 'mostrador', label: 'Mostrador' },
+            ].filter(Boolean);
             return (
               <div key={p.id} className="py-2.5 border-b border-ahg-accent/20 last:border-b-0">
                 <div className="flex justify-between items-baseline">
@@ -492,21 +499,19 @@ function StockCocina({ valor, productos, repaso, turno, onChange }) {
                   <p className="text-xs text-amber-700 mt-0.5">{motivos.get(p.id)}</p>
                 )}
 
-                <div className="grid grid-cols-[1fr_1fr] gap-2 mt-2">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-ahg-text/50 mb-1">Freezer</p>
-                    {!p.en_freezer && <p className="text-xs text-ahg-text/30 py-1">No se guarda acá</p>}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-ahg-text/50 mb-1">Heladera</p>
-                    {!p.en_heladera && <p className="text-xs text-ahg-text/30 py-1">No se guarda acá</p>}
-                  </div>
+                <div className="flex gap-2 mt-2 pl-[3.5rem]">
+                  {lugares.map(l => (
+                    <p key={l.campo} className="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wide text-ahg-text/50">
+                      {l.label}
+                    </p>
+                  ))}
+                  <span className="w-6" />
                 </div>
 
                 {lotes.map((lote, i) => (
                   <div key={lote.lote_id || `n${i}`} className="flex items-center gap-2 mt-1.5">
                     {lote.conocido ? (
-                      <span className="text-xs text-ahg-text/70 w-16 flex-shrink-0 tabular-nums">
+                      <span className="text-xs text-ahg-text/70 w-14 flex-shrink-0 tabular-nums">
                         {lote.vence ? fechaCortita(lote.vence) : 'sin fecha'}
                       </span>
                     ) : lote.vence === null ? (
@@ -526,8 +531,9 @@ function StockCocina({ valor, productos, repaso, turno, onChange }) {
                                 className="text-[10px] text-ahg-text/40 underline mt-0.5">no tiene fecha</button>
                       </span>
                     )}
-                    <div className="flex-1 min-w-0">{p.en_freezer ? casillero(p, lote, 'freezer') : null}</div>
-                    <div className="flex-1 min-w-0">{p.en_heladera ? casillero(p, lote, 'heladera') : null}</div>
+                    {lugares.map(l => (
+                      <div key={l.campo} className="flex-1 min-w-0">{casillero(p, lote, l.campo)}</div>
+                    ))}
                     {!lote.conocido && (
                       <button type="button" aria-label="Quitar fecha"
                               onClick={() => quitar({ producto_id: p.id, lote_id: null, vence: lote.vence ?? '' })}

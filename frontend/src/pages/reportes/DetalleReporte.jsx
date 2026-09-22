@@ -90,7 +90,7 @@ function Visor({ fotos, urls, indice, onCambiar, onCerrar }) {
 }
 
 // Muestra el valor de un campo según su tipo, con el label de la plantilla.
-function Respuesta({ campo, valor, equipo, items = [], children }) {
+function Respuesta({ campo, valor, equipo, items = [], productos = [], fecha, children }) {
   let cuerpo;
 
   if (campo.tipo === 'pesaje_cafe') {
@@ -123,6 +123,30 @@ function Respuesta({ campo, valor, equipo, items = [], children }) {
           ))}
         </ul>
       );
+  } else if (campo.tipo === 'vencimientos') {
+    // Producto del maestro y fecha del paquete; los días se recalculan contra el día
+    // del reporte, así revisar uno viejo muestra lo que faltaba entonces.
+    const v = valor || {};
+    const nombres = new Map((productos || []).map(p => [p.id, p.nombre]));
+    // La fecha del reporte puede venir como Date serializada ("2026-09-21T03:00:00Z"):
+    // se recorta al día para que la resta sea entre dos mediodías y no corra el huso.
+    const dia = String(fecha || '').slice(0, 10);
+    const dias = vence => Math.round((Date.parse(`${vence}T12:00:00`) - Date.parse(`${dia}T12:00:00`)) / 86400000);
+    if (!v.hubo) cuerpo = <span className="text-ahg-text/40">No</span>;
+    else if (!(v.items || []).length) {
+      cuerpo = <span>Sí <span className="text-ahg-text/40">· {campo.pregunta_lista} No</span></span>;
+    } else cuerpo = (
+      <ul className="list-disc pl-5 space-y-0.5">
+        {(v.items || []).map((it, i) => (
+          <li key={i}>
+            {it.producto_id ? (nombres.get(it.producto_id) || 'producto dado de baja') : it.producto}
+            {it.vence
+              ? <span className="text-ahg-text/50"> — vence {it.vence.split('-').reverse().join('/')} · faltan {dias(it.vence)} días</span>
+              : it.dias ? <span className="text-ahg-text/50"> — {it.dias}</span> : null}
+          </li>
+        ))}
+      </ul>
+    );
   } else if (campo.tipo === 'si_no_lista') {
     const v = valor || {};
     const items = (v.items || [])
@@ -247,7 +271,10 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
     }
     const extra = c.tipo === 'pesaje_cafe' ? [...fotosDe(fotosPesaje(c.codigo).abierta), ...fotosDe(fotosPesaje(c.codigo).cerradas)] : [];
     return (
-      <Respuesta key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo} items={r.mantenimiento_items || []}>
+      <Respuesta
+        key={c.codigo} campo={c} valor={r.respuestas?.[c.codigo]} equipo={equipo}
+        items={r.mantenimiento_items || []} productos={r.vencimiento_productos || []} fecha={r.fecha}
+      >
         {extra.length > 0 && <Miniaturas lista={extra} />}
       </Respuesta>
     );

@@ -490,6 +490,8 @@ export default function MiReporte() {
   const ctx = {
     equipo: data.equipo || [],
     mantenimientoPendientes,
+    mantenimientoRubros: data.mantenimiento_rubros || [],
+    vencimientoProductos: data.vencimiento_productos || [],
     turno, fecha, plantilla, respuestas,
     adjuntos, facturas, subiendo,
     onSubirFoto: subirFoto,

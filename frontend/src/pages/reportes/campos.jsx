@@ -268,21 +268,160 @@ function Facturas({ facturas, onAgregar, onBorrar }) {
 const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' });
 const fechaCorta = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
 
+// Check de vencimientos: el producto sale del maestro y la persona carga la fecha
+// impresa en el paquete. Los días los calcula el sistema, acá para mostrarlos en vivo
+// y en el backend para el cierre — las dos cuentas van contra la fecha del reporte,
+// no contra hoy.
+//
+// Valor: { hubo, hay, items: [{ producto_id, vence }] }
+function diasHasta(vence, fecha) {
+  if (!vence || !fecha) return null;
+  return Math.round((Date.parse(`${vence}T12:00:00`) - Date.parse(`${fecha}T12:00:00`)) / 86400000);
+}
+
+function Vencimientos({ campo, valor, productos, fecha, onChange }) {
+  const v = valor || {};
+  const conPregunta = Boolean(campo.pregunta_lista);
+  const muestraLista = v.hubo && (conPregunta ? v.hay === true : true);
+  const lista = v.items || [];
+
+  const setItems = items => onChange({ ...v, items });
+  const editar = (i, c, val) => setItems(lista.map((f, idx) => idx === i ? { ...f, [c]: val } : f));
+
+  return (
+    <>
+      <Segmentado
+        opciones={['Sí', 'No']}
+        valor={v.hubo === true ? 'Sí' : v.hubo === false ? 'No' : null}
+        onChange={o => {
+          if (o !== 'Sí') return onChange({ hubo: false, items: [] });
+          onChange(conPregunta
+            ? { hubo: true, hay: v.hay, items: v.items || [] }
+            : { hubo: true, items: v.items?.length ? v.items : [{}] });
+        }}
+      />
+
+      {v.hubo && conPregunta && (
+        <div className="mt-3">
+          <p className="text-sm font-medium text-ahg-text mb-1.5">{campo.pregunta_lista}</p>
+          <Segmentado
+            opciones={['Sí', 'No']}
+            valor={v.hay === true ? 'Sí' : v.hay === false ? 'No' : null}
+            onChange={o => onChange({ ...v, hay: o === 'Sí', items: o === 'Sí' ? (v.items?.length ? v.items : [{}]) : [] })}
+          />
+        </div>
+      )}
+
+      {muestraLista && (
+        <div className="mt-3 pl-3 border-l-2 border-amber-400 space-y-2">
+          <p className="text-xs font-semibold text-amber-700">{campo.label_lista}</p>
+
+          {lista.map((fila, i) => {
+            const dias = diasHasta(fila.vence, fecha);
+            const tono = dias == null ? 'text-ahg-text/40'
+              : dias < 0 ? 'text-red-700 font-semibold'
+              : dias <= 7 ? 'text-red-700 font-semibold'
+              : dias <= 15 ? 'text-amber-700 font-semibold'
+              : 'text-ahg-text/60';
+            return (
+              <div key={i} className="rounded-lg border border-ahg-accent/60 p-2.5 space-y-2">
+                <div className="flex gap-2 items-start">
+                  <select
+                    className="input text-sm flex-1"
+                    value={fila.producto_id || ''}
+                    onChange={e => editar(i, 'producto_id', e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">Elegí el producto…</option>
+                    {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                  <button
+                    type="button" onClick={() => setItems(lista.filter((_, idx) => idx !== i))}
+                    aria-label="Quitar producto"
+                    className="text-red-500 text-xl leading-none px-2 py-1 hover:bg-red-50 rounded"
+                  >×</button>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <label className="text-xs font-semibold text-ahg-text/60 w-28 flex-shrink-0" htmlFor={`vence${i}`}>
+                    Fecha del paquete
+                  </label>
+                  <input
+                    id={`vence${i}`} type="date" className="input text-sm flex-1"
+                    value={fila.vence || ''} onChange={e => editar(i, 'vence', e.target.value)}
+                  />
+                </div>
+                <p className={`text-xs text-right ${tono}`}>
+                  {dias == null ? 'Cargá la fecha y te digo los días'
+                    : dias < 0 ? `Ya venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
+                    : dias === 0 ? 'Vence hoy'
+                    : `Faltan ${dias} día${dias === 1 ? '' : 's'}`}
+                </p>
+              </div>
+            );
+          })}
+
+          <button
+            type="button" onClick={() => setItems([...lista, {}])}
+            className="w-full py-2 text-sm font-semibold text-ahg-primary border border-dashed border-ahg-accent rounded-lg hover:bg-ahg-accent/10"
+          >
+            + Agregar producto
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Cuánto puede medir un problema. Igual que en el backend: lo que no entra en un
+// renglón corto casi siempre son dos problemas metidos en uno.
+const LARGO_MAXIMO = 120;
+
+// Parte un texto en los problemas que parece tener. "luces, piso y vidrio roto" son
+// tres cosas que se arreglan por separado, con tres personas distintas y en tres
+// momentos distintos; juntas en un renglón no se pueden seguir.
+function partirEnProblemas(texto) {
+  return String(texto || '')
+    .split(/\s*[,;]\s*|\s+y\s+|\s+e\s+|\.\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length >= 3);
+}
+
 // Mantenimiento con seguimiento. Lo que ya está reportado en el local aparece solo y
-// el turno dice si se solucionó o sigue igual; abajo agrega lo nuevo. El valor:
-//   { seguimiento: { [item_id]: 'sigue' | 'resuelto' }, nuevos: [{ texto, item_id? }] }
+// el turno dice si se solucionó o sigue igual; abajo agrega lo nuevo, de a un problema
+// por renglón y eligiendo qué cosa es.
+//
+// El rubro se elige una sola vez, cuando el problema nace: al día siguiente el ítem ya
+// aparece arriba como pendiente y nadie lo vuelve a clasificar. Por eso dos personas no
+// pueden ponerle rubros distintos a la misma cosa.
+//
+// El valor:
+//   { seguimiento: { [item_id]: 'sigue' | 'resuelto' },
+//     nuevos: [{ texto, rubro_id, rubro_otro?, item_id? }] }
 // Un reporte viejo puede traer un texto suelto: se muestra como primer renglón nuevo.
-function Mantenimiento({ valor, pendientes, onChange }) {
+function Mantenimiento({ valor, pendientes, rubros, onChange }) {
   const v = typeof valor === 'string'
     ? { seguimiento: {}, nuevos: valor.trim() ? [{ texto: valor }] : [] }
     : (valor || {});
   const seguimiento = v.seguimiento || {};
   const nuevos = v.nuevos || [];
 
+  // Los renglones donde la persona ya dijo "es uno solo": no se le vuelve a insistir.
+  const [unoSolo, setUnoSolo] = useState({});
+
   const setSeg = (id, resp) => onChange({ ...v, seguimiento: { ...seguimiento, [id]: resp } });
   const setNuevos = lista => onChange({ ...v, seguimiento, nuevos: lista });
-  const editar = (i, texto) => setNuevos(nuevos.map((x, idx) => idx === i ? { ...x, texto } : x));
+  const editar = (i, campo, valorCampo) => setNuevos(nuevos.map((x, idx) => idx === i ? { ...x, [campo]: valorCampo } : x));
   const quitar = i => setNuevos(nuevos.filter((_, idx) => idx !== i));
+
+  // Al separar, el rubro que ya eligió se queda con el primer pedazo. Los demás salen
+  // sin rubro a propósito: cada problema es una cosa distinta y hay que elegirla.
+  function separar(i) {
+    const fila = nuevos[i];
+    const partes = partirEnProblemas(fila.texto);
+    const abiertos = partes.map((texto, k) => k === 0
+      ? { ...fila, texto }
+      : { texto, rubro_id: null, rubro_otro: '' });
+    setNuevos([...nuevos.slice(0, i), ...abiertos, ...nuevos.slice(i + 1)]);
+  }
 
   return (
     <div className="space-y-3">
@@ -293,6 +432,11 @@ function Mantenimiento({ valor, pendientes, onChange }) {
             const resp = seguimiento[String(p.id)];
             return (
               <div key={p.id} className={`rounded-lg border p-3 ${resp === 'resuelto' ? 'border-green-300 bg-green-50' : resp === 'sigue' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
+                {p.rubro && (
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-ahg-primary text-white rounded px-1.5 py-0.5 mb-1">
+                    {p.rubro}
+                  </span>
+                )}
                 <p className="text-sm text-ahg-text">{p.texto}</p>
                 <p className="text-xs text-ahg-text/50 mt-0.5">
                   {p.reportado_por ? `${p.reportado_por} · ` : ''}{fechaCorta(p.fecha)}
@@ -326,33 +470,85 @@ function Mantenimiento({ valor, pendientes, onChange }) {
         {nuevos.length > 0 && (
           <p className="text-xs font-semibold text-ahg-text/60">{pendientes.length ? 'Nuevo de hoy' : 'Novedades de hoy'} · un problema por renglón</p>
         )}
-        {nuevos.map((x, i) => (
-          <div key={x.item_id || `n${i}`} className="flex gap-2 items-center">
-            <input
-              className="input text-sm flex-1"
-              placeholder="Un problema: qué está roto o qué hay que arreglar"
-              autoFocus={i === nuevos.length - 1 && !x.texto}
-              value={x.texto || ''} onChange={e => editar(i, e.target.value)}
-              onKeyDown={e => {
-                // Enter en el último renglón abre otro: así se anota de a un problema.
-                if (e.key === 'Enter') { e.preventDefault(); if (i === nuevos.length - 1 && x.texto?.trim()) setNuevos([...nuevos, { texto: '' }]); }
-              }}
-            />
-            <button type="button" onClick={() => quitar(i)} aria-label="Quitar"
-                    className="text-red-500 text-xl leading-none px-2 py-1 hover:bg-red-50 rounded">×</button>
-          </div>
-        ))}
+        {nuevos.map((x, i) => {
+          const rubro  = rubros.find(r => r.id === x.rubro_id);
+          const partes = partirEnProblemas(x.texto);
+          const avisa  = partes.length > 1 && !unoSolo[i];
+          return (
+            <div key={x.item_id || `n${i}`} className="rounded-lg border border-ahg-accent/60 p-3 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-semibold text-ahg-text/60">¿Qué cosa?</p>
+                <button type="button" onClick={() => quitar(i)} aria-label="Quitar problema"
+                        className="text-red-500 text-xl leading-none px-1.5 -mt-1 hover:bg-red-50 rounded">×</button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {rubros.map(r => (
+                  <button
+                    key={r.id} type="button" aria-pressed={x.rubro_id === r.id}
+                    onClick={() => editar(i, 'rubro_id', r.id)}
+                    className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors ${
+                      x.rubro_id === r.id
+                        ? 'bg-ahg-primary text-white border-ahg-primary font-semibold'
+                        : 'bg-white text-ahg-text border-ahg-accent/50'
+                    }`}
+                  >
+                    {r.nombre}
+                  </button>
+                ))}
+              </div>
+
+              {rubro?.es_otro && (
+                <input
+                  className="input text-sm"
+                  placeholder="¿Qué cosa es? Una palabra: sombrillas, abrochadora…"
+                  value={x.rubro_otro || ''}
+                  onChange={e => editar(i, 'rubro_otro', e.target.value)}
+                />
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-ahg-text/60 block mb-1">¿Qué le pasa?</label>
+                <input
+                  className="input text-sm"
+                  placeholder="Corto y concreto: 5 focos quemados en el salón"
+                  maxLength={LARGO_MAXIMO}
+                  autoFocus={i === nuevos.length - 1 && !x.texto}
+                  value={x.texto || ''} onChange={e => editar(i, 'texto', e.target.value)}
+                />
+                <p className="text-[11px] text-ahg-text/40 text-right mt-1 tabular-nums">
+                  {(x.texto || '').length} / {LARGO_MAXIMO}
+                </p>
+              </div>
+
+              {avisa && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-2.5">
+                  <p className="text-xs text-red-700">
+                    Parece que son {partes.length} problemas. Cada uno se arregla distinto, así que van en renglones separados.
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <button type="button" onClick={() => separar(i)}
+                            className="flex-1 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold">
+                      Separar en {partes.length} renglones
+                    </button>
+                    <button type="button" onClick={() => setUnoSolo(u => ({ ...u, [i]: true }))}
+                            className="py-1.5 px-3 rounded-lg border border-red-300 text-red-700 text-xs font-semibold">
+                      Es uno solo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
         <button
-          type="button" onClick={() => setNuevos([...nuevos, { texto: '' }])}
+          type="button" onClick={() => setNuevos([...nuevos, { texto: '', rubro_id: null, rubro_otro: '' }])}
           className="w-full py-2 text-sm font-semibold text-ahg-primary border border-dashed border-ahg-accent rounded-lg hover:bg-ahg-accent/10"
         >
           + {pendientes.length || nuevos.length ? 'Agregar otro problema' : 'Reportar algo de mantenimiento'}
         </button>
         {!pendientes.length && !nuevos.length && (
           <p className="text-xs text-ahg-text/40">No hay nada pendiente en este local. Si no hubo novedades, dejalo así.</p>
-        )}
-        {nuevos.length > 0 && (
-          <p className="text-xs text-ahg-text/40">Cada problema en su propio renglón, así el encargado le pone una solución a cada uno.</p>
         )}
       </div>
     </div>
@@ -557,7 +753,21 @@ export default function Campo({ campo: campoPlantilla, valor, onChange, ctx }) {
 
     case 'mantenimiento':
       control = (
-        <Mantenimiento valor={valor} pendientes={ctx.mantenimientoPendientes || []} onChange={set} />
+        <Mantenimiento
+          valor={valor}
+          pendientes={ctx.mantenimientoPendientes || []}
+          rubros={ctx.mantenimientoRubros || []}
+          onChange={set}
+        />
+      );
+      break;
+
+    case 'vencimientos':
+      control = (
+        <Vencimientos
+          campo={campo} valor={valor} fecha={ctx.fecha}
+          productos={ctx.vencimientoProductos || []} onChange={set}
+        />
       );
       break;
 

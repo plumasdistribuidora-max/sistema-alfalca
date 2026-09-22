@@ -101,7 +101,10 @@ function MantenimientoDia({ items, planes, onPlan, cerrado }) {
                   <div className="flex gap-2 items-start">
                     <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${e.cls}`}>{e.txt}</span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${resuelto ? 'line-through text-ahg-text/50' : 'text-ahg-text'}`}>{it.texto}</p>
+                      <p className={`text-sm ${resuelto ? 'line-through text-ahg-text/50' : 'text-ahg-text'}`}>
+                        {it.rubro && <span className="font-semibold">{it.rubro} · </span>}
+                        {it.texto}
+                      </p>
                       {!it.legado && (
                         <p className="text-xs text-ahg-text/40 mt-0.5">
                           {it.reportado_por || 'sin nombre'} · {fechaCortita(it.fecha)}

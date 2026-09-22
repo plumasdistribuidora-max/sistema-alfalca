@@ -6,7 +6,8 @@ const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/aut
 const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
 const { elegirReporte, campoParaTurno } = require('../utils/reportes');
-const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte } = require('../utils/mantenimiento');
+const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte, rubrosActivos } = require('../utils/mantenimiento');
+const { productosActivos, faltantesVencimientos } = require('../utils/vencimientos');
 const { camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura } = require('../utils/etapas');
 const { faltantesPesaje } = require('../utils/pesaje');
 
@@ -120,6 +121,10 @@ function validar(campos, respuestas) {
         if (typeof v !== 'boolean') faltan.push(campo.label);
         break;
 
+      // Vencimientos tiene la misma forma que si_no_lista (hubo / hay / items); lo que
+      // cambia es lo que lleva cada renglón, y eso se chequea contra el maestro al
+      // enviar (faltantesVencimientos).
+      case 'vencimientos':
       case 'si_no_lista': {
         if (v?.hubo === undefined || v?.hubo === null) { faltan.push(campo.label); break; }
         if (!v.hubo) break;
@@ -260,7 +265,7 @@ router.get('/plantillas', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), asyn
 const TIPOS_VALIDOS = [
   'texto', 'texto_largo', 'numero', 'decimal', 'moneda', 'seleccion',
   'si_no', 'si_no_lista', 'horas_empleados', 'checklist', 'foto', 'facturas',
-  'mantenimiento', 'pesaje_cafe',
+  'mantenimiento', 'vencimientos', 'pesaje_cafe',
 ];
 
 router.put('/plantillas/:codigo', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
@@ -379,6 +384,10 @@ router.get('/mio', requireAuth, async (req, res) => {
         // Se pide como si fuera la tarde (lo de días anteriores más lo de la mañana de
         // hoy): la pantalla filtra según el turno elegido, con la misma regla.
         mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha, 'Tarde', elegida.plantilla_codigo),
+        // Los rubros del maestro: el empleado elige de ahí, no escribe el nombre.
+        mantenimiento_rubros: await rubrosActivos(),
+        // Lo mismo para el check de vencimientos: producto de la lista, fecha del paquete.
+        vencimiento_productos: await productosActivos(),
       },
     });
   } catch (err) {
@@ -753,6 +762,11 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
       faltan.push(...await faltantesMantenimiento(reporte));
     }
 
+    // Y cada renglón del check de vencimientos, su producto y su fecha.
+    if (plantilla.campos.some(c => c.tipo === 'vencimientos')) {
+      faltan.push(...await faltantesVencimientos(reporte));
+    }
+
     if (faltan.length) {
       return res.status(400).json({ ok: false, error: 'Te falta completar algo', data: { faltan } });
     }
@@ -933,6 +947,8 @@ router.get('/:id', requireAuth, async (req, res) => {
         facturas:    await facturasDe(rows[0].id),
         observacion: rows[0].estado === 'observado' ? await observacionDe(rows[0].id) : null,
         mantenimiento_items: await itemsDeReporte(rows[0]),
+        // El check guarda ids de producto. Sin el maestro, quien revisa lee "Producto #8".
+        vencimiento_productos: await productosActivos(),
       },
     });
   } catch (err) {

@@ -313,7 +313,7 @@ function Documento({ d, cerradoPor }) {
         sub: 'cada pendiente con cómo lo resuelve el encargado',
         cols: [{ t: 'Local', w: 1.2 }, { t: 'Turno', w: 0.9 }, { t: 'Reportó', w: 1.1 }, { t: 'Qué pasa', w: 3.2 }, { t: 'Estado', w: 1.6 }, { t: 'Cómo se resuelve', w: 2.8 }],
         filas: [
-          ...mant.map(it => ({ c: [corto(it.local), it.turno || '—', it.quien, it.texto, estadoMant(it), it.estado === 'resuelto' ? '—' : (it.plan || { t: 'sin plan', color: C.ambar })] })),
+          ...mant.map(it => ({ c: [corto(it.local), it.turno || '—', it.quien, it.rubro ? `${it.rubro} · ${it.texto}` : it.texto, estadoMant(it), it.estado === 'resuelto' ? '—' : (it.plan || { t: 'sin plan', color: C.ambar })] })),
           ...(c?.mantenimiento?.trim() ? [{ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, '', '', { t: c.mantenimiento.trim() }, '', ''] }] : []),
         ],
       }),

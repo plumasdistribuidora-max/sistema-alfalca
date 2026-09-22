@@ -4,6 +4,7 @@ const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
 const { unoPorTurno, esNovedad } = require('../utils/reportes');
 const { valorMantenimiento, itemsDelDia } = require('../utils/mantenimiento');
+const { nombresDeProductos, items: itemsVencimiento, paraCierre } = require('../utils/vencimientos');
 const { localCafeteria, teoricoCafe, cafeDelDia } = require('../utils/cafe');
 
 const router = express.Router();
@@ -159,6 +160,8 @@ async function armarDia(fecha) {
   }
 
   const novedades = { vencimientos: [], mantenimiento: [], faltantes: [], ausencias: [], quejas: [], gastos: [] };
+  // El maestro de productos, para ponerle nombre a lo que el check guardó como id.
+  const nombresProducto = await nombresDeProductos();
   const horasPorPersona = new Map();
   const dichoHoy = [];   // { id, turno, respuesta } por cada ítem de mantenimiento que nombró un turno
 
@@ -189,9 +192,14 @@ async function armarDia(fecha) {
     // Novedades que el encargado tiene que mirar y resumir para los dueños.
     const local = porLocal[rep.local_id].nombre;
     const quien = rep.usuario_nombre;
+    // Los días que faltan se calculan acá, contra la fecha del cierre: el reporte
+    // guarda la fecha del paquete y nada más, así que un cierre viejo sigue diciendo
+    // los días que faltaban ese día.
     if (r.vencimientos?.hubo) {
-      for (const it of filasConDatos(r.vencimientos.items)) {
-        novedades.vencimientos.push({ local, turno: rep.turno, quien, ...it });
+      for (const it of itemsVencimiento(r.vencimientos)) {
+        const fila = paraCierre(it, fecha, nombresProducto);
+        if (!fila.producto) continue;
+        novedades.vencimientos.push({ local, turno: rep.turno, quien, ...fila });
       }
     }
     // Mantenimiento: lo que dijo el turno sobre cada ítem (nuevo, sigue igual, se
@@ -236,7 +244,7 @@ async function armarDia(fecha) {
     const resueltoHoy = it.resuelto_fecha === fecha;
     novedades.mantenimiento.push({
       id: it.id, local: porLocal[it.local_id].nombre, local_id: it.local_id,
-      texto: it.texto, fecha: it.fecha, reportado_por: it.reportado_por,
+      texto: it.texto, rubro: it.rubro || '', fecha: it.fecha, reportado_por: it.reportado_por,
       dias: diasEntre(it.fecha, fecha),
       estado: resueltoHoy ? 'resuelto' : 'abierto',
       plan: it.plan || '',

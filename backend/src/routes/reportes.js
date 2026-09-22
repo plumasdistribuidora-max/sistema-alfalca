@@ -8,7 +8,7 @@ const { unidadValida } = require('../utils/unidades');
 const { elegirReporte, campoParaTurno, campoVisible } = require('../utils/reportes');
 const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte, rubrosActivos } = require('../utils/mantenimiento');
 const { productosActivos, faltantesVencimientos } = require('../utils/vencimientos');
-const { paraContar, faltantesCocina, sincronizarCocina } = require('../utils/cocina');
+const { paraContar, repasoDe, faltantesCocina, sincronizarCocina } = require('../utils/cocina');
 const { camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura } = require('../utils/etapas');
 const { faltantesPesaje } = require('../utils/pesaje');
 
@@ -399,6 +399,9 @@ router.get('/mio', requireAuth, async (req, res) => {
         // El stock de cocina: qué productos tocan hoy y con qué lotes. Van las fechas,
         // nunca las cantidades: el que cuenta no tiene que ver cuánto debería haber.
         cocina_stock: plantilla.campos.some(c => c.tipo === 'stock_cocina') ? await paraContar(fecha) : [],
+        // Los pocos que hay que repasar a la tarde. Van siempre: el turno lo elige la
+        // persona en la pantalla, así que el filtro se aplica del lado del formulario.
+        cocina_repaso: plantilla.campos.some(c => c.tipo === 'stock_cocina') ? await repasoDe(fecha, elegida.local_id) : [],
       },
     });
   } catch (err) {

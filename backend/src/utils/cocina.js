@@ -33,6 +33,57 @@ async function paraContar(fecha) {
   return rows;
 }
 
+// El repaso de la tarde: los pocos productos que vale la pena volver a mirar.
+//
+// Repetir los 25 a la tarde sale peor y lleva veinte minutos. Con cinco alcanza, y
+// son los que sirven para algo: los que están por vencer y los que la mañana dejó
+// raspando. Ese segundo conteo es además el que después dice en qué turno se perdió
+// algo, porque parte el día en dos.
+//
+// "Casi no queda" mira el TOTAL, freezer más heladera, y no solo la heladera. Si
+// tiene poco abajo pero el freezer lleno, la bajada de la mañana ya lo resolvió y
+// marcarlo sería pedir que revisen algo que se acaba de reponer. Lo que importa es
+// que se esté por acabar de verdad.
+//
+// El umbral fijo de 2 es provisorio: con el maestro de recetas se reemplaza por
+// "menos de un día de consumo", que cambia según el producto.
+const DIAS_PARA_VENCER = 7;
+const CASI_NO_QUEDA = 2;
+const MAX_REPASO = 6;
+
+async function repasoDe(fecha, localId) {
+  const dia = new Date(`${fecha}T12:00:00`).getDay();
+  const { rows } = await pool.query(`
+    WITH conteo_hoy AS (
+      SELECT cl.lote_id, cl.freezer, cl.heladera
+      FROM cocina_conteo_lineas cl
+      JOIN cocina_conteos c ON c.id = cl.conteo_id
+      WHERE c.fecha = $1::date AND c.local_id = $2
+    ),
+    por_producto AS (
+      SELECT p.id, p.nombre,
+             min(l.vence) FILTER (WHERE l.vence IS NOT NULL) AS proximo,
+             sum(COALESCE(ch.freezer, 0) + COALESCE(ch.heladera, 0)) AS queda,
+             count(ch.lote_id)                               AS contados
+      FROM cocina_productos p
+      JOIN cocina_lotes l ON l.producto_id = p.id AND NOT l.cerrado
+      LEFT JOIN conteo_hoy ch ON ch.lote_id = l.id
+      WHERE p.activo AND $3::smallint = ANY(p.dias_revision)
+      GROUP BY p.id, p.nombre
+    )
+    SELECT id,
+           CASE WHEN proximo IS NOT NULL AND proximo <= $1::date + $4
+                THEN 'vence el ' || to_char(proximo, 'DD/MM')
+                ELSE 'casi no queda' END AS motivo
+    FROM por_producto
+    WHERE (proximo IS NOT NULL AND proximo <= $1::date + $4)
+       OR (contados > 0 AND queda <= $5)
+    ORDER BY proximo NULLS LAST, queda
+    LIMIT $6
+  `, [fecha, localId, dia, DIAS_PARA_VENCER, CASI_NO_QUEDA, MAX_REPASO]);
+  return rows;
+}
+
 // El conteo tal como lo guarda el reporte:
 //   { lineas: [ { producto_id, lote_id?, vence?, freezer, heladera } ] }
 // Un renglón sin lote_id es una fecha nueva que apareció hoy.
@@ -65,8 +116,15 @@ function valorConteo(v) {
 // algo vacío no es "no hay": es "no lo conté", y eso rompe la comparación del día.
 async function faltantesCocina(reporte) {
   const campo = (reporte.respuestas || {}).stock_cocina;
-  const { fecha } = (await pool.query('SELECT fecha::text AS fecha FROM reportes WHERE id = $1', [reporte.id])).rows[0];
-  const productos = await paraContar(fecha);
+  const { fecha, turno } = (await pool.query('SELECT fecha::text AS fecha, turno FROM reportes WHERE id = $1', [reporte.id])).rows[0];
+
+  // A la mañana se cuenta todo; a la tarde solo el repaso. Pedirle a la tarde los 25
+  // sería pedirle un trabajo que nadie le mostró.
+  let productos = await paraContar(fecha);
+  if (turno !== 'Mañana') {
+    const ids = new Set((await repasoDe(fecha, reporte.local_id)).map(r => r.id));
+    productos = productos.filter(p => ids.has(p.id));
+  }
   if (!productos.length) return [];
 
   const lineas = valorConteo(campo);
@@ -155,4 +213,4 @@ async function sincronizarCocina(reporte, usuarioId) {
   }
 }
 
-module.exports = { paraContar, valorConteo, faltantesCocina, sincronizarCocina, DIAS };
+module.exports = { paraContar, repasoDe, valorConteo, faltantesCocina, sincronizarCocina, DIAS };

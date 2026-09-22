@@ -396,7 +396,7 @@ function Vencimientos({ campo, valor, productos, fecha, onChange }) {
 // Valor: { lineas: [{ producto_id, lote_id?, vence?, freezer, heladera }] }
 const fechaCortita = f => (f ? f.split('-').reverse().slice(0, 2).join('/') : '');
 
-function StockCocina({ valor, productos, onChange }) {
+function StockCocina({ valor, productos, repaso, turno, onChange }) {
   const lineas = (valor && Array.isArray(valor.lineas)) ? valor.lineas : [];
   // Tres casos distintos y que no se pueden pisar: un lote conocido (lote_id), el
   // lote "sin fecha" (vence null) y un renglón nuevo que todavía no tiene fecha ('').
@@ -425,14 +425,28 @@ function StockCocina({ valor, productos, onChange }) {
     onChange({ lineas: lineas.filter(x => clave(x) !== clave(l)) });
   }
 
+  // A la mañana se cuenta todo; a la tarde solo los pocos que vale la pena mirar de
+  // nuevo. Repetir los 25 sale peor y no aporta: lo que importa es si algo quedó
+  // raspando o está por vencer.
+  const esRepaso = turno && turno !== 'Mañana';
+  const motivos = new Map((repaso || []).map(r => [r.id, r.motivo]));
+  const visibles = esRepaso ? productos.filter(p => motivos.has(p.id)) : productos;
+
   if (!productos.length) {
     return <p className="text-sm text-ahg-text/50">Hoy no toca revisar stock.</p>;
+  }
+  if (esRepaso && !visibles.length) {
+    return (
+      <p className="text-sm text-ahg-text/60 rounded-lg border border-green-300 bg-green-50 p-3">
+        Hoy no hay nada para repasar: no hay nada por vencer ni nada que se esté por acabar.
+      </p>
+    );
   }
 
   // Los productos vienen ordenados por proveedor; se agrupan para que se cuente
   // recorriendo la heladera de a un proveedor por vez.
   const grupos = [];
-  for (const p of productos) {
+  for (const p of visibles) {
     const ultimo = grupos[grupos.length - 1];
     if (ultimo && ultimo.proveedor === p.proveedor) ultimo.items.push(p);
     else grupos.push({ proveedor: p.proveedor, items: [p] });
@@ -474,6 +488,9 @@ function StockCocina({ valor, productos, onChange }) {
                   <span className="text-sm font-semibold">{p.nombre}</span>
                   <span className="text-xs text-ahg-text/40">{p.unidad}</span>
                 </div>
+                {esRepaso && motivos.get(p.id) && (
+                  <p className="text-xs text-amber-700 mt-0.5">{motivos.get(p.id)}</p>
+                )}
 
                 <div className="grid grid-cols-[1fr_1fr] gap-2 mt-2">
                   <div>
@@ -531,7 +548,9 @@ function StockCocina({ valor, productos, onChange }) {
         </div>
       ))}
       <p className="text-xs text-ahg-text/40">
-        El primer día cargá la fecha que dice el paquete. Después ya viene puesta y solo ponés cuántos hay.
+        {esRepaso
+          ? 'Solo estos. El resto ya se contó a la mañana y no hace falta repetirlo.'
+          : 'El primer día cargá la fecha que dice el paquete. Después ya viene puesta y solo ponés cuántos hay.'}
       </p>
     </div>
   );
@@ -938,7 +957,12 @@ export default function Campo({ campo: campoPlantilla, valor, onChange, ctx }) {
       break;
 
     case 'stock_cocina':
-      control = <StockCocina valor={valor} productos={ctx.cocinaStock || []} onChange={set} />;
+      control = (
+        <StockCocina
+          valor={valor} productos={ctx.cocinaStock || []} repaso={ctx.cocinaRepaso || []}
+          turno={ctx.turno} onChange={set}
+        />
+      );
       break;
 
     case 'pesaje_cafe':

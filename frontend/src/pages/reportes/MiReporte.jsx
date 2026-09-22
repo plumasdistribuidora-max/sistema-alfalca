@@ -498,6 +498,7 @@ export default function MiReporte() {
     mantenimientoRubros: data.mantenimiento_rubros || [],
     vencimientoProductos: data.vencimiento_productos || [],
     cocinaStock: data.cocina_stock || [],
+    cocinaRepaso: data.cocina_repaso || [],
     turno, fecha, plantilla, respuestas,
     adjuntos, facturas, subiendo,
     onSubirFoto: subirFoto,

@@ -195,6 +195,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
     // Subsidiarias: header en fila 1 (range=0), claves normalizadas
     const rowsAdiciones = inspectSheet('Adiciones', 'adiciones', 0);
+    // La hoja de modificadores: acá está con qué resolvió el mozo cada menú del día.
+    // El nombre completo va primero para que no la pise el match de 'adiciones'.
+    const rowsModif = inspectSheet('Adiciones de Modificadores', 'adiciones de modificadores', 0);
     const rowsPagos     = inspectSheet('Pagos', 'pagos', 0);
     const rowsDesc      = inspectSheet('Descuentos', 'descuentos', 0);
     const tieneFiscales = wb.SheetNames.some(n => n.toLowerCase().trim().includes('ventas fiscal'));
@@ -537,6 +540,51 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           itemsInsertados++;
         } catch (_) { /* ON CONFLICT DO NOTHING */ }
       }
+
+      // ── PASO 3 bis: ventas_modificadores ───────────────────────────────
+      // "Menú 1" no dice qué se comió: lo dice el modificador que eligió el mozo
+      // ("Milanesa Carne c/ Ensalada"). Sin esto, los menús no consumen cocina.
+      // Columnas norm: "id venta", "id adicion", "producto", "grupo modificador",
+      // "modificador", "cantidad", "creacion", "cancelada"
+      let modifInsertados = 0;
+      const lineasModif = new Map();
+
+      for (const row of rowsModif) {
+        const modificador = String(row['modificador'] ?? '').trim();
+        if (!modificador) continue;
+
+        const posTicketId  = row['id venta']   != null ? String(row['id venta']).trim()   : null;
+        const posAdicionId = row['id adicion'] != null ? String(row['id adicion']).trim() : null;
+        const fechaCreacion = parseExcelDate(row['creacion']);
+
+        // Mismo criterio que las adiciones: un ticket puede repetir el mismo
+        // modificador y hay que guardarlos como renglones distintos.
+        const clave = `${posTicketId}|${posAdicionId}|${modificador}|${fechaCreacion?.getTime()}`;
+        const linea = lineasModif.get(clave) || 0;
+        lineasModif.set(clave, linea + 1);
+
+        try {
+          await client.query(`
+            INSERT INTO ventas_modificadores (
+              local_id, pos_ticket_id, pos_adicion_id, producto, grupo, modificador,
+              cantidad, fecha_creacion, cancelada, linea
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            ON CONFLICT (local_id, pos_ticket_id, pos_adicion_id, modificador, fecha_creacion, linea)
+            DO NOTHING
+          `, [
+            local_id, posTicketId, posAdicionId,
+            row['producto'] ? String(row['producto']).trim() : null,
+            row['grupo modificador'] ? String(row['grupo modificador']).trim() : null,
+            modificador,
+            parseFloat(row['cantidad'] ?? 1) || 1,
+            fechaCreacion,
+            parseFiscal(row['cancelada']),
+            linea,
+          ]);
+          modifInsertados++;
+        } catch (_) { /* ON CONFLICT DO NOTHING */ }
+      }
+      debugLog.push(`--- Modificadores → ${rowsModif.length} filas leídas, ${modifInsertados} guardadas ---`);
 
       // ── PASO 4: ventas_pagos ───────────────────────────────────────────
       // Columnas norm: "id venta", "fecha pago", "medio de pago", "monto", "cancelado"

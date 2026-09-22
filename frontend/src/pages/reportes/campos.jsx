@@ -383,6 +383,144 @@ function Vencimientos({ campo, valor, productos, fecha, onChange }) {
   );
 }
 
+// El control de stock de cocina: un número por lote y por lugar.
+//
+// Un producto vive en dos lados —freezer es la reserva, heladera es lo que está listo
+// para hoy— y adentro conviven lotes con vencimientos distintos. Por eso no alcanza
+// con un número por producto.
+//
+// Las fechas vienen puestas y los casilleros arrancan VACÍOS a propósito: tipear
+// fechas es lento y se presta a errores, pero si el que cuenta ve cuánto debería
+// haber, escribe ese número y el control no sirve para nada.
+//
+// Valor: { lineas: [{ producto_id, lote_id?, vence?, freezer, heladera }] }
+const fechaCortita = f => (f ? f.split('-').reverse().slice(0, 2).join('/') : '');
+
+function StockCocina({ valor, productos, onChange }) {
+  const lineas = (valor && Array.isArray(valor.lineas)) ? valor.lineas : [];
+  // Tres casos distintos y que no se pueden pisar: un lote conocido (lote_id), el
+  // lote "sin fecha" (vence null) y un renglón nuevo que todavía no tiene fecha ('').
+  const clave = l => `${l.producto_id}:${l.lote_id ?? 'n' + (l.vence ?? 'sf')}`;
+  const porClave = new Map(lineas.map(l => [clave(l), l]));
+
+  function set(producto_id, lote, campo, v) {
+    const k = `${producto_id}:${lote.lote_id ?? 'n' + (lote.vence ?? 'sf')}`;
+    const otras = lineas.filter(l => clave(l) !== k);
+    const actual = porClave.get(k) || { producto_id, lote_id: lote.lote_id ?? null, vence: lote.vence ?? null };
+    onChange({ lineas: [...otras, { ...actual, [campo]: v }] });
+  }
+  function agregarFecha(producto_id) {
+    onChange({ lineas: [...lineas, { producto_id, lote_id: null, vence: '', freezer: '', heladera: '' }] });
+  }
+  function quitar(l) {
+    onChange({ lineas: lineas.filter(x => clave(x) !== clave(l)) });
+  }
+
+  if (!productos.length) {
+    return <p className="text-sm text-ahg-text/50">Hoy no toca revisar stock.</p>;
+  }
+
+  // Los productos vienen ordenados por proveedor; se agrupan para que se cuente
+  // recorriendo la heladera de a un proveedor por vez.
+  const grupos = [];
+  for (const p of productos) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.proveedor === p.proveedor) ultimo.items.push(p);
+    else grupos.push({ proveedor: p.proveedor, items: [p] });
+  }
+
+  const casillero = (p, lote, campo) => {
+    const l = porClave.get(`${p.id}:${lote.lote_id ?? 'n' + (lote.vence ?? 'sf')}`);
+    return (
+      <input
+        className="input text-sm text-right tabular-nums w-full"
+        inputMode="decimal" placeholder="0"
+        value={l?.[campo] ?? ''}
+        onChange={e => set(p.id, lote, campo, e.target.value.replace(',', '.').replace(/[^\d.]/g, ''))}
+      />
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      {grupos.map(g => (
+        <div key={g.proveedor} className="rounded-lg border border-ahg-accent/60 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-ahg-text/70 pb-2 mb-1 border-b border-ahg-accent/40">
+            {g.proveedor} <span className="font-normal text-ahg-text/40">· {g.items.length} productos</span>
+          </p>
+
+          {g.items.map(p => {
+            const nuevas = lineas.filter(l => l.producto_id === p.id && !l.lote_id && typeof l.vence === 'string');
+            const lotes = [
+              ...p.lotes.map(x => ({ lote_id: x.lote_id, vence: x.vence, conocido: true })),
+              // Sin lotes conocidos —el primer día, o un producto que se acabó— igual
+              // hay que poder contar lo que hay, aunque nadie sepa qué fecha tiene.
+              ...(p.lotes.length ? [] : [{ lote_id: null, vence: null, conocido: true }]),
+              ...nuevas.map(l => ({ lote_id: null, vence: l.vence, conocido: false })),
+            ];
+            return (
+              <div key={p.id} className="py-2.5 border-b border-ahg-accent/20 last:border-b-0">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-semibold">{p.nombre}</span>
+                  <span className="text-xs text-ahg-text/40">{p.unidad}</span>
+                </div>
+
+                <div className="grid grid-cols-[1fr_1fr] gap-2 mt-2">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-ahg-text/50 mb-1">Freezer</p>
+                    {!p.en_freezer && <p className="text-xs text-ahg-text/30 py-1">No se guarda acá</p>}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-ahg-text/50 mb-1">Heladera</p>
+                    {!p.en_heladera && <p className="text-xs text-ahg-text/30 py-1">No se guarda acá</p>}
+                  </div>
+                </div>
+
+                {lotes.map((lote, i) => (
+                  <div key={lote.lote_id || `n${i}`} className="flex items-center gap-2 mt-1.5">
+                    {lote.conocido ? (
+                      <span className="text-xs text-ahg-text/70 w-16 flex-shrink-0 tabular-nums">
+                        {lote.vence ? fechaCortita(lote.vence) : 'sin fecha'}
+                      </span>
+                    ) : (
+                      <input
+                        type="date" className="input text-xs w-32 flex-shrink-0"
+                        value={lote.vence || ''}
+                        onChange={e => {
+                          const otras = lineas.filter(l => !(l.producto_id === p.id && !l.lote_id && l.vence === lote.vence));
+                          const actual = lineas.find(l => l.producto_id === p.id && !l.lote_id && l.vence === lote.vence) || { producto_id: p.id, lote_id: null };
+                          onChange({ lineas: [...otras, { ...actual, vence: e.target.value }] });
+                        }}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">{p.en_freezer ? casillero(p, lote, 'freezer') : null}</div>
+                    <div className="flex-1 min-w-0">{p.en_heladera ? casillero(p, lote, 'heladera') : null}</div>
+                    {!lote.conocido && (
+                      <button type="button" aria-label="Quitar fecha"
+                              onClick={() => quitar({ producto_id: p.id, lote_id: null, vence: lote.vence ?? '' })}
+                              className="text-red-500 text-lg leading-none px-1">×</button>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button" onClick={() => agregarFecha(p.id)}
+                  className="mt-2 w-full py-1.5 text-xs font-semibold text-ahg-primary border border-dashed border-ahg-accent rounded-lg"
+                >
+                  + otra fecha de vencimiento
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      <p className="text-xs text-ahg-text/40">
+        Las fechas ya están puestas; poné cuántos hay de cada una. Si aparece una fecha nueva, agregala.
+      </p>
+    </div>
+  );
+}
+
 // Cuánto puede medir un problema. Igual que en el backend: lo que no entra en un
 // renglón corto casi siempre son dos problemas metidos en uno.
 const LARGO_MAXIMO = 120;
@@ -781,6 +919,10 @@ export default function Campo({ campo: campoPlantilla, valor, onChange, ctx }) {
           productos={ctx.vencimientoProductos || []} onChange={set}
         />
       );
+      break;
+
+    case 'stock_cocina':
+      control = <StockCocina valor={valor} productos={ctx.cocinaStock || []} onChange={set} />;
       break;
 
     case 'pesaje_cafe':

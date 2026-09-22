@@ -8,6 +8,7 @@ const { unidadValida } = require('../utils/unidades');
 const { elegirReporte, campoParaTurno, campoVisible } = require('../utils/reportes');
 const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte, rubrosActivos } = require('../utils/mantenimiento');
 const { productosActivos, faltantesVencimientos } = require('../utils/vencimientos');
+const { paraContar, faltantesCocina, sincronizarCocina } = require('../utils/cocina');
 const { camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura } = require('../utils/etapas');
 const { faltantesPesaje } = require('../utils/pesaje');
 
@@ -158,6 +159,11 @@ function validar(campos, respuestas) {
         // chequea contra la base al enviar (faltantesMantenimiento).
         break;
 
+      case 'stock_cocina':
+        // Igual: qué productos tocan hoy y con qué lotes sale de la base, así que el
+        // control fino vive en faltantesCocina.
+        break;
+
       case 'pesaje_cafe':
         // Necesita los adjuntos: se chequea en faltantesDe.
         break;
@@ -267,7 +273,7 @@ router.get('/plantillas', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), asyn
 const TIPOS_VALIDOS = [
   'texto', 'texto_largo', 'numero', 'decimal', 'moneda', 'seleccion',
   'si_no', 'si_no_lista', 'horas_empleados', 'checklist', 'foto', 'facturas',
-  'mantenimiento', 'vencimientos', 'pesaje_cafe',
+  'mantenimiento', 'vencimientos', 'stock_cocina', 'pesaje_cafe',
 ];
 
 router.put('/plantillas/:codigo', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
@@ -390,6 +396,9 @@ router.get('/mio', requireAuth, async (req, res) => {
         mantenimiento_rubros: await rubrosActivos(),
         // Lo mismo para el check de vencimientos: producto de la lista, fecha del paquete.
         vencimiento_productos: await productosActivos(),
+        // El stock de cocina: qué productos tocan hoy y con qué lotes. Van las fechas,
+        // nunca las cantidades: el que cuenta no tiene que ver cuánto debería haber.
+        cocina_stock: plantilla.campos.some(c => c.tipo === 'stock_cocina') ? await paraContar(fecha) : [],
       },
     });
   } catch (err) {
@@ -769,12 +778,20 @@ router.post('/:id/enviar', requireAuth, async (req, res) => {
       faltan.push(...await faltantesVencimientos(reporte));
     }
 
+    // El conteo de cocina: cada casillero que vio tiene que tener un número.
+    if (plantilla.campos.some(c => c.tipo === 'stock_cocina')) {
+      faltan.push(...await faltantesCocina(reporte));
+    }
+
     if (faltan.length) {
       return res.status(400).json({ ok: false, error: 'Te falta completar algo', data: { faltan } });
     }
 
     if (plantilla.campos.some(c => c.tipo === 'mantenimiento')) {
       await sincronizarMantenimiento(reporte, req.user.id);
+    }
+    if (plantilla.campos.some(c => c.tipo === 'stock_cocina')) {
+      await sincronizarCocina(reporte, req.user.id);
     }
 
     await pool.query(

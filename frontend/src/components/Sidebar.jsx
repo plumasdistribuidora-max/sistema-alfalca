@@ -187,6 +187,7 @@ export default function Sidebar({ open, onClose }) {
               <NavItem to="/formularios"            icon="formularios" label="Formularios" />
               <NavItem to="/admin/maestros/docenas" icon="docenas" label="Maestro de docenas" />
               <NavItem to="/admin/maestros/cafe"    icon="cafe"  label="Maestro de café" />
+              <NavItem to="/admin/maestros/cocina"  icon="cafe"  label="Maestro de cocina" />
               <NavItem to="/locales"                icon="locales"  label="Locales" />
             </>
           )}

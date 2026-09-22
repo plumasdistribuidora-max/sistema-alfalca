@@ -19,6 +19,7 @@ import StockInteligente        from './pages/stock/StockInteligente';
 import FinanzasPage            from './pages/finanzas/FinanzasPage';
 import MaestroDocenasPage      from './pages/admin/MaestroDocenasPage';
 import MaestroCafePage         from './pages/admin/MaestroCafePage';
+import MaestroCocinaPage       from './pages/admin/MaestroCocinaPage';
 import UsuariosPage           from './pages/admin/UsuariosPage';
 import MiReporte              from './pages/reportes/MiReporte';
 import Reportes               from './pages/reportes/Reportes';
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="finanzas"                       element={soloDueno(<FinanzasPage />)} />
             <Route path="admin/maestros/docenas"         element={soloDueno(<MaestroDocenasPage />)} />
             <Route path="admin/maestros/cafe"            element={soloDueno(<MaestroCafePage />)} />
+            <Route path="admin/maestros/cocina"          element={soloDueno(<MaestroCocinaPage />)} />
           </Route>
         </Routes>
       </BrowserRouter>

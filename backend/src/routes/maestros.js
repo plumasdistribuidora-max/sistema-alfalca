@@ -573,4 +573,126 @@ router.get('/cafe/detalle', requireAuth, async (req, res) => {
   }
 });
 
+// ── Maestro de cocina ────────────────────────────────────────────────────────
+// Los productos que la cocina cuenta todos los días. Lo edita Martín: qué unidad
+// usa cada uno, si vive en el freezer, en la heladera o en los dos, y qué días se
+// revisa. Cambiarlo acá cambia el formulario de cocina al instante, sin deploy.
+
+const UNIDADES_COCINA = ['unid.', 'bolsas', 'kg', 'cajas', 'paquetes', 'litros'];
+
+router.get('/cocina/productos', requireAuth, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT p.id, p.proveedor, p.nombre, p.unidad, p.en_freezer, p.en_heladera,
+             p.dias_revision, p.orden, p.activo,
+             EXISTS (SELECT 1 FROM cocina_lotes l WHERE l.producto_id = p.id) AS tiene_stock
+      FROM cocina_productos p
+      ORDER BY p.orden, p.id
+    `);
+    res.json({ ok: true, data: { productos: rows, unidades: UNIDADES_COCINA } });
+  } catch (err) {
+    console.error('[maestros/cocina]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo traer el maestro de cocina' });
+  }
+});
+
+// Guarda un producto. Los campos van de a uno: la pantalla guarda sola mientras se
+// edita, igual que el resto del sistema.
+router.put('/cocina/productos/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, activo } = req.body;
+
+    if (unidad !== undefined && !UNIDADES_COCINA.includes(unidad)) {
+      return res.status(400).json({ ok: false, error: `Unidad desconocida: ${unidad}` });
+    }
+    // Algo que no se guarda en ningún lado no se puede contar.
+    if (en_freezer === false && en_heladera === false) {
+      return res.status(400).json({ ok: false, error: 'Tiene que vivir por lo menos en un lugar' });
+    }
+    const dias = dias_revision === undefined ? undefined
+      : [...new Set((Array.isArray(dias_revision) ? dias_revision : []).map(Number))]
+          .filter(d => Number.isInteger(d) && d >= 0 && d <= 6).sort();
+
+    const { rows } = await pool.query(`
+      UPDATE cocina_productos SET
+        proveedor     = COALESCE($2, proveedor),
+        nombre        = COALESCE($3, nombre),
+        unidad        = COALESCE($4, unidad),
+        en_freezer    = COALESCE($5, en_freezer),
+        en_heladera   = COALESCE($6, en_heladera),
+        dias_revision = COALESCE($7::smallint[], dias_revision),
+        activo        = COALESCE($8, activo)
+      WHERE id = $1
+      RETURNING id, proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden, activo
+    `, [req.params.id, proveedor ?? null, nombre?.trim() ?? null, unidad ?? null,
+        en_freezer ?? null, en_heladera ?? null, dias ?? null, activo ?? null]);
+
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'No existe ese producto' });
+    res.json({ ok: true, data: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ ok: false, error: 'Ese proveedor ya tiene un producto con ese nombre' });
+    }
+    console.error('[maestros/cocina PUT]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo guardar' });
+  }
+});
+
+router.post('/cocina/productos', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { proveedor, nombre } = req.body;
+    if (!proveedor?.trim() || !nombre?.trim()) {
+      return res.status(400).json({ ok: false, error: 'Faltan el proveedor y el nombre' });
+    }
+    const { rows } = await pool.query(`
+      INSERT INTO cocina_productos (proveedor, nombre, orden)
+      VALUES ($1, $2, COALESCE((SELECT max(orden) FROM cocina_productos WHERE proveedor = $1), 0) + 5)
+      RETURNING id, proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden, activo
+    `, [proveedor.trim(), nombre.trim()]);
+    res.json({ ok: true, data: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ ok: false, error: 'Ese proveedor ya tiene un producto con ese nombre' });
+    }
+    console.error('[maestros/cocina POST]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo agregar' });
+  }
+});
+
+// Un producto que ya tiene stock contado no se borra: se desactiva, así los conteos
+// viejos siguen teniendo sentido. Uno que nunca se usó sí se puede sacar.
+router.delete('/cocina/productos/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT 1 FROM cocina_lotes WHERE producto_id = $1 LIMIT 1', [req.params.id]);
+    if (rows.length) {
+      await pool.query('UPDATE cocina_productos SET activo = false WHERE id = $1', [req.params.id]);
+      return res.json({ ok: true, data: { desactivado: true } });
+    }
+    await pool.query('DELETE FROM cocina_productos WHERE id = $1', [req.params.id]);
+    res.json({ ok: true, data: { borrado: true } });
+  } catch (err) {
+    console.error('[maestros/cocina DELETE]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo borrar' });
+  }
+});
+
+// Cambiar los días de todo un proveedor de una: es lo que más se repite y hacerlo
+// producto por producto son catorce clics para decir lo mismo.
+router.post('/cocina/productos/dias', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { proveedor, dias } = req.body;
+    if (!proveedor?.trim()) return res.status(400).json({ ok: false, error: 'Falta el proveedor' });
+    const limpio = [...new Set((Array.isArray(dias) ? dias : []).map(Number))]
+      .filter(d => Number.isInteger(d) && d >= 0 && d <= 6).sort();
+    const { rowCount } = await pool.query(
+      'UPDATE cocina_productos SET dias_revision = $2::smallint[] WHERE proveedor = $1',
+      [proveedor.trim(), limpio]
+    );
+    res.json({ ok: true, data: { cambiados: rowCount } });
+  } catch (err) {
+    console.error('[maestros/cocina dias]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo cambiar' });
+  }
+});
+
 module.exports = router;

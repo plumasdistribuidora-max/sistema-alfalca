@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS cocina_productos (
   en_freezer    BOOLEAN      NOT NULL DEFAULT true,
   en_heladera   BOOLEAN      NOT NULL DEFAULT true,
   -- Qué días se revisa: 0 domingo … 6 sábado. Vacío = nunca.
-  dias_revision SMALLINT[]   NOT NULL DEFAULT '{0,1,2,3,4,5,6}',
+  dias_revision SMALLINT[]   NOT NULL DEFAULT '{0,1,2,3,4,5,6}'::smallint[],
   orden         INT          NOT NULL DEFAULT 0,
   activo        BOOLEAN      NOT NULL DEFAULT true,
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -118,33 +118,42 @@ CREATE INDEX IF NOT EXISTS idx_ventas_modif_fecha ON ventas_modificadores (local
 -- de quién viene.
 --
 -- dias_revision: {0..6} es todos los días; {1,4} es lunes y jueves.
-INSERT INTO cocina_productos (proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden) VALUES
-  ('Club de Campo', 'SANG. POLLO',     'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 10),
-  ('Club de Campo', 'SANG. MILA',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 20),
-  ('Club de Campo', 'MILA DE CARNE',   'bolsas', true,  true,  '{0,1,2,3,4,5,6}', 30),
-  ('Club de Campo', 'MILA DE POLLO',   'bolsas', true,  true,  '{0,1,2,3,4,5,6}', 40),
-  ('Club de Campo', 'MUZA',            'kg',     false, true,  '{0,1,2,3,4,5,6}', 50),
-  ('Club de Campo', 'T. POLLO',        'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 60),
-  ('Club de Campo', 'T. J Y Q',        'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 70),
-  ('Club de Campo', 'T. VERDURA',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 80),
-  ('Club de Campo', 'EMP. J Y Q',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 90),
-  ('Club de Campo', 'EMP. CARNE',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 100),
-  ('Club de Campo', 'CESAR',           'unid.',  false, true,  '{0,1,2,3,4,5,6}', 110),
-  ('Club de Campo', 'CHIPA',           'bolsas', true,  true,  '{0,1,2,3,4,5,6}', 120),
-  ('Club de Campo', 'P. PAPA',         'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 130),
-  ('Club de Campo', 'P. CAMOTE',       'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 140),
+--
+-- La siembra corre UNA sola vez, y por eso mira si la tabla está vacía en vez de
+-- confiar en ON CONFLICT. El migrador vuelve a pasar por todos los archivos en cada
+-- deploy: mientras los nombres eran los sembrados el conflicto los frenaba, pero
+-- apenas Martín renombró "SANG. POLLO" a "Sandwich Pollo" dejó de haber conflicto y
+-- la semilla los recreó a todos. Un maestro que se edita no se puede sembrar contra
+-- el nombre.
+INSERT INTO cocina_productos (proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden)
+SELECT * FROM (VALUES
+  ('Club de Campo', 'SANG. POLLO',     'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 10),
+  ('Club de Campo', 'SANG. MILA',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 20),
+  ('Club de Campo', 'MILA DE CARNE',   'bolsas', true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 30),
+  ('Club de Campo', 'MILA DE POLLO',   'bolsas', true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 40),
+  ('Club de Campo', 'MUZA',            'kg',     false, true,  '{0,1,2,3,4,5,6}'::smallint[], 50),
+  ('Club de Campo', 'T. POLLO',        'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 60),
+  ('Club de Campo', 'T. J Y Q',        'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 70),
+  ('Club de Campo', 'T. VERDURA',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 80),
+  ('Club de Campo', 'EMP. J Y Q',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 90),
+  ('Club de Campo', 'EMP. CARNE',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 100),
+  ('Club de Campo', 'CESAR',           'unid.',  false, true,  '{0,1,2,3,4,5,6}'::smallint[], 110),
+  ('Club de Campo', 'CHIPA',           'bolsas', true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 120),
+  ('Club de Campo', 'P. PAPA',         'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 130),
+  ('Club de Campo', 'P. CAMOTE',       'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 140),
 
-  ('Celidiet',      'MUZZA',           'kg',     false, true,  '{0,1,2,3,4,5,6}', 210),
-  ('Celidiet',      'PANES',           'unid.',  false, true,  '{0,1,2,3,4,5,6}', 220),
-  ('Celidiet',      'SACRAMENTOS',     'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 230),
-  ('Celidiet',      'TORTAS',          'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 240),
-  ('Celidiet',      'T. VERDURA',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}', 250),
-  ('Celidiet',      'MILA CARNE',      'bolsas', true,  true,  '{0,1,2,3,4,5,6}', 260),
-  ('Celidiet',      'MILA POLLO',      'bolsas', true,  true,  '{0,1,2,3,4,5,6}', 270),
+  ('Celidiet',      'MUZZA',           'kg',     false, true,  '{0,1,2,3,4,5,6}'::smallint[], 210),
+  ('Celidiet',      'PANES',           'unid.',  false, true,  '{0,1,2,3,4,5,6}'::smallint[], 220),
+  ('Celidiet',      'SACRAMENTOS',     'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 230),
+  ('Celidiet',      'TORTAS',          'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 240),
+  ('Celidiet',      'T. VERDURA',      'unid.',  true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 250),
+  ('Celidiet',      'MILA CARNE',      'bolsas', true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 260),
+  ('Celidiet',      'MILA POLLO',      'bolsas', true,  true,  '{0,1,2,3,4,5,6}'::smallint[], 270),
 
-  ('Hojaldre',      'MEDIALUNAS',      'unid.',  true,  true,  '{1,4}',           310),
-  ('Hojaldre',      'TORTAS RASPADAS', 'unid.',  true,  true,  '{1,4}',           320),
-  ('Hojaldre',      'TORTAS HOJA',     'unid.',  true,  true,  '{1,4}',           330),
+  ('Hojaldre',      'MEDIALUNAS',      'unid.',  true,  true,  '{1,4}'::smallint[],           310),
+  ('Hojaldre',      'TORTAS RASPADAS', 'unid.',  true,  true,  '{1,4}'::smallint[],           320),
+  ('Hojaldre',      'TORTAS HOJA',     'unid.',  true,  true,  '{1,4}'::smallint[],           330),
 
-  ('Trigal',        'PAN DE CAMPO',    'unid.',  false, true,  '{1,4}',           410)
-ON CONFLICT DO NOTHING;
+  ('Trigal',        'PAN DE CAMPO',    'unid.',  false, true,  '{1,4}'::smallint[],           410)
+) AS v(proveedor, nombre, unidad, en_freezer, en_heladera, dias_revision, orden)
+WHERE NOT EXISTS (SELECT 1 FROM cocina_productos);

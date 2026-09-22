@@ -478,6 +478,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       // "creada por", "cocina", "cancelada", "cancelada por", "comentario",
       // "comentario de cancelacion"
       let itemsInsertados = 0, itemsCancelados = 0;
+      const vendidos = new Set();
       // "3 cafés" vienen como 3 renglones idénticos (misma venta, producto y hora al
       // segundo). Se numeran en el orden del Excel para que la clave única no los
       // tome como uno solo. El orden es estable entre exportaciones del mismo período.
@@ -490,6 +491,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
         const nombreNorm  = normalizeNombre(nombreRaw);
         const productoId  = productoIdMap[nombreNorm] ?? null;
+        if (productoId) vendidos.add(productoId);
         // Un producto pendiente aporta 0 por ahora; cuando se defina su valor,
         // el recálculo del maestro actualiza estas filas hacia atrás.
         const docenasProd = productoId
@@ -540,6 +542,11 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           itemsInsertados++;
         } catch (_) { /* ON CONFLICT DO NOTHING */ }
       }
+
+      // La hoja Productos trae también lo que no se vendió (y las leches que son
+      // modificadores). El maestro de café solo lista lo vendido, así que el aviso
+      // se limita a eso: si no, pide cargar productos que el maestro no muestra.
+      const pendientesCafeVendidos = pendientesCafe.filter(p => vendidos.has(p.id));
 
       // ── PASO 3 bis: ventas_modificadores ───────────────────────────────
       // "Menú 1" no dice qué se comió: lo dice el modificador que eligió el mozo
@@ -742,8 +749,8 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           productos_nuevos_catalogo:   productosNuevos,
           productos_pendientes:        pendientes,
           productos_pendientes_count:  pendientes.length,
-          productos_sin_cafe:          pendientesCafe,
-          productos_sin_cafe_count:    pendientesCafe.length,
+          productos_sin_cafe:          pendientesCafeVendidos,
+          productos_sin_cafe_count:    pendientesCafeVendidos.length,
           docenas_totales_periodo:     Math.round(docenasTotalesDB * 10000) / 10000,
           adicionales_total:           parseInt(adicionalesTotal.rows[0].cnt),
           fecha_desde:                 fechaDesde,

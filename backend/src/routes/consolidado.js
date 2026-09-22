@@ -257,6 +257,11 @@ async function armarDia(fecha) {
   const orden = it => it.legado ? 3 : it.estado === 'resuelto' ? 2 : it.fecha === fecha ? 0 : 1;
   novedades.mantenimiento.sort((a, b) => a.local_id - b.local_id || orden(a) - orden(b) || (a.id || 0) - (b.id || 0));
 
+  // Los vencimientos van por urgencia, no por local: lo que vence primero es lo único
+  // que hay que mirar, y por local quedaba enterrado al final de la lista.
+  const cuantosDias = it => { const n = Number(it.dias); return Number.isFinite(n) ? n : Infinity; };
+  novedades.vencimientos.sort((a, b) => cuantosDias(a) - cuantosDias(b) || a.local.localeCompare(b.local));
+
   for (const { acc, empleado_id, horas } of horasPorPersona.values()) {
     const valor = valorDe[empleado_id];
     acc.horas += horas;

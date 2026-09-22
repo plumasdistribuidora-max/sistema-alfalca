@@ -300,11 +300,19 @@ function Documento({ d, cerradoPor }) {
 
       h(Cuadro, {
         titulo: 'Vencimientos',
-        sub: c?.vencimientos_ok ? 'control de vencimientos hecho' : 'control de vencimientos sin marcar',
-        cols: [{ t: 'Local', w: 1.4 }, { t: 'Turno', w: 1 }, { t: 'Reportó', w: 1.3 }, { t: 'Producto', w: 4 }, { t: 'Vence en', w: 1.2, num: true }],
+        sub: resumenVencimientos(nv.vencimientos, c),
+        cols: [
+          { t: 'Local', w: 1.4 }, { t: 'Turno', w: 0.9 }, { t: 'Reportó', w: 1.4 }, { t: 'Producto', w: 3 },
+          { t: 'Cant.', w: 0.8, num: true }, { t: 'Vence', w: 1.2, num: true }, { t: 'Faltan', w: 1.1, num: true },
+        ],
         filas: [
-          ...nv.vencimientos.map(it => ({ c: [corto(it.local), it.turno, it.quien, it.producto, diasTexto(it.dias)] })),
-          ...(c?.acciones_vencimientos?.trim() ? [{ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, '', '', { t: c.acciones_vencimientos.trim() }, ''] }] : []),
+          ...nv.vencimientos.map(it => ({ c: [
+            corto(it.local), it.turno, it.quien, it.producto,
+            it.cantidad ? num(it.cantidad) : '—',
+            it.vence ? fechaCorta(it.vence) : '—',
+            celdaDias(it.dias),
+          ]})),
+          ...(c?.acciones_vencimientos?.trim() ? [{ fondo: C.fondo, c: [{ t: 'Encargado', bold: true }, '', '', { t: c.acciones_vencimientos.trim() }, '', '', ''] }] : []),
         ],
       }),
 
@@ -369,11 +377,33 @@ function Documento({ d, cerradoPor }) {
   );
 }
 
-// "Vence en" es texto libre en el formulario: si es un número se le agrega "días".
+// "Vence en" puede venir de un reporte viejo como texto libre: si es un número se le
+// agrega "días", y si no se muestra tal cual.
 function diasTexto(v) {
   if (v === null || v === undefined || String(v).trim() === '') return '—';
   const n = Number(String(v).replace(',', '.'));
   return Number.isFinite(n) ? `${n} día${n === 1 ? '' : 's'}` : String(v);
+}
+
+// Los días, pintados: lo que corre esta semana en rojo, lo de la quincena en ámbar.
+function celdaDias(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return diasTexto(v);
+  return { t: diasTexto(n), color: n <= 7 ? C.rojo : n <= 15 ? C.ambar : C.tinta, bold: n <= 15 };
+}
+
+// El encabezado del cuadro dice de una lo que hay que saber: cuántos productos y
+// cuánto falta para el primero.
+function resumenVencimientos(items, c) {
+  const control = c?.vencimientos_ok ? 'control hecho' : 'control sin marcar';
+  if (!items.length) return control;
+  const dias = items.map(it => Number(it.dias)).filter(Number.isFinite);
+  const unidades = items.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
+  const partes = [`${items.length} producto${items.length === 1 ? '' : 's'}`];
+  if (unidades) partes.push(`${num(unidades)} unidades`);
+  if (dias.length) partes.push(`el más próximo en ${Math.min(...dias)} días`);
+  partes.push(control);
+  return partes.join(' · ');
 }
 
 function medio(m) {
@@ -497,8 +527,16 @@ function DocumentoSemana({ w, R }) {
 
       h(Cuadro, {
         titulo: 'Vencimientos',
-        cols: [{ t: 'Día', w: 0.9 }, { t: 'Local', w: 1.3 }, { t: 'Turno', w: 1 }, { t: 'Reportó', w: 1.3 }, { t: 'Producto', w: 3.5 }, { t: 'Vence en', w: 1.2, num: true }],
-        filas: todas.vencimientos.map(it => ({ c: [it.dia, corto(it.local), it.turno, it.quien, it.producto, diasTexto(it.dias)] })),
+        cols: [
+          { t: 'Día', w: 0.9 }, { t: 'Local', w: 1.3 }, { t: 'Turno', w: 0.9 }, { t: 'Reportó', w: 1.3 },
+          { t: 'Producto', w: 2.8 }, { t: 'Cant.', w: 0.8, num: true }, { t: 'Vence', w: 1.2, num: true }, { t: 'Faltan', w: 1.1, num: true },
+        ],
+        filas: todas.vencimientos.map(it => ({ c: [
+          it.dia, corto(it.local), it.turno, it.quien, it.producto,
+          it.cantidad ? num(it.cantidad) : '—',
+          it.vence ? fechaCorta(it.vence) : '—',
+          celdaDias(it.dias),
+        ]})),
       }),
 
       h(Cuadro, {

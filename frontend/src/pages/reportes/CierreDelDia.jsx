@@ -658,7 +658,11 @@ export default function CierreDelDia({ fecha, onCambio }) {
             Lo que reportaron los turnos
           </h2>
           <Novedades titulo="Vencimientos" items={d.novedades.vencimientos}
-                     render={it => `${it.producto || ''} ${it.dias ? `(${it.dias} días)` : ''}`} />
+                     render={it => [
+                       it.cantidad ? `${it.cantidad} × ${it.producto}` : it.producto || '',
+                       it.dias == null ? null : `${it.dias} días`,
+                       it.vence ? `vence ${it.vence.split('-').reverse().join('/')}` : null,
+                     ].filter(Boolean).join(' · ')} />
           <MantenimientoDia items={d.novedades.mantenimiento} planes={form.planes}
                             onPlan={planear} cerrado={cerrado} />
           <Novedades titulo="Faltantes de insumos" items={d.novedades.faltantes}

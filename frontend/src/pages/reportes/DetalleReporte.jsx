@@ -139,6 +139,7 @@ function Respuesta({ campo, valor, equipo, items = [], productos = [], fecha, ch
       <ul className="list-disc pl-5 space-y-0.5">
         {(v.items || []).map((it, i) => (
           <li key={i}>
+            {it.cantidad ? `${it.cantidad} × ` : ''}
             {it.producto_id ? (nombres.get(it.producto_id) || 'producto dado de baja') : it.producto}
             {it.vence
               ? <span className="text-ahg-text/50"> — vence {it.vence.split('-').reverse().join('/')} · faltan {dias(it.vence)} días</span>

@@ -1,8 +1,11 @@
-// El check de vencimientos: qué producto y qué fecha trae el paquete.
+// El check de vencimientos: qué producto, cuántos y qué fecha trae el paquete.
 //
 // Antes esto era texto libre y cada uno lo escribía distinto ("ron", "alfajor ron",
 // "alf ron y cognac"). Ahora el producto sale de un maestro chico que maneja Martín y
-// la persona carga la fecha impresa; los días los saca el sistema.
+// la persona carga cuántos son y la fecha impresa; los días los saca el sistema.
+//
+// La cantidad es la que decide qué hacer: dos alfajores a quince días se venden solos,
+// treinta necesitan una promo. Sin ese número el aviso no sirve para tomar una decisión.
 //
 // Los días se cuentan SIEMPRE contra la fecha del cierre, nunca contra hoy: abrir el
 // cierre del lunes tiene que mostrar los días que faltaban el lunes.
@@ -36,8 +39,10 @@ function normalizar(it) {
   const o = it && typeof it === 'object' ? it : {};
   const producto_id = o.producto_id ? Number(o.producto_id) : null;
   const vence = ES_FECHA.test(String(o.vence || '')) ? String(o.vence) : null;
+  const cantidad = Number(o.cantidad);
   return {
     producto_id, vence,
+    cantidad: Number.isFinite(cantidad) && cantidad > 0 ? Math.round(cantidad) : null,
     legado_producto: producto_id ? null : (String(o.producto || '').trim() || null),
     legado_dias:     producto_id ? null : (o.dias ?? null),
   };
@@ -54,11 +59,14 @@ function paraCierre(it, fecha, nombres) {
   if (it.producto_id) {
     return {
       producto: nombres.get(it.producto_id) || 'producto dado de baja',
+      cantidad: it.cantidad,
       vence:    it.vence,
       dias:     it.vence ? diasEntre(fecha, it.vence) : null,
     };
   }
-  return { producto: it.legado_producto, vence: null, dias: it.legado_dias };
+  // Los renglones viejos no tienen cantidad y nunca la van a tener: se escribieron
+  // cuando no se preguntaba. Va en null, no en cero, para no inventar un dato.
+  return { producto: it.legado_producto, cantidad: null, vence: null, dias: it.legado_dias };
 }
 
 // Qué le falta al reporte antes de salir. Sin producto o sin fecha no hay dato que
@@ -78,6 +86,9 @@ async function faltantesVencimientos(reporte) {
       continue;
     }
     const nombre = nombres.get(it.producto_id);
+    if (!it.cantidad) {
+      faltan.push(`Vencimientos — decí cuántos hay de ${nombre}`);
+    }
     if (!it.vence) {
       faltan.push(`Vencimientos — cargá la fecha que dice el paquete de ${nombre}`);
       continue;

@@ -273,7 +273,7 @@ const fechaCorta = f => FECHA_CORTA.format(new Date(`${f}T12:00:00`));
 // y en el backend para el cierre — las dos cuentas van contra la fecha del reporte,
 // no contra hoy.
 //
-// Valor: { hubo, hay, items: [{ producto_id, vence }] }
+// Valor: { hubo, hay, items: [{ producto_id, cantidad, vence }] }
 function diasHasta(vence, fecha) {
   if (!vence || !fecha) return null;
   return Math.round((Date.parse(`${vence}T12:00:00`) - Date.parse(`${fecha}T12:00:00`)) / 86400000);
@@ -341,6 +341,17 @@ function Vencimientos({ campo, valor, productos, fecha, onChange }) {
                   >×</button>
                 </div>
                 <div className="flex gap-2 items-center">
+                  <label className="text-xs font-semibold text-ahg-text/60 w-28 flex-shrink-0" htmlFor={`cant${i}`}>
+                    ¿Cuántos hay?
+                  </label>
+                  <input
+                    id={`cant${i}`} className="input text-sm flex-1 tabular-nums" inputMode="numeric"
+                    placeholder="unidades"
+                    value={fila.cantidad ?? ''}
+                    onChange={e => editar(i, 'cantidad', soloNumero(e.target.value))}
+                  />
+                </div>
+                <div className="flex gap-2 items-center">
                   <label className="text-xs font-semibold text-ahg-text/60 w-28 flex-shrink-0" htmlFor={`vence${i}`}>
                     Fecha del paquete
                   </label>
@@ -350,10 +361,11 @@ function Vencimientos({ campo, valor, productos, fecha, onChange }) {
                   />
                 </div>
                 <p className={`text-xs text-right ${tono}`}>
-                  {dias == null ? 'Cargá la fecha y te digo los días'
-                    : dias < 0 ? `Ya venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
-                    : dias === 0 ? 'Vence hoy'
-                    : `Faltan ${dias} día${dias === 1 ? '' : 's'}`}
+                  {fila.cantidad ? `${fila.cantidad} ${fila.cantidad === 1 ? 'unidad' : 'unidades'} · ` : ''}
+                  {dias == null ? 'cargá la fecha y te digo los días'
+                    : dias < 0 ? `ya venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
+                    : dias === 0 ? 'vence hoy'
+                    : `faltan ${dias} día${dias === 1 ? '' : 's'}`}
                 </p>
               </div>
             );

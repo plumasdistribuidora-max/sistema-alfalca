@@ -12,6 +12,7 @@
 const pool = require('../config/db');
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const fechaCorta = f => (f ? String(f).split('-').reverse().join('/') : 'sin fecha');
 
 // Qué productos toca revisar un día, con los lotes que el sistema ya conoce.
 // Un lote entra si alguien lo contó o si llegó en una factura y todavía no se cerró.
@@ -42,11 +43,17 @@ function valorConteo(v) {
     const n = Number(String(x).replace(',', '.'));
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
+  // La fecha tiene tres estados y no se pueden confundir: una fecha de verdad, null
+  // ("no tiene fecha legible", elegido a propósito) y '' (quedó a medio completar).
+  const fecha = v => {
+    if (v === null) return null;
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '';
+  };
   return (Array.isArray(o.lineas) ? o.lineas : [])
     .map(l => ({
       producto_id: l?.producto_id ? Number(l.producto_id) : null,
       lote_id:     l?.lote_id ? Number(l.lote_id) : null,
-      vence:       /^\d{4}-\d{2}-\d{2}$/.test(String(l?.vence || '')) ? String(l.vence) : null,
+      vence:       fecha(l?.vence),
       freezer:     num(l?.freezer),
       heladera:    num(l?.heladera),
     }))
@@ -63,22 +70,31 @@ async function faltantesCocina(reporte) {
   if (!productos.length) return [];
 
   const lineas = valorConteo(campo);
-  const porClave = new Map(lineas.map(l => [`${l.producto_id}:${l.lote_id ?? 'n' + l.vence}`, l]));
   const faltan = [];
 
   for (const p of productos) {
-    const lotes = p.lotes.length ? p.lotes : [{ lote_id: null, vence: null }];
-    for (const lote of lotes) {
-      const l = porClave.get(`${p.id}:${lote.lote_id ?? 'n' + lote.vence}`);
-      const cual = `${p.nombre}${lote.vence ? ` (vence ${lote.vence.split('-').reverse().join('/')})` : ''}`;
-      if (!l) { faltan.push(`Stock — falta contar ${cual}`); continue; }
+    const suyas = lineas.filter(l => l.producto_id === p.id);
+
+    // Un producto que el sistema todavía no conoce igual tiene que contarse: es el
+    // primer día, o se había acabado y volvió a entrar.
+    if (!suyas.length) { faltan.push(`Stock — falta contar ${p.nombre}`); continue; }
+
+    // Cada lote que el sistema ya conocía tiene que tener su renglón: si desapareció
+    // de la heladera hay que decir que quedó en cero, no dejarlo en blanco.
+    for (const lote of p.lotes) {
+      if (!suyas.some(l => l.lote_id === lote.id || l.lote_id === lote.lote_id)) {
+        faltan.push(`Stock — falta contar ${p.nombre} de ${fechaCorta(lote.vence)}`);
+      }
+    }
+
+    for (const l of suyas) {
+      const cual = `${p.nombre}${l.vence ? ` de ${fechaCorta(l.vence)}` : ''}`;
+      if (!l.lote_id && l.vence === '') {
+        faltan.push(`Stock — pusiste una fecha en ${p.nombre} y quedó sin completar`);
+      }
       if (p.en_freezer  && l.freezer  === null) faltan.push(`Stock — cuántos hay en el freezer de ${cual}`);
       if (p.en_heladera && l.heladera === null) faltan.push(`Stock — cuántos hay en la heladera de ${cual}`);
     }
-  }
-  // Una fecha nueva sin fecha cargada no se puede guardar como lote.
-  for (const l of lineas) {
-    if (!l.lote_id && !l.vence) faltan.push('Stock — pusiste una fecha nueva pero quedó sin completar');
   }
   return faltan.slice(0, 12);
 }
@@ -111,7 +127,7 @@ async function sincronizarCocina(reporte, usuarioId) {
           INSERT INTO cocina_lotes (producto_id, vence, origen) VALUES ($1, $2, 'conteo')
           ON CONFLICT (producto_id, COALESCE(vence, '1900-01-01'::date)) DO UPDATE SET cerrado = false
           RETURNING id
-        `, [l.producto_id, l.vence]);
+        `, [l.producto_id, l.vence || null]);
         loteId = rows[0].id;
       }
       await client.query(`

@@ -409,6 +409,15 @@ function StockCocina({ valor, productos, onChange }) {
     const actual = porClave.get(k) || { producto_id, lote_id: lote.lote_id ?? null, vence: lote.vence ?? null };
     onChange({ lineas: [...otras, { ...actual, [campo]: v }] });
   }
+  // Cambiar la fecha cambia la clave del renglón, así que lo ya contado se mueve con
+  // ella. Sin esto, poner la fecha después de contar borraba los números.
+  function cambiarFecha(producto_id, lote, nueva) {
+    const k = `${producto_id}:${lote.lote_id ?? 'n' + (lote.vence ?? 'sf')}`;
+    const otras = lineas.filter(l => clave(l) !== k);
+    const actual = porClave.get(k) || { producto_id, lote_id: null };
+    onChange({ lineas: [...otras, { ...actual, lote_id: null, vence: nueva }] });
+  }
+
   function agregarFecha(producto_id) {
     onChange({ lineas: [...lineas, { producto_id, lote_id: null, vence: '', freezer: '', heladera: '' }] });
   }
@@ -453,9 +462,10 @@ function StockCocina({ valor, productos, onChange }) {
             const nuevas = lineas.filter(l => l.producto_id === p.id && !l.lote_id && typeof l.vence === 'string');
             const lotes = [
               ...p.lotes.map(x => ({ lote_id: x.lote_id, vence: x.vence, conocido: true })),
-              // Sin lotes conocidos —el primer día, o un producto que se acabó— igual
-              // hay que poder contar lo que hay, aunque nadie sepa qué fecha tiene.
-              ...(p.lotes.length ? [] : [{ lote_id: null, vence: null, conocido: true }]),
+              // Sin lotes conocidos —el primer día, o un producto que se acabó— se abre
+              // un renglón pidiendo la fecha: lo que está en la heladera la tiene
+              // impresa en el paquete, así que se carga y a partir de ahí ya viene sola.
+              ...(p.lotes.length || nuevas.length ? [] : [{ lote_id: null, vence: '', conocido: false }]),
               ...nuevas.map(l => ({ lote_id: null, vence: l.vence, conocido: false })),
             ];
             return (
@@ -482,16 +492,22 @@ function StockCocina({ valor, productos, onChange }) {
                       <span className="text-xs text-ahg-text/70 w-16 flex-shrink-0 tabular-nums">
                         {lote.vence ? fechaCortita(lote.vence) : 'sin fecha'}
                       </span>
+                    ) : lote.vence === null ? (
+                      <span className="text-xs w-32 flex-shrink-0 flex items-center gap-1.5">
+                        <span className="text-ahg-text/50">sin fecha</span>
+                        <button type="button" onClick={() => cambiarFecha(p.id, lote, '')}
+                                className="font-semibold text-ahg-primary underline">poner</button>
+                      </span>
                     ) : (
-                      <input
-                        type="date" className="input text-xs w-32 flex-shrink-0"
-                        value={lote.vence || ''}
-                        onChange={e => {
-                          const otras = lineas.filter(l => !(l.producto_id === p.id && !l.lote_id && l.vence === lote.vence));
-                          const actual = lineas.find(l => l.producto_id === p.id && !l.lote_id && l.vence === lote.vence) || { producto_id: p.id, lote_id: null };
-                          onChange({ lineas: [...otras, { ...actual, vence: e.target.value }] });
-                        }}
-                      />
+                      <span className="w-32 flex-shrink-0">
+                        <input
+                          type="date" className="input text-xs w-full"
+                          value={lote.vence || ''}
+                          onChange={e => cambiarFecha(p.id, lote, e.target.value)}
+                        />
+                        <button type="button" onClick={() => cambiarFecha(p.id, lote, null)}
+                                className="text-[10px] text-ahg-text/40 underline mt-0.5">no tiene fecha</button>
+                      </span>
                     )}
                     <div className="flex-1 min-w-0">{p.en_freezer ? casillero(p, lote, 'freezer') : null}</div>
                     <div className="flex-1 min-w-0">{p.en_heladera ? casillero(p, lote, 'heladera') : null}</div>
@@ -515,7 +531,7 @@ function StockCocina({ valor, productos, onChange }) {
         </div>
       ))}
       <p className="text-xs text-ahg-text/40">
-        Las fechas ya están puestas; poné cuántos hay de cada una. Si aparece una fecha nueva, agregala.
+        El primer día cargá la fecha que dice el paquete. Después ya viene puesta y solo ponés cuántos hay.
       </p>
     </div>
   );

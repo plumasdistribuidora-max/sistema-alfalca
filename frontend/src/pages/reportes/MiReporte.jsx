@@ -3,6 +3,7 @@ import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import Campo, { soloNumero, FotoAdjunta } from './campos';
 import { UNIDADES, precioPor } from '../../utils/unidades';
+import { campoVisible } from './pesaje';
 import { camposApertura, camposEntrega, tieneApertura, codigosFotoApertura, resumenApertura, hora } from './etapas';
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -474,7 +475,11 @@ export default function MiReporte() {
   const otrosPendientes = pendientes.filter(p => p.id !== reporteId);
   const etiquetaOpcion = o => plantilla_es_sector(o) ? `${o.plantilla_nombre} · ${o.local_nombre}` : o.local_nombre;
   const campoTurno = plantilla.campos.find(c => c.tipo === 'seleccion' && c.codigo === 'turno');
-  const resto = plantilla.campos.filter(c => c.codigo !== 'turno');
+  // Un campo que cuelga de otro (solo_si) aparece recién cuando esa respuesta lo pide:
+  // la foto de la máquina sucia no está ahí molestando si la recibieron bien.
+  const resto = plantilla.campos
+    .filter(c => c.codigo !== 'turno')
+    .filter(c => campoVisible(c, respuestas));
 
   // Reportes en dos etapas: la apertura se edita hasta confirmarla (o si el encargado
   // devolvió el reporte); la entrega aparece recién después.

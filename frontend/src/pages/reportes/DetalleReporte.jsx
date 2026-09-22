@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import { cantidadConUnidad, precioPor } from '../../utils/unidades';
 import { camposApertura, camposEntrega, tieneApertura, hora } from './etapas';
+import { campoVisible } from './pesaje';
 import { fotosPesaje, totalPesaje, kg, campoParaTurno } from './pesaje';
 
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -249,7 +250,12 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
 
   const equipo = Object.fromEntries((r.equipo || []).map(e => [String(e.id), e]));
   // Con los textos del turno del reporte ("Café al empezar el día", no "Café").
-  const campos = (r.plantilla?.campos || []).map(c => campoParaTurno(c, r.turno));
+  // Un campo que colgaba de otro y no se llegó a pedir no se muestra: si dijo que
+  // recibió la máquina bien, la foto de la máquina sucia no va. Una foto que quedó de
+  // haber contestado al revés no se pierde: cae abajo, entre las sueltas.
+  const campos = (r.plantilla?.campos || [])
+    .map(c => campoParaTurno(c, r.turno))
+    .filter(c => campoVisible(c, r.respuestas));
   const fotos  = r.adjuntos || [];
   const fotosDe = codigo => fotos.filter(a => a.campo_codigo === codigo);
   const Miniaturas = ({ lista }) => lista.length ? (

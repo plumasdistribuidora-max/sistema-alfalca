@@ -5,7 +5,7 @@ const { uploadToR2, getFromR2 } = require('../config/r2');
 const { requireAuth, requireRol, ROLES, ROLES_RED } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
-const { elegirReporte, campoParaTurno } = require('../utils/reportes');
+const { elegirReporte, campoParaTurno, campoVisible } = require('../utils/reportes');
 const { pendientesDe, faltantesMantenimiento, sincronizarMantenimiento, itemsDeReporte, rubrosActivos } = require('../utils/mantenimiento');
 const { productosActivos, faltantesVencimientos } = require('../utils/vencimientos');
 const { camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura } = require('../utils/etapas');
@@ -178,7 +178,9 @@ function validar(campos, respuestas) {
 // Es lo mismo al confirmar la apertura (solo sus campos) que al enviar (todos). Los
 // avisos usan el texto del turno ("Café al empezar el día", no "Café").
 function faltantesDe(camposPlantilla, respuestas, adjuntos) {
-  const campos = camposPlantilla.map(c => campoParaTurno(c, respuestas.turno));
+  const campos = camposPlantilla
+    .map(c => campoParaTurno(c, respuestas.turno))
+    .filter(c => campoVisible(c, respuestas));
   const faltan = validar(campos, respuestas);
   for (const campo of campos) {
     if (campo.tipo === 'foto' && campo.requerido && !adjuntos.some(a => a.campo_codigo === campo.codigo)) {

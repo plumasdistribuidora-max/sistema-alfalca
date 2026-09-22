@@ -20,3 +20,11 @@ export function campoParaTurno(campo, turno) {
   const extra = campo.por_turno?.[turno];
   return extra ? { ...campo, ...extra } : campo;
 }
+
+// Un campo puede colgar de la respuesta de otro: { solo_si: { codigo, vale } }. Misma
+// regla que en el backend (utils/reportes.js), para que lo que no se ve tampoco se pida.
+export function campoVisible(campo, respuestas) {
+  const cond = campo.solo_si;
+  if (!cond || !cond.codigo) return true;
+  return (respuestas || {})[cond.codigo] === cond.vale;
+}

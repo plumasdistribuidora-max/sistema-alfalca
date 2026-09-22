@@ -47,4 +47,14 @@ function campoParaTurno(campo, turno) {
   return extra ? { ...campo, ...extra } : campo;
 }
 
-module.exports = { PESO_ESTADO, elegirReporte, unoPorTurno, esNovedad, campoParaTurno };
+// Un campo puede colgar de la respuesta de otro: { "solo_si": { "codigo": "maquina_ok",
+// "vale": false } } lo muestra solo cuando esa pregunta vale eso. Si no se ve, tampoco
+// se pide — si no, el reporte quedaría trabado por algo que la persona no tiene delante.
+// Vive en la plantilla, que es data: colgar una pregunta de otra no toca código.
+function campoVisible(campo, respuestas) {
+  const cond = campo.solo_si;
+  if (!cond || !cond.codigo) return true;
+  return (respuestas || {})[cond.codigo] === cond.vale;
+}
+
+module.exports = { PESO_ESTADO, elegirReporte, unoPorTurno, esNovedad, campoParaTurno, campoVisible };

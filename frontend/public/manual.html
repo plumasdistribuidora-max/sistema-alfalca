@@ -993,14 +993,14 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </p>
       <p><strong>Si sos la de la mañana</strong>, al entrar:</p>
       <ol class="pasos">
-        <li><div><strong>Elegí el turno</strong> (Mañana) y contestá si recibiste la <strong>máquina en orden y limpia</strong>, sí o no. Sin foto.</div></li>
+        <li><div><strong>Elegí el turno</strong> (Mañana) y contestá si recibiste la <strong>máquina en orden y limpia</strong>, sí o no. Si contestás que <strong>no</strong>, se abre abajo un casillero para <strong>sacarle una foto</strong> a lo que está sucio o fuera de lugar, y sin esa foto el reporte no se envía. Si contestás que sí, ese casillero no aparece.</div></li>
         <li><div><strong>Café al empezar el día.</strong> Antes de cargar la tolva: pesá la bolsa abierta en la balanza de cocina (foto de la balanza) y sumá lo que dice cada bolsa cerrada del depósito (foto de las bolsas). Abajo te dice el total.</div></li>
         <li><div><strong>¿Hay que hacer algún mantenimiento?</strong> Lo que ya reportó otra barista aparece solo: decís si se solucionó o sigue igual. Lo nuevo, un problema por renglón. Los baristas tienen su propia lista (la máquina): no ven lo que reporta la encargada del café ni cocina, y ellas no ven lo de la máquina.</div></li>
         <li><div><strong>¿Te faltó algún insumo?</strong> y <strong>Enviar al Encargado</strong>. Listo: el reporte de la mañana se cierra ahí.</div></li>
       </ol>
       <p><strong>Si sos la de la tarde</strong>, al terminar el día, cuando ya no se saca más café:</p>
       <ol class="pasos">
-        <li><div><strong>Elegí el turno</strong> (Tarde) y contestá si recibiste la <strong>máquina en orden</strong> del turno de la mañana, sí o no. Sin foto.</div></li>
+        <li><div><strong>Elegí el turno</strong> (Tarde) y contestá si recibiste la <strong>máquina en orden</strong> del turno de la mañana, sí o no. Igual que a la mañana: si decís que no, hay que adjuntar la foto de cómo la encontraste.</div></li>
         <li><div><strong>Café al terminar el día.</strong> Vaciá la tolva de vuelta a la bolsa abierta, pesala en la balanza (foto) y sumá las bolsas cerradas (foto).</div></li>
         <li><div><strong>Mantenimiento.</strong> Si la de la mañana reportó algo hoy, te aparece: decís si <em>sigue igual</em> o <em>ya se solucionó</em>, y podés agregar otro problema, siempre uno por renglón.</div></li>
         <li><div><strong>¿Te faltó algún insumo?</strong> y <strong>Enviar al Encargado</strong>.</div></li>
@@ -1010,6 +1010,14 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <p>Los dos pesajes se hacen <strong>con la tolva vacía</strong>: a la mañana antes de
         cargarla, a la tarde después de vaciarla. Si no, el café que está en la tolva no se cuenta
         y el consumo del día sale mal.</p>
+      </div>
+
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p>La foto de la máquina no es para acusar a nadie: es para que el reclamo se pueda
+        resolver. Un <em>no</em> solo es la palabra de una contra la de la otra y no se puede
+        corregir nada; con la foto se ve qué pasó y el turno anterior sabe exactamente qué le
+        están marcando.</p>
       </div>
 
       <h3>Si el encargado te lo devuelve, o te quedó sin enviar</h3>
@@ -1879,12 +1887,13 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <tr><td><strong>Número · con decimales · plata</strong></td><td>Teclado numérico. "Plata" formatea con puntos de miles.</td></tr>
             <tr><td><strong>Elegir una opción</strong></td><td>Botones, uno al lado del otro.</td></tr>
             <tr><td><strong>Sí o no</strong></td><td>Dos botones.</td></tr>
-            <tr><td><strong>Sí o no, con detalle</strong></td><td>Si contesta que sí, se abre una lista para cargar el detalle. Si le cargás una <em>pregunta intermedia</em>, la lista se pide solo cuando esa segunda pregunta también es sí (así funciona el check de vencimientos).</td></tr>
+            <tr><td><strong>Sí o no, con detalle</strong></td><td>Si contesta que sí, se abre una lista para cargar el detalle. Si le cargás una <em>pregunta intermedia</em>, la lista se pide solo cuando esa segunda pregunta también es sí.</td></tr>
+            <tr><td><strong>Check de vencimientos</strong></td><td>Las dos preguntas de sí o no y, si las dos son sí, una lista donde cada renglón es <em>producto de la lista + cuántos hay + la fecha del paquete</em>. Los días los calcula el sistema.</td></tr>
             <tr><td><strong>Checklist</strong></td><td>Una lista de ítems para tildar.</td></tr>
             <tr><td><strong>Horas del equipo</strong></td><td>La gente del local con un casillero de horas al lado.</td></tr>
             <tr><td><strong>Fotos</strong></td><td>Botón de cámara, con un máximo configurable.</td></tr>
             <tr><td><strong>Facturas</strong></td><td>El formulario de factura con proveedor, renglones y total.</td></tr>
-            <tr><td><strong>Mantenimiento con seguimiento</strong></td><td>Lo pendiente del local ya cargado, con <em>Ya se solucionó</em> / <em>Sigue igual</em>, y un botón para agregar algo nuevo. Cada cosa queda como ítem hasta que alguien la marque resuelta.</td></tr>
+            <tr><td><strong>Mantenimiento con seguimiento</strong></td><td>Lo pendiente del local ya cargado, con <em>Ya se solucionó</em> / <em>Sigue igual</em>, y un botón para agregar algo nuevo, que pide el rubro y el detalle. Cada cosa queda como ítem hasta que alguien la marque resuelta.</td></tr>
             <tr><td><strong>Pesaje de café</strong></td><td>Kilos en la bolsa abierta y en las bolsas cerradas, cada uno con su foto, y el total abajo. En el formulario de barista el título cambia según el turno: <em>al empezar el día</em> a la mañana, <em>al terminar</em> a la tarde.</td></tr>
           </tbody>
         </table>

@@ -25,6 +25,7 @@ import MiReporte              from './pages/reportes/MiReporte';
 import Reportes               from './pages/reportes/Reportes';
 import FormulariosPage        from './pages/admin/FormulariosPage';
 import ProveedoresPage        from './pages/proveedores/ProveedoresPage';
+import MarcaProximamente      from './pages/MarcaProximamente';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="ventas/productos/empleados"     element={soloRed(<DocenasPorEmpleadoPage />)} />
             <Route path="ventas/productos/catalogo"      element={soloRed(<CatalogoPage />)} />
             <Route path="red"                            element={soloRed(<RedDashboard />)} />
+            <Route path="marcas/:slug"                   element={soloRed(<MarcaProximamente />)} />
             <Route path="stock"                          element={soloRed(<StockInteligente />)} />
             <Route path="finanzas"                       element={soloDueno(<FinanzasPage />)} />
             <Route path="admin/maestros/docenas"         element={soloDueno(<MaestroDocenasPage />)} />

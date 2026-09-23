@@ -23,6 +23,10 @@ const PATHS = {
   cafe:       'M5 9h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9zM16 10h2a2 2 0 0 1 0 4h-2M8 5c0-1 .5-1 .5-2M11.5 5c0-1 .5-1 .5-2',
   locales:    'M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10zM12 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   manual:     'M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2V5zM4 19a2 2 0 0 1 2-2h14M9 7h7',
+  // Una por marca: un alfajor (Entre Dos), una sartén (Kankay) y un rociador de limpieza (Senzen).
+  alfajor:    'M3 8c0-1.7 4-3 9-3s9 1.3 9 3-4 3-9 3-9-1.3-9-3zM3 8v1.5M21 8v1.5M3 12.5c1.5.8 3 .8 4.5 0s3-.8 4.5 0 3 .8 4.5 0 3-.8 4.5 0M3 15.5c0 1.7 4 3 9 3s9-1.3 9-3v-1M3 15.5v-1',
+  sarten:     'M10 18.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.3 8.3L21.5 4',
+  limpieza:   'M8 11h6v9a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-9zM9 11V8h4v3M8 8V5h6l2 2M19 4h.01M21 6h.01M19 8h.01',
 };
 
 function Icono({ name, small }) {
@@ -38,7 +42,29 @@ function Icono({ name, small }) {
   );
 }
 
-const TIENDA_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
+// Tiendas se abre en las marcas; Entre Dos, en sus tres pantallas. Estar en cualquiera
+// de estas rutas deja abierto el grupo que la contiene.
+const ENTREDOS_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
+const TIENDA_ROUTES   = [...ENTREDOS_ROUTES, '/marcas'];
+
+// Kankay y Senzen todavía no tienen dashboard: llevan a su página de "Próximamente".
+const MARCAS_PROXIMAS = [
+  { slug: 'kankay', label: 'Kankay', icon: 'sarten' },
+  { slug: 'senzen', label: 'Senzen', icon: 'limpieza' },
+];
+
+function enRutas(pathname, rutas) {
+  return rutas.some(r => pathname === r || pathname.startsWith(r + '/'));
+}
+
+function Chevron({ abierto }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+         className={`w-3.5 h-3.5 transition-transform duration-200 ${abierto ? 'rotate-0' : '-rotate-90'}`} aria-hidden="true">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
 
 function NavItem({ to, icon, label }) {
   return (
@@ -57,19 +83,20 @@ function NavItem({ to, icon, label }) {
   );
 }
 
-function SubNavItem({ to, icon, label }) {
+function SubNavItem({ to, icon, label, profundo, children }) {
   return (
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+        `flex items-center gap-2.5 ${profundo ? 'pl-12' : 'pl-8'} pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors
          ${isActive
            ? 'bg-white/20 text-white'
            : 'text-white/60 hover:bg-white/10 hover:text-white'}`
       }
     >
       <Icono name={icon} small />
-      {label}
+      <span className="flex-1">{label}</span>
+      {children}
     </NavLink>
   );
 }
@@ -98,12 +125,11 @@ function LinkExterno({ href, icon, label }) {
 export default function Sidebar({ open, onClose }) {
   const { user }   = useAuth();
   const location   = useLocation();
-  const [tiendaExpanded, setTiendaExpanded] = useState(false);
+  const [tiendaExpanded, setTiendaExpanded]     = useState(false);
+  const [entreDosExpanded, setEntreDosExpanded] = useState(false);
 
-  const isOnTiendaRoute = TIENDA_ROUTES.some(
-    r => location.pathname === r || location.pathname.startsWith(r + '/')
-  );
-  const tiendaOpen = tiendaExpanded || isOnTiendaRoute;
+  const tiendaOpen   = tiendaExpanded   || enRutas(location.pathname, TIENDA_ROUTES);
+  const entreDosOpen = entreDosExpanded || enRutas(location.pathname, ENTREDOS_ROUTES);
 
   return (
     <>
@@ -155,16 +181,30 @@ export default function Sidebar({ open, onClose }) {
               >
                 <Icono name="tiendas" />
                 <span className="flex-1 text-left">Tiendas</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
-                     className={`w-3.5 h-3.5 transition-transform duration-200 ${tiendaOpen ? 'rotate-0' : '-rotate-90'}`} aria-hidden="true">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
+                <Chevron abierto={tiendaOpen} />
               </button>
               {tiendaOpen && (
                 <div className="space-y-0.5 pb-0.5">
-                  <SubNavItem to="/red"               icon="dashboard"       label="Dashboard" />
-                  <SubNavItem to="/ventas/importar"   icon="importar"  label="Importar Excel" />
-                  <SubNavItem to="/historial-imports" icon="historial" label="Historial Excel" />
+                  <button
+                    onClick={() => setEntreDosExpanded(prev => !prev)}
+                    className="w-full flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-white/60 hover:bg-white/10 hover:text-white"
+                  >
+                    <Icono name="alfajor" small />
+                    <span className="flex-1 text-left">Entre Dos</span>
+                    <Chevron abierto={entreDosOpen} />
+                  </button>
+                  {entreDosOpen && (
+                    <>
+                      <SubNavItem to="/red"               icon="dashboard" label="Dashboard"       profundo />
+                      <SubNavItem to="/ventas/importar"   icon="importar"  label="Importar Excel"  profundo />
+                      <SubNavItem to="/historial-imports" icon="historial" label="Historial Excel" profundo />
+                    </>
+                  )}
+                  {MARCAS_PROXIMAS.map(m => (
+                    <SubNavItem key={m.slug} to={`/marcas/${m.slug}`} icon={m.icon} label={m.label}>
+                      <span className="text-[10px] px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>
+                    </SubNavItem>
+                  ))}
                 </div>
               )}
 

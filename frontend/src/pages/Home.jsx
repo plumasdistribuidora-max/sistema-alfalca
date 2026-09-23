@@ -3,17 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { colorDeTienda, shortName, fmtARS, fmtDoc } from './red/redUtils';
-import logoEntreDos from '../assets/marcas/entre-dos.png';
-import logoKankay   from '../assets/marcas/kankay.jpg';
-import logoSenzen   from '../assets/marcas/senzen-blanco.png';
-
-// Las marcas del grupo. El logo va en su propio recuadro con el fondo con el que
-// vino. Senzen es turquesa: se usa una versión blanca sobre negro para que las tres queden parejas.
-const MARCAS = [
-  { nombre: 'Entre Dos', rubro: 'Tiendas y cafetería', logo: logoEntreDos, fondo: '#000000' },
-  { nombre: 'Kankay',    rubro: 'Retail',              logo: logoKankay,   fondo: '#000000' },
-  { nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#000000', alto: 68 },
-];
+import { MARCAS } from '../marcas';
 
 const DIAS  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -133,7 +123,7 @@ export default function Home() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Al pasar el mouse la tarjeta se levanta apenas y el logo crece un poco: vida, sin animación. */}
         {MARCAS.map(m => (
-          <div key={m.nombre} className="card p-3.5 flex flex-col gap-3 group transition-all duration-300 ease-out motion-safe:hover:-translate-y-1 hover:shadow-md">
+          <Link key={m.nombre} to={m.to} className="card p-3.5 flex flex-col gap-3 group transition-all duration-300 ease-out motion-safe:hover:-translate-y-1 hover:shadow-md">
             <div className="h-24 rounded-xl flex items-center justify-center overflow-hidden" style={{ background: m.fondo }}>
               <img
                 src={m.logo} alt={m.nombre}
@@ -146,8 +136,11 @@ export default function Home() {
                 <p className="font-bold text-ahg-text" style={{ fontFamily: 'Nunito, sans-serif' }}>{m.nombre}</p>
                 <p className="text-xs text-ahg-text/50">{m.rubro}</p>
               </div>
+              {m.proximamente
+                ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-ahg-bg text-ahg-text/55">Próximamente</span>
+                : <span className="text-xs font-semibold text-ahg-text/55">Ver dashboard →</span>}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

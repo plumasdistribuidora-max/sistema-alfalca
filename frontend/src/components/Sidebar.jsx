@@ -47,9 +47,10 @@ function Icono({ name, small }) {
 const ENTREDOS_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
 const TIENDA_ROUTES   = [...ENTREDOS_ROUTES, '/marcas'];
 
-// Kankay y Senzen todavía no tienen dashboard: llevan a su página de "Próximamente".
+// Kankay tiene su estado de resultados, que es solo del dueño: para el resto sigue en "pronto".
+// Senzen todavía no tiene nada y lleva a su página de "Próximamente".
 const MARCAS_PROXIMAS = [
-  { slug: 'kankay', label: 'Kankay', icon: 'sarten' },
+  { slug: 'kankay', label: 'Kankay', icon: 'sarten', listaParaDueno: true },
   { slug: 'senzen', label: 'Senzen', icon: 'limpieza' },
 ];
 
@@ -202,7 +203,9 @@ export default function Sidebar({ open, onClose }) {
                   )}
                   {MARCAS_PROXIMAS.map(m => (
                     <SubNavItem key={m.slug} to={`/marcas/${m.slug}`} icon={m.icon} label={m.label}>
-                      <span className="text-[10px] px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>
+                      {!(m.listaParaDueno && esDueno(user)) && (
+                        <span className="text-[10px] px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>
+                      )}
                     </SubNavItem>
                   ))}
                 </div>

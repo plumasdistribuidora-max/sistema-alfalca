@@ -490,6 +490,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <a href="#dashboard"><span class="ic">⊙</span>Dashboard de tiendas</a>
     <a href="#stock"><span class="ic">▣</span>Stock inteligente</a>
     <a href="#finanzas"><span class="ic">⊛</span>Finanzas</a>
+    <a href="#kankay"><span class="ic">◇</span>Kankay</a>
 
     <p class="tit">Equipo</p>
     <a href="#equipo"><span class="ic">◐</span>Empleados y horas</a>
@@ -564,8 +565,9 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         Si sos dueño o Encargado General, al entrar ves la portada. Arriba están las
         <strong>tres marcas del grupo</strong> — Entre Dos (tiendas y cafetería), Kankay y Senzen —
         y debajo <strong>Hoy en la red</strong>: cómo viene el día sin tener que abrir ningún módulo.
-        Cada marca se puede tocar: Entre Dos te lleva a su dashboard, y Kankay y Senzen, que todavía
-        no tienen uno, dicen <em>Próximamente</em>.
+        Cada marca se puede tocar: Entre Dos te lleva a su dashboard; Kankay, a su estado de resultados
+        (solo el dueño; el Encargado General ve <em>Próximamente</em>), y Senzen, que todavía no tiene
+        nada, dice <em>Próximamente</em>.
       </p>
 
       <figure class="figura dos">
@@ -721,7 +723,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <div class="m-it m-sub" style="padding-left:30px">Dashboard</div>
             <div class="m-it m-sub" style="padding-left:30px">Importar Excel</div>
             <div class="m-it m-sub" style="padding-left:30px">Historial Excel</div>
-            <div class="m-it m-sub">Kankay <span style="margin-left:auto;font-size:7px;opacity:.6">pronto</span></div>
+            <div class="m-it m-sub">Kankay</div>
             <div class="m-it m-sub">Senzen <span style="margin-left:auto;font-size:7px;opacity:.6">pronto</span></div>
             <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
             <div class="m-it"><span class="ic">⊛</span>Finanzas</div>
@@ -742,7 +744,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <li><strong>El día</strong> — lo que pasa hoy: los reportes de los turnos y el cierre.</li>
             <li><strong>Análisis</strong> — lo que ya pasó: ventas, stock y plata. <em>Finanzas</em> le aparece solo al dueño.
               <em>Tiendas</em> se abre en las marcas del grupo: <strong>Entre Dos</strong> (el alfajor) tiene adentro el Dashboard, Importar Excel e Historial Excel;
-              <strong>Kankay</strong> (la sartén) y <strong>Senzen</strong> (el rociador) todavía no tienen dashboard y te llevan a una página de <em>Próximamente</em>.</li>
+              <strong>Kankay</strong> (la sartén) tiene su <strong>estado de resultados</strong>, que el dueño carga a mano mes por mes (ver <a href="#kankay">Kankay</a>);
+              <strong>Senzen</strong> (el rociador) todavía no tiene dashboard y te lleva a una página de <em>Próximamente</em>.</li>
             <li><strong>Equipo</strong> — la gente: quién trabaja, cuántas horas y quién entra al sistema.</li>
             <li><strong>Configuración</strong> — cómo funciona el sistema por dentro. Solo el dueño.</li>
             <li><strong>Ayuda</strong> — este manual. Lo ve todo el mundo, desde cualquier rol, y se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
@@ -1797,6 +1800,50 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         el mismo panel. Arriba aparecen las alertas del período y abajo la evolución de los
         últimos seis meses.
       </p>
+    </section>
+
+    <!-- ══════════ KANKAY ══════════ -->
+    <section class="seccion" id="kankay">
+      <p class="eyebrow">Análisis · Tiendas</p>
+      <p class="para-quien">Solo el dueño</p>
+      <h2>Kankay — estado de resultados</h2>
+      <p>
+        Kankay todavía no tiene de dónde sacar sus números solo, así que su pantalla es un estado de
+        resultados que se carga <strong>a mano, mes por mes</strong>. Se entra desde
+        <em>Tiendas → Kankay</em> o tocando su tarjeta en la portada.
+      </p>
+
+      <figure class="figura">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · kankay · estado de resultados</span></div>
+          <div class="m-main" style="padding:16px">
+            <div class="m-fila" style="gap:9px;margin-bottom:8px">
+              <span class="m-input" style="flex:1">Agosto 2026</span>
+            </div>
+            <div class="m-cascada">
+              <div class="lin"><span class="op">+</span><span><b>Ventas</b><em>Una línea por rubro, sin IVA</em></span><span class="mto">$ 6.400.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Deducciones de ventas</b><em>Comisiones de tarjetas y plataformas</em></span><span class="mto">$ 120.000</span></div>
+              <div class="lin"><span class="op">=</span><span><b>Ventas netas</b><em></em></span><span class="mto">$ 6.280.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Costo de la mercadería vendida</b><em>Lo que costó lo que vendiste</em></span><span class="mto">$ 3.100.000</span></div>
+              <div class="lin"><span class="op">=</span><span><b>Margen bruto</b><em></em></span><span class="mto">$ 3.180.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Gastos operativos</b><em>Sueldos, alquiler, expensas, marketing…</em></span><span class="mto">$ 1.900.000</span></div>
+              <div class="lin"><span class="op">=</span><span><b>Resultado operativo</b><em></em></span><span class="mto">$ 1.280.000</span></div>
+              <div class="lin"><span class="op">+</span><span><b>Otros ingresos no recurrentes</b><em>Lo que entra una sola vez</em></span><span class="mto">$ 500.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Impuestos y gastos financieros</b><em>IIBB, impuesto al cheque, bancos, cuotas</em></span><span class="mto">$ 250.000</span></div>
+              <div class="lin res"><span class="op">=</span><span><b>Resultado neto</b><em></em></span><span class="mto">$ 1.530.000</span></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>El orden de la pantalla.</b> Los subtotales se calculan solos; al lado de cada monto está el % sobre las ventas netas.</figcaption>
+      </figure>
+
+      <ul class="simple">
+        <li><strong>Los montos se escriben en positivo y sin IVA.</strong> El signo lo pone el grupo: un gasto resta aunque lo escribas sin el menos.</li>
+        <li><strong>Se guarda solo</strong> mientras escribís. Arriba de la tabla dice <em>Guardado</em> y a qué hora.</li>
+        <li><strong>Los renglones son tuyos</strong>: tocá el nombre para cambiarlo, la ✕ para borrarlo, o <em>+ Agregar</em> al pie de cada grupo para sumar uno.</li>
+        <li><strong>Un mes nuevo</strong> arranca con los mismos renglones del mes anterior, con los montos en blanco.</li>
+        <li><strong>Otros ingresos no recurrentes</strong> es para lo que entra una sola vez, como una nota de crédito del proveedor por acompañamiento: va abajo del resultado operativo para no inflar el margen de todos los meses.</li>
+      </ul>
     </section>
 
     <!-- ══════════ EQUIPO ══════════ -->

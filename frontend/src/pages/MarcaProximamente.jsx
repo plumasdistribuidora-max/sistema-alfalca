@@ -7,7 +7,11 @@ export default function MarcaProximamente() {
   const marca = MARCAS.find(m => m.slug === slug);
   // Una marca que ya tiene su dashboard (o una que no existe) no se queda en esta página.
   if (!marca || !marca.proximamente) return <Navigate to={marca?.to || '/'} replace />;
+  return <Proximamente marca={marca} />;
+}
 
+// También la usa Kankay para quien no es dueño: su única pantalla por ahora es la plata.
+export function Proximamente({ marca }) {
   return (
     <div className="card max-w-md mx-auto mt-10 px-8 py-10 text-center">
       <div className="h-24 rounded-xl flex items-center justify-center overflow-hidden mb-6" style={{ background: marca.fondo }}>

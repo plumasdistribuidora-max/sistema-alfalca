@@ -138,7 +138,7 @@ export default function Home() {
               </div>
               {m.proximamente
                 ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-ahg-bg text-ahg-text/55">Próximamente</span>
-                : <span className="text-xs font-semibold text-ahg-text/55">Ver dashboard →</span>}
+                : <span className="text-xs font-semibold text-ahg-text/55">{m.cta || 'Ver dashboard →'}</span>}
             </div>
           </Link>
         ))}

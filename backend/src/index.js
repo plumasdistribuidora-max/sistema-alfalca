@@ -44,6 +44,7 @@ app.use('/api/stock',     soloRed, require('./routes/stock'));
 app.use('/api/imports',   soloRed, require('./routes/imports'));
 app.use('/api/maestros',  soloRed, require('./routes/maestros'));
 app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
+app.use('/api/eerr-manual', soloDueno, require('./routes/eerrManual'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 

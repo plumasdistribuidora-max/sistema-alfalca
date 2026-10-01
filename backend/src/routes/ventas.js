@@ -43,8 +43,11 @@ function parseExcelDate(val) {
   if (!val) return null;
   if (val instanceof Date) return isNaN(val) ? null : alSegundo(comoUTC(val).getTime());
   if (typeof val === 'number') {
-    // Primero a milisegundos redondos: 29,000 s no tiene que quedar 28,999 y truncarse a 28.
-    return alSegundo(Math.round((val - 25569) * 86400 * 1000));
+    // Antes de truncar se limpia el error de punto flotante (29,000 s no tiene que quedar
+    // 28,99999 y truncarse a 28), pero redondeando a centésimas de milisegundo y no al
+    // milisegundo: 13,9996 s redondeado al ms da 14,000 y se truncaba a 14, cuando el .xls
+    // de Fudo (que es el .xlsx sin las milésimas) dice 13.
+    return alSegundo(Math.round((val - 25569) * 86400 * 1000 * 100) / 100);
   }
   if (typeof val === 'string' && val.trim()) {
     const d = new Date(val);

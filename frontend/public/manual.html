@@ -1512,8 +1512,18 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <div class="aviso tip">
         <span class="mk">◆</span>
         <p><strong>Podés importar el mismo período dos veces sin miedo.</strong> El sistema reconoce cada
-        ticket y en vez de duplicarlo lo actualiza. Por eso el resultado separa
-        <em>insertados</em> (nuevos) de <em>actualizados</em> (ya estaban).</p>
+        ticket y en vez de duplicarlo lo reemplaza entero con lo que dice el Excel: si en Fudo se canceló
+        un producto o se corrigió un descuento, el import nuevo lo deja igual. Por eso el resultado separa
+        <em>insertados</em> (nuevos) de <em>actualizados</em> (ya estaban). Da lo mismo subir el
+        <code>.xls</code> o el <code>.xlsx</code>.</p>
+      </div>
+
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p><strong>Si dice «no cuadra con el Excel, no se guardó nada».</strong> Al terminar, el sistema
+        compara lo que quedó cargado con el Excel: productos, pagos, descuentos y facturación tienen
+        que dar exacto. Si algo no da, no guarda nada y dice qué no coincidió. Mandale el archivo y el
+        mensaje a quien mantiene el sistema.</p>
       </div>
 
       <h3>Historial Excel</h3>
@@ -2123,7 +2133,11 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             </tr>
             <tr>
               <td><strong>Importé dos veces el mismo archivo</strong></td>
-              <td>No pasa nada. El sistema actualiza en vez de duplicar.</td>
+              <td>No pasa nada. El sistema reemplaza cada ticket en vez de duplicarlo.</td>
+            </tr>
+            <tr>
+              <td><strong>La facturación no coincide con el total de Fudo</strong></td>
+              <td>Los tickets <em>eliminados</em> en Fudo no cuentan como venta. El total que hay que comparar es el de la hoja «Más Info» del Excel (en el café, sin las mesas que quedaron abiertas).</td>
             </tr>
           </tbody>
         </table>

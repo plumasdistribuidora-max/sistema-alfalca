@@ -129,14 +129,14 @@ function buildTotalizadorPrecio(factRows, docRows, tiendas) {
 async function queryQuincenal(hasta) {
   return pool.query(`
     WITH max_f AS (
-      SELECT MAX(vt.fecha) AS mx FROM ventas_tickets vt WHERE vt.fecha <= $1::date
+      SELECT MAX(vt.fecha) AS mx FROM ventas_tickets vt WHERE vt.fecha <= $1::date AND vt.estado = 'cerrada'
     ),
     meta AS (
       SELECT
         DATE_TRUNC('month', mf.mx)::date                           AS mes_ini,
         (DATE_TRUNC('month', mf.mx) - INTERVAL '1 month')::date   AS mes_ant_ini,
         (SELECT COUNT(DISTINCT v2.fecha) FROM ventas_tickets v2, max_f mf2
-         WHERE v2.fecha >= DATE_TRUNC('month', mf2.mx)::date AND v2.fecha <= mf2.mx
+         WHERE v2.estado = 'cerrada' AND v2.fecha >= DATE_TRUNC('month', mf2.mx)::date AND v2.fecha <= mf2.mx
         )::int                                                     AS n_dias,
         TO_CHAR(DATE_TRUNC('month', mf.mx), 'Month YYYY')         AS mes_label
       FROM max_f mf
@@ -144,13 +144,13 @@ async function queryQuincenal(hasta) {
     actual AS (
       SELECT vt.local_id, SUM(vt.total) AS fact, COUNT(DISTINCT vt.id) AS tkt
       FROM ventas_tickets vt CROSS JOIN meta m
-      WHERE vt.fecha >= m.mes_ini AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
+      WHERE vt.estado = 'cerrada' AND vt.fecha >= m.mes_ini AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
       GROUP BY vt.local_id
     ),
     anterior AS (
       SELECT vt.local_id, SUM(vt.total) AS fact, COUNT(DISTINCT vt.id) AS tkt_ant
       FROM ventas_tickets vt CROSS JOIN meta m
-      WHERE vt.fecha >= m.mes_ant_ini AND vt.fecha < m.mes_ini
+      WHERE vt.estado = 'cerrada' AND vt.fecha >= m.mes_ant_ini AND vt.fecha < m.mes_ini
         AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
       GROUP BY vt.local_id
     ),
@@ -176,13 +176,13 @@ async function queryQuincenal(hasta) {
     personas_act AS (
       SELECT vt.local_id, COALESCE(SUM(vt.personas), 0) AS personas
       FROM ventas_tickets vt CROSS JOIN meta m
-      WHERE vt.fecha >= m.mes_ini AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
+      WHERE vt.estado = 'cerrada' AND vt.fecha >= m.mes_ini AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
       GROUP BY vt.local_id
     ),
     personas_ant AS (
       SELECT vt.local_id, COALESCE(SUM(vt.personas), 0) AS personas
       FROM ventas_tickets vt CROSS JOIN meta m
-      WHERE vt.fecha >= m.mes_ant_ini AND vt.fecha < m.mes_ini
+      WHERE vt.estado = 'cerrada' AND vt.fecha >= m.mes_ant_ini AND vt.fecha < m.mes_ini
         AND EXTRACT(DAY FROM vt.fecha) <= m.n_dias
       GROUP BY vt.local_id
     )
@@ -272,7 +272,7 @@ const QUERY_FISCAL = `
   FROM ventas_tickets vt
   LEFT JOIN ventas_fiscales vf
          ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
-  WHERE vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
+  WHERE vt.estado = 'cerrada' AND vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
 `;
 
 const QUERY_FISCAL_MULTI = `
@@ -286,7 +286,7 @@ const QUERY_FISCAL_MULTI = `
     COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
   FROM ventas_tickets vt
   LEFT JOIN ventas_fiscales vf ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
-  WHERE vt.local_id = ANY($1::int[]) AND vt.fecha BETWEEN $2 AND $3
+  WHERE vt.estado = 'cerrada' AND vt.local_id = ANY($1::int[]) AND vt.fecha BETWEEN $2 AND $3
   GROUP BY vt.local_id, mes
   ORDER BY mes
 `;
@@ -505,7 +505,7 @@ router.get('/resumen', requireAuth, async (req, res) => {
           COALESCE(SUM(vt.total), 0) AS facturacion,
           COUNT(DISTINCT vt.id)      AS tickets
         FROM locales l
-        LEFT JOIN ventas_tickets vt ON vt.local_id = l.id AND vt.fecha BETWEEN $1::date AND $2::date
+        LEFT JOIN ventas_tickets vt ON vt.local_id = l.id AND vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date
         WHERE l.activo = true
         GROUP BY l.id, l.nombre, l.es_alfajorera
         ORDER BY facturacion DESC
@@ -527,7 +527,7 @@ router.get('/resumen', requireAuth, async (req, res) => {
                SUM(vt.total) AS facturacion
         FROM ventas_tickets vt
         JOIN locales l ON l.id = vt.local_id AND l.activo = true
-        WHERE vt.fecha BETWEEN $1::date AND $2::date
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date
         GROUP BY mes ORDER BY facturacion DESC LIMIT 1
       `, p),
 
@@ -537,7 +537,7 @@ router.get('/resumen', requireAuth, async (req, res) => {
                SUM(vt.total) AS valor
         FROM ventas_tickets vt
         JOIN locales l ON l.id = vt.local_id AND l.activo = true
-        WHERE vt.fecha BETWEEN $1::date AND $2::date
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date
         GROUP BY l.nombre, mes ORDER BY mes, l.nombre
       `, p),
 
@@ -655,7 +655,7 @@ router.get('/comparativo', requireAuth, async (req, res) => {
                COUNT(DISTINCT vt.id)         AS tickets,
                COALESCE(SUM(vt.personas), 0) AS personas
         FROM ventas_tickets vt, lim
-        WHERE vt.fecha BETWEEN lim.ini AND lim.fin
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN lim.ini AND lim.fin
         GROUP BY vt.local_id, vt.fecha
       ),
       dz_dia AS (
@@ -867,7 +867,7 @@ router.get('/tiendas-comparativo', requireAuth, async (req, res) => {
           COALESCE(SUM(vt.total), 0) AS facturacion,
           COUNT(DISTINCT vt.id) AS tickets
         FROM locales l
-        LEFT JOIN ventas_tickets vt ON vt.local_id = l.id
+        LEFT JOIN ventas_tickets vt ON vt.local_id = l.id AND vt.estado = 'cerrada'
           AND vt.fecha BETWEEN $1::date AND $2::date ${mesFilter}
         WHERE l.activo = true ${tiendaFilter}
         GROUP BY l.id, l.nombre, l.es_alfajorera
@@ -890,7 +890,7 @@ router.get('/tiendas-comparativo', requireAuth, async (req, res) => {
                SUM(vt.total) AS valor
         FROM ventas_tickets vt
         JOIN locales l ON l.id = vt.local_id AND l.activo = true ${tiendaFilter}
-        WHERE vt.fecha BETWEEN $1::date AND $2::date ${mesFilter}
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date ${mesFilter}
         GROUP BY l.nombre, mes ORDER BY mes, l.nombre
       `, params),
 
@@ -948,7 +948,7 @@ router.get('/meses-resumen', requireAuth, async (req, res) => {
         COUNT(DISTINCT vt.id)  AS tickets
       FROM ventas_tickets vt
       JOIN locales l ON l.id = vt.local_id AND l.activo = true
-      WHERE EXTRACT(YEAR FROM vt.fecha) = $1
+      WHERE vt.estado = 'cerrada' AND EXTRACT(YEAR FROM vt.fecha) = $1
       GROUP BY mes, mes_nombre
       ORDER BY mes
     `, [anio]);
@@ -988,7 +988,7 @@ router.get('/semanal', requireAuth, async (req, res) => {
                COUNT(DISTINCT vt.id) AS tickets
         FROM ventas_tickets vt
         JOIN locales l ON l.id = vt.local_id AND l.activo = true
-        WHERE vt.fecha BETWEEN $1::date AND $2::date
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date
         GROUP BY vt.local_id, 2
       ),
       dz AS (
@@ -1253,7 +1253,7 @@ router.get('/analisis', requireAuth, async (req, res) => {
           SUM(vt.total) AS valor, COUNT(DISTINCT vt.id) AS tickets
         FROM ventas_tickets vt
         JOIN locales l ON l.id = vt.local_id AND l.activo = true
-        WHERE vt.fecha BETWEEN $1::date AND $2::date
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date
         GROUP BY l.nombre, l.es_alfajorera, mes ORDER BY mes, l.nombre
       `, p),
 
@@ -1279,7 +1279,7 @@ router.get('/analisis', requireAuth, async (req, res) => {
             ELSE 0 END                        AS ticket_promedio
         FROM ventas_tickets vt
         JOIN locales l ON l.id = vt.local_id AND l.activo = true
-        WHERE vt.fecha BETWEEN $1::date AND $2::date
+        WHERE vt.estado = 'cerrada' AND vt.fecha BETWEEN $1::date AND $2::date
       `, p),
 
       queryQuincenal(hasta),
@@ -2434,7 +2434,7 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
         JOIN ventas_tickets vt ON vt.id = vi.ticket_id
         LEFT JOIN productos_categoria_cafeteria pcc
                ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
-        WHERE vi.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
+        WHERE vt.estado = 'cerrada' AND vi.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
           AND COALESCE(vi.cancelada, false) = false
         GROUP BY categoria ORDER BY venta DESC
       `, [local_id, ini, fin]),

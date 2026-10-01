@@ -8,17 +8,22 @@
 -- única con NULLS NOT DISTINCT, porque valor o porcentaje pueden venir vacíos y sin eso
 -- dos NULL no chocan. El import usa esta misma clave en su ON CONFLICT.
 
+-- Desde 062 la clave incluye "linea" (dos descuentos idénticos en la misma venta son
+-- dos descuentos). Como las migraciones se corren todas cada vez, acá también va linea:
+-- si no, este DELETE borraría el segundo de cada par.
+ALTER TABLE ventas_descuentos ADD COLUMN IF NOT EXISTS linea SMALLINT NOT NULL DEFAULT 0;
+
 DELETE FROM ventas_descuentos d
 USING (
   SELECT id,
          ROW_NUMBER() OVER (
-           PARTITION BY local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado
+           PARTITION BY local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado, linea
            ORDER BY (ticket_id IS NULL), id
          ) AS n
   FROM ventas_descuentos
 ) r
 WHERE d.id = r.id AND r.n > 1;
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_ventas_descuentos_fila
-  ON ventas_descuentos (local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado)
+CREATE UNIQUE INDEX IF NOT EXISTS ux_ventas_descuentos_fila_linea
+  ON ventas_descuentos (local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado, linea)
   NULLS NOT DISTINCT;

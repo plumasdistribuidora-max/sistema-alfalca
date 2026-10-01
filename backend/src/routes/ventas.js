@@ -20,10 +20,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 // como si fuera UTC. "17:42" en Fudo queda "17:42+00". Así están todos los tickets
 // desde el principio y así los lee el análisis hora por hora.
 //
-// SheetJS arma los Date con la zona del proceso. Cuando el servidor corría en UTC eso
-// daba la convención sola; desde que vive en hora de Mendoza, el mismo "17:42" salía
-// como 20:42 UTC. Por eso se reconstruye el Date con los componentes locales como UTC,
-// independiente de la zona en que corra el proceso.
+// El Excel se lee sin cellDates: las horas llegan como número de serie y se pasan a
+// Date acá, sin pasar por la zona del proceso. Con cellDates, SheetJS en hora de
+// Mendoza corre la hora 48 segundos (usa la hora solar de Mendoza de 1899), y la
+// misma venta quedaba con otra hora y se cargaba dos veces al reimportar.
+//
+// Además se trunca al segundo: Fudo a veces exporta milésimas y a veces no, y la hora
+// es parte de la clave que evita duplicados entre imports del mismo período.
+function alSegundo(ms) {
+  return new Date(Math.floor(ms / 1000) * 1000);
+}
+
+// Para los strings con hora ("9/15/26 10:30"), que JS parsea en hora local.
 function comoUTC(d) {
   return new Date(Date.UTC(
     d.getFullYear(), d.getMonth(), d.getDate(),
@@ -33,15 +41,16 @@ function comoUTC(d) {
 
 function parseExcelDate(val) {
   if (!val) return null;
-  if (val instanceof Date) return isNaN(val) ? null : comoUTC(val);
+  if (val instanceof Date) return isNaN(val) ? null : alSegundo(comoUTC(val).getTime());
   if (typeof val === 'number') {
-    return new Date(Math.round((val - 25569) * 86400 * 1000));
+    // Primero a milisegundos redondos: 29,000 s no tiene que quedar 28,999 y truncarse a 28.
+    return alSegundo(Math.round((val - 25569) * 86400 * 1000));
   }
   if (typeof val === 'string' && val.trim()) {
     const d = new Date(val);
     if (isNaN(d.getTime())) return null;
     // "2026-09-15" solo ya es medianoche UTC; "9/15/26 10:30" se parsea en hora local.
-    return /^\d{4}-\d{2}-\d{2}$/.test(val.trim()) ? d : comoUTC(d);
+    return /^\d{4}-\d{2}-\d{2}$/.test(val.trim()) ? d : alSegundo(comoUTC(d).getTime());
   }
   return null;
 }
@@ -143,7 +152,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
   try {
     // ── Parsear Excel ──────────────────────────────────────────────────────
-    const wb = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const wb = xlsx.read(req.file.buffer, { type: 'buffer' });  // sin cellDates: ver parseExcelDate
 
     // Validar hojas requeridas (ventas fiscales es opcional: hay períodos sin facturación)
     const REQUIRED_SHEETS = ['ventas', 'adiciones', 'pagos', 'descuentos', 'productos'];
@@ -242,6 +251,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
       // ── PASO 1: ventas_tickets ─────────────────────────────────────────
       let ticketsInsertados = 0, ticketsActualizados = 0;
+      let cerradasExcel = 0;  // para el control final: lo que suman las ventas cerradas del Excel
       let fechaDesde = null, fechaHasta = null;
       const ticketIdMap = {}; // pos_id → db id
 
@@ -265,6 +275,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           const fiscal      = parseFiscal(getCol(row, 'fiscal'));
           const total       = parseFloat(getCol(row, 'total') ?? 0) || 0;
           const personas    = parseInt(getCol(row, 'personas')) || null;
+          if (estado === 'cerrada') cerradasExcel += total;
 
           if (fecha) {
             const d = new Date(fecha);
@@ -387,6 +398,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           const { id: dbId, inserted } = upsert.rows[0];
           ticketIdMap[t.pos_id] = dbId;
           inserted ? ticketsInsertados++ : ticketsActualizados++;
+          cerradasExcel += Math.round(t.total * 100) / 100;
 
           if (t.fecha) {
             const d = new Date(t.fecha);
@@ -394,6 +406,29 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
             if (!fechaHasta || d > new Date(fechaHasta)) fechaHasta = d.toISOString().split('T')[0];
           }
         }
+      }
+
+      // ── Cada venta del Excel se reemplaza entera ───────────────────────
+      // El Excel manda: lo que ya había de estas ventas se borra y se carga de nuevo.
+      // Agregar sin borrar dejaba restos cada vez que algo cambiaba en Fudo entre un
+      // import y otro (un descuento corregido, un producto renombrado, una cancelación)
+      // o cuando la hora salía distinta (el 1/10/2026 los .xlsx duplicaron septiembre
+      // entero en tres tiendas). Las ventas que no vienen en este Excel no se tocan.
+      const ventasDelExcel = new Set(Object.keys(ticketIdMap).map(Number));
+      for (const row of [...rowsAdiciones, ...rowsModif, ...rowsPagos, ...rowsDesc, ...rowsFiscales]) {
+        const id = parseInt(row['id venta']);
+        if (id) ventasDelExcel.add(id);
+      }
+      const idsVentas = [...ventasDelExcel].map(String);
+      const reemplazar = ['ventas_items', 'ventas_modificadores', 'ventas_pagos', 'ventas_descuentos'];
+      // Sin hoja de fiscales (hay períodos sin facturación) se conservan las que estaban.
+      if (tieneFiscales) reemplazar.push('ventas_fiscales');
+      for (const tabla of reemplazar) {
+        const r = await client.query(
+          // En ventas_modificadores pos_ticket_id es texto: se compara como texto en todas.
+          `DELETE FROM ${tabla} WHERE local_id = $1 AND pos_ticket_id::text = ANY($2::text[])`,
+          [local_id, idsVentas]);
+        debugLog.push(`${tabla}: ${r.rowCount} filas previas de estas ventas reemplazadas`);
       }
 
       // Renglones de imports anteriores que entraron antes que su ticket (en el café
@@ -519,7 +554,12 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
               cancelada, cancelada_por, comentario, comentario_cancelacion,
               docenas_equivalentes, linea
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-            ON CONFLICT (local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion, linea) DO NOTHING
+            -- Si la venta se eliminó después del import anterior, el renglón ya estaba
+            -- cargado como vendido: se actualiza para que deje de sumar docenas.
+            ON CONFLICT (local_id, pos_ticket_id, producto_nombre_raw, fecha_creacion, linea) DO UPDATE SET
+              cancelada              = EXCLUDED.cancelada,
+              cancelada_por          = EXCLUDED.cancelada_por,
+              comentario_cancelacion = EXCLUDED.comentario_cancelacion
           `, [
             local_id, ticketDbId, posTicketId, productoId,
             nombreRaw.toString().trim(),
@@ -597,6 +637,9 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       // Columnas norm: "id venta", "fecha pago", "medio de pago", "monto", "cancelado"
       let pagosInsertados = 0, pagosMixtos = 0;
       const pagosContar = {};
+      // Dos débitos de $7.000 en el mismo segundo son dos pagos: se numeran como los
+      // renglones de Adiciones para que la clave única no los junte. Ver migración 062.
+      const lineasPago = new Map();
 
       for (const row of rowsPagos) {
         const posTicketId = parseInt(row['id venta']);
@@ -609,13 +652,16 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         const cancelado  = parseFiscal(row['cancelado']);
 
         pagosContar[posTicketId] = (pagosContar[posTicketId] || 0) + 1;
+        const clavePago = `${posTicketId}|${medioPago.toString().trim()}|${monto}|${fechaPago?.getTime()}`;
+        const linea     = lineasPago.get(clavePago) || 0;
+        lineasPago.set(clavePago, linea + 1);
 
         try {
           await client.query(`
-            INSERT INTO ventas_pagos (local_id, ticket_id, pos_ticket_id, medio_pago, monto, fecha_pago, cancelado)
-            VALUES ($1,$2,$3,$4,$5,$6,$7)
-            ON CONFLICT (local_id, pos_ticket_id, medio_pago, monto, fecha_pago) DO NOTHING
-          `, [local_id, ticketDbId, posTicketId, medioPago.toString().trim(), monto, fechaPago, cancelado]);
+            INSERT INTO ventas_pagos (local_id, ticket_id, pos_ticket_id, medio_pago, monto, fecha_pago, cancelado, linea)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ON CONFLICT (local_id, pos_ticket_id, medio_pago, monto, fecha_pago, linea) DO NOTHING
+          `, [local_id, ticketDbId, posTicketId, medioPago.toString().trim(), monto, fechaPago, cancelado, linea]);
           pagosInsertados++;
         } catch (_) {}
       }
@@ -625,6 +671,7 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
       // Columnas norm: "id venta", "valor", "porcentaje", "creacion descuento", "cancelado"
       let descInsertados = 0;
       let descTotalPesos = 0;
+      const lineasDesc = new Map();
 
       for (const row of rowsDesc) {
         const posTicketId = parseInt(row['id venta']);
@@ -635,13 +682,16 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         const fechaDesc  = parseExcelDate(row['creacion descuento']);
         const cancelado  = parseFiscal(row['cancelado']);
         const ticketDbId = ticketIdMap[posTicketId] ?? null;
+        const claveDesc  = `${posTicketId}|${valor}|${porcentaje}|${fechaDesc?.getTime()}|${cancelado}`;
+        const linea      = lineasDesc.get(claveDesc) || 0;
+        lineasDesc.set(claveDesc, linea + 1);
 
         await client.query(`
-          INSERT INTO ventas_descuentos (local_id, ticket_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado)
-          VALUES ($1,$2,$3,$4,$5,$6,$7)
-          ON CONFLICT (local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado)
+          INSERT INTO ventas_descuentos (local_id, ticket_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado, linea)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          ON CONFLICT (local_id, pos_ticket_id, valor, porcentaje, fecha_descuento, cancelado, linea)
           DO UPDATE SET ticket_id = COALESCE(ventas_descuentos.ticket_id, EXCLUDED.ticket_id)
-        `, [local_id, ticketDbId, posTicketId, valor, porcentaje, fechaDesc, cancelado]);
+        `, [local_id, ticketDbId, posTicketId, valor, porcentaje, fechaDesc, cancelado, linea]);
         descInsertados++;
         if (valor) descTotalPesos += Math.abs(valor);
       }
@@ -687,6 +737,36 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           fiscalesInsertados++;
         } catch (_) {}
       }
+
+      // ── Control: lo guardado tiene que ser exactamente lo del Excel ─────
+      // Si algo se perdió o se duplicó (pasó con las horas de los .xlsx y con los pagos
+      // idénticos), no se guarda nada y se dice qué no cuadra, en vez de dejar
+      // números mal sin que nadie se entere.
+      const esperado = {
+        ventas_items:      rowsAdiciones.filter(r => parseInt(r['id venta']) && r['producto']).length,
+        ventas_pagos:      rowsPagos.filter(r => parseInt(r['id venta']) && r['medio de pago']
+                                                && !isNaN(parseFloat(r['monto'] ?? 0))).length,
+        ventas_descuentos: rowsDesc.filter(r => parseInt(r['id venta'])).length,
+      };
+      const ETIQUETA = { ventas_items: 'productos', ventas_pagos: 'pagos', ventas_descuentos: 'descuentos' };
+      const noCuadra = [];
+      for (const [tabla, n] of Object.entries(esperado)) {
+        const r = await client.query(
+          `SELECT COUNT(*)::int AS n FROM ${tabla} WHERE local_id = $1 AND pos_ticket_id = ANY($2::int[])`,
+          [local_id, idsVentas]);
+        if (r.rows[0].n !== n) noCuadra.push(`${ETIQUETA[tabla]}: el Excel tiene ${n} y quedaron ${r.rows[0].n}`);
+      }
+      const rTot = await client.query(`
+        SELECT COALESCE(SUM(total), 0) AS total FROM ventas_tickets
+        WHERE local_id = $1 AND estado = 'cerrada' AND pos_id = ANY($2::int[])
+      `, [local_id, Object.keys(ticketIdMap).map(Number)]);
+      if (Math.round(Number(rTot.rows[0].total) * 100) !== Math.round(cerradasExcel * 100)) {
+        noCuadra.push(`facturación: el Excel suma $${cerradasExcel} y quedó $${Number(rTot.rows[0].total)}`);
+      }
+      if (noCuadra.length) {
+        throw new Error(`no cuadra con el Excel, no se guardó nada (${noCuadra.join('; ')})`);
+      }
+      debugLog.push('Control OK: productos, pagos, descuentos y facturación iguales al Excel');
 
       // ── Cálculos de resumen ────────────────────────────────────────────
 

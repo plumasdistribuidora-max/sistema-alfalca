@@ -4,6 +4,7 @@ import {
   plata, ModalPago, medioLabel, listaDias,
   hoyStr, sumarDias, fechaCorta, fechaLarga,
 } from './comunes';
+import { pdfGeneral, pdfProveedor } from './pdfPagos';
 
 // "Poné una fecha y que salgan todas las facturas sin pagar de esa fecha para atrás."
 // Va por fecha de la factura, no por vencimiento: el dueño pidió sacar el vencimiento
@@ -54,6 +55,11 @@ export default function PlanSection({ onCambio }) {
 
   const seleccion = todas.filter(f => marcadas.has(f.id));
   const total = seleccion.reduce((s, f) => s + f.saldo, 0);
+
+  // Para los PDF: cada proveedor solo con las facturas tildadas, y fuera los que quedan vacíos.
+  const gruposElegidos = (data?.grupos || [])
+    .map(g => ({ ...g, facturas: g.facturas.filter(f => marcadas.has(f.id)) }))
+    .filter(g => g.facturas.length);
 
   async function anotar(pagos) {
     await api.post('/proveedores/pagos', { pagos });
@@ -117,7 +123,15 @@ export default function PlanSection({ onCambio }) {
                 {g.facturas.length} factura{g.facturas.length === 1 ? '' : 's'} · {medioLabel(g.medio_pago)} · cobra {listaDias(g.dias_pago)}
               </p>
             </div>
-            <div className="ml-auto text-right">
+            <button
+              className="ml-auto btn-secondary text-xs px-3 py-1.5"
+              disabled={!g.facturas.some(f => marcadas.has(f.id))}
+              onClick={() => pdfProveedor({ ...g, facturas: g.facturas.filter(f => marcadas.has(f.id)) })}
+              title="PDF para mandarle a este proveedor, con las facturas tildadas"
+            >
+              PDF para el proveedor
+            </button>
+            <div className="text-right">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">Le debés</p>
               <p className="text-xl font-bold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>
                 {plata(g.total)}
@@ -170,6 +184,13 @@ export default function PlanSection({ onCambio }) {
           </div>
           <div className="flex-1" />
           <button className="btn-secondary" onClick={() => setElegidas(new Set())}>Destildar todo</button>
+          <button
+            className="btn-secondary" disabled={!seleccion.length}
+            onClick={() => pdfGeneral(gruposElegidos, hasta)}
+            title="PDF con todos los proveedores y el total, para el encargado que paga"
+          >
+            PDF general
+          </button>
           <button className="btn-primary" disabled={!seleccion.length} onClick={() => setPagando(true)}>
             Anotar estos pagos
           </button>

@@ -322,6 +322,7 @@ function filasCafe(d, abrir, abrirGastos) {
     ...d.rubros.map(r => ({
       tipo: 'det',
       label: r.cmv_pct == null ? <>{r.rubro} · <span className="text-amber-600 font-semibold">sin %</span></> : `${r.rubro} · ${r.cmv_pct}%`,
+      texto: r.cmv_pct == null ? `${r.rubro} · sin %` : undefined,
       actual: r.costo, costo: true,
     })),
     { tipo: 'sub', label: 'Margen bruto', actual: d.margen_bruto },
@@ -406,7 +407,7 @@ export default function EerrCafeteriaSection({ localId, mes }) {
     return (
       <div className="space-y-4">
         <AvisoPlanilla fuente={data.historico.fuente} />
-        <EstadoResultados filas={filas} ventaNeta={filas[0].actual} mesLabel={mesLabel(mes)} />
+        <EstadoResultados filas={filas} ventaNeta={filas[0].actual} mesLabel={mesLabel(mes)} local="Café Peatonal" aviso={`Tal cual la planilla de Excel. ${data.historico.fuente || ''}`} />
       </div>
     );
   }
@@ -425,7 +426,7 @@ export default function EerrCafeteriaSection({ localId, mes }) {
       )}
 
       <div className="mt-4">
-        <EstadoResultados filas={filasCafe(data, setOpenModal, openGastos)} ventaNeta={data.venta_neta} mesLabel={mesLabel(mes)} />
+        <EstadoResultados filas={filasCafe(data, setOpenModal, openGastos)} ventaNeta={data.venta_neta} mesLabel={mesLabel(mes)} local="Café Peatonal" />
       </div>
 
       {/* Modales */}

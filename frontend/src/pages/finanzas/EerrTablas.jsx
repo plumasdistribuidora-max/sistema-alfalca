@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api';
 import { fmtARS, fmtPct, shortName } from '../red/redUtils';
+import { pdfEerr } from './pdfEerr';
 
 // Tablas de varias columnas del EERR: toda la red en un mes, o un local mes a mes.
 // Cuando a una columna le faltan gastos o impuestos, el EBITDA y el resultado no se
@@ -221,9 +222,10 @@ export function EerrAnio({ localId, anio }) {
 // Cada fila: { tipo: 'grp'|'det'|'sub'|'fin', label, actual, costo, onEditar,
 // sinCargar, incompleto }. Los costos van en positivo con costo: true y se muestran restando.
 
-export function EstadoResultados({ filas, ventaNeta, mesLabel }) {
+export function EstadoResultados({ filas, ventaNeta, mesLabel, local, aviso }) {
   const monto = (f, v) => (f.costo && v ? `− ${fmt$(v)}` : fmt$(v));
   return (
+    <div className="space-y-3">
     <div className="card overflow-x-auto p-0">
       <table className="w-full text-sm" style={{ minWidth: 420 }}>
         <thead>
@@ -274,6 +276,18 @@ export function EstadoResultados({ filas, ventaNeta, mesLabel }) {
           })}
         </tbody>
       </table>
+    </div>
+    {local && (
+      <div className="flex justify-end">
+        <button
+          onClick={() => pdfEerr({ filas, ventaNeta, local, mesLabel, aviso })}
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
+          style={{ background: '#45484c' }}
+        >
+          Descargar PDF
+        </button>
+      </div>
+    )}
     </div>
   );
 }

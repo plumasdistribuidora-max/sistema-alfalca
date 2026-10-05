@@ -503,12 +503,12 @@ export default function EerrSection() {
 
       {/* ── Contenido alfajoreras ── */}
       {vista === 'local' && !esCafeteria && !loading && a && (
-        <EstadoResultados filas={filasTienda(a, openFor)} ventaNeta={a.venta_neta} mesLabel={ml} />
+        <EstadoResultados filas={filasTienda(a, openFor)} ventaNeta={a.venta_neta} mesLabel={ml} local={shortName(selLocalObj?.nombre || '')} />
       )}
       {vista === 'local' && !esCafeteria && !loading && data?.historico && (
         <>
           <AvisoPlanilla fuente={data.historico.fuente} />
-          <EstadoResultados filas={filasHistorico(data.historico)} ventaNeta={filasHistorico(data.historico)[0].actual} mesLabel={ml} />
+          <EstadoResultados filas={filasHistorico(data.historico)} ventaNeta={filasHistorico(data.historico)[0].actual} mesLabel={ml} local={shortName(selLocalObj?.nombre || '')} aviso={`Tal cual la planilla de Excel. ${data.historico.fuente || ''}`} />
         </>
       )}
 

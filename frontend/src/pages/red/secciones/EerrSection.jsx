@@ -234,6 +234,44 @@ function GastosContent({ ventaNeta, editGastos, setEditGastos }) {
   );
 }
 
+// Los fees de la franquicia: un % de lo que se le compra a Entre Dos.
+function FeesContent({ compraE2, ventaNeta, editFees, setEditFees }) {
+  const items = [
+    { key: 'marca', label: 'Fee de marca' },
+    { key: 'mkt',   label: 'Fee de marketing' },
+  ];
+  const monto = k => compraE2 * (parseFloat(editFees[k]) || 0) / 100;
+  const total = monto('marca') + monto('mkt');
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-stone-500">
+        Se calculan sobre la compra a Entre Dos de este mes: <strong className="text-stone-800">{fmt$(compraE2)}</strong>.
+      </p>
+      <div className="rounded-xl border border-stone-100 overflow-hidden">
+        {items.map(it => (
+          <div key={it.key} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-stone-50">
+            <span className="font-medium text-stone-700 flex-1">{it.label}</span>
+            <span className="text-stone-500 w-28 text-right">{fmt$(monto(it.key))}</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number" min="0" max="100" step="0.5"
+                value={editFees[it.key]}
+                onChange={e => setEditFees(p => ({ ...p, [it.key]: e.target.value }))}
+                className="w-16 text-right rounded-lg border border-stone-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+              />
+              <span className="text-stone-400">%</span>
+            </div>
+          </div>
+        ))}
+        <div className="flex items-center justify-between px-4 py-3 bg-stone-50">
+          <span className="font-bold text-stone-800">Total</span>
+          <span className="font-bold text-stone-800">{fmt$(total)} <span className="ml-1 text-xs font-normal text-stone-400">{fmtP(ventaNeta > 0 ? total / ventaNeta * 100 : 0)} de la venta</span></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImpuestosContent({ ventaNeta, editImp, setEditImp }) {
   const iibb      = parseFloat(editImp.iibb)     || 0;
   const n931      = parseFloat(editImp.n931)      || 0;
@@ -290,6 +328,9 @@ function filasTienda(a, abrir) {
     { tipo: 'det', label: `Entre Dos · ${a.cmv_e2_pct}%`, actual: a.venta_e2 * a.cmv_e2_pct / 100, costo: true },
     { tipo: 'det', label: `Alimendos · ${a.cmv_alim_pct}%`, actual: a.venta_alim * a.cmv_alim_pct / 100, costo: true },
     { tipo: 'sub', label: 'Margen bruto', actual: a.margen_bruto },
+    { tipo: 'grp', label: 'Fees de la marca', actual: a.fees.total, costo: true, onEditar: () => abrir('fees') },
+    { tipo: 'det', label: `Fee de marca · ${a.fees.marca_pct}% de la compra a Entre Dos`, actual: a.fees.marca, costo: true },
+    { tipo: 'det', label: `Fee de marketing · ${a.fees.mkt_pct}% de la compra a Entre Dos`, actual: a.fees.mkt, costo: true },
     { tipo: 'grp', label: 'Gastos operativos', actual: a.total_gastos, costo: true, sinCargar: sinGastos, onEditar: () => abrir('gastos') },
     ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
       { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
@@ -323,6 +364,7 @@ export default function EerrSection() {
   const [editCmv, setEditCmv] = useState({ e2: '45', alim: '70' });
   const [editGastos, setEditGastos] = useState({ bloques: [] });
   const [editImp,  setEditImp]  = useState({ iibb: '0', n931: '0', ganancias: '0' });
+  const [editFees, setEditFees] = useState({ marca: '2', mkt: '2' });
 
   // Carga locales al montar
   useEffect(() => {
@@ -355,6 +397,8 @@ export default function EerrSection() {
       setEditCmv({ e2: String(a.cmv_e2_pct), alim: String(a.cmv_alim_pct) });
     } else if (name === 'gastos') {
       setEditGastos({ bloques: JSON.parse(JSON.stringify(a.gastos_bloques)) });
+    } else if (name === 'fees') {
+      setEditFees({ marca: String(a.fees.marca_pct), mkt: String(a.fees.mkt_pct) });
     } else if (name === 'impuestos') {
       setEditImp({
         iibb:      String(a.impuestos.iibb),
@@ -387,6 +431,8 @@ export default function EerrSection() {
       mes:          selMes,
       cmv_e2_pct:   a.cmv_e2_pct,
       cmv_alim_pct: a.cmv_alim_pct,
+      fee_marca_pct: a.fees.marca_pct,
+      fee_mkt_pct:   a.fees.mkt_pct,
       gastos:       { bloques: a.gastos_bloques },
       impuestos:    { iibb: a.impuestos.iibb, novecientos31: a.impuestos.novecientos31, ganancias: a.impuestos.ganancias },
     };
@@ -406,6 +452,14 @@ export default function EerrSection() {
       conceptos: (b.conceptos || []).map(c => ({ ...c, monto: parseFloat(c.monto) || 0 })),
     }));
     saveAndReload({ ...basePayload(), gastos: { bloques } });
+  }
+
+  function handleSaveFees() {
+    saveAndReload({
+      ...basePayload(),
+      fee_marca_pct: parseFloat(editFees.marca) || 0,
+      fee_mkt_pct:   parseFloat(editFees.mkt)   || 0,
+    });
   }
 
   function handleSaveImp() {
@@ -541,6 +595,12 @@ export default function EerrSection() {
         </ModalShell>
       )}
 
+
+      {openModal === 'fees' && a && (
+        <ModalShell title={`Fees de la marca · ${ml}`} onClose={() => setOpenModal(null)} onSave={handleSaveFees} saving={saving}>
+          <FeesContent compraE2={a.venta_e2 * a.cmv_e2_pct / 100} ventaNeta={a.venta_neta} editFees={editFees} setEditFees={setEditFees} />
+        </ModalShell>
+      )}
 
       {openModal === 'impuestos' && a && (
         <ModalShell title={`Impuestos · ${ml}`} onClose={() => setOpenModal(null)} onSave={handleSaveImp} saving={saving}>

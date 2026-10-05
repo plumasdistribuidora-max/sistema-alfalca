@@ -73,6 +73,7 @@ const FILAS = [
   { key: 'venta_neta',     label: 'Venta neta',   fuerte: true },
   { key: 'cmv',            label: 'CMV' },
   { key: 'margen_bruto',   label: 'Margen bruto',      fuerte: true },
+  { key: 'fees',           label: 'Fees de la marca', opcional: true },
   { key: 'gastos',         label: 'Gastos operativos', falta: c => !c.gastos_cargados },
   { key: 'ebitda',         label: 'EBITDA',            fuerte: true, incompleto: c => !c.gastos_cargados },
   { key: 'otros',          label: 'Amortizaciones y otros', opcional: true },

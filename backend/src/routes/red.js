@@ -1639,17 +1639,24 @@ function calcEerr(fiscalData, record, plantilla = null) {
   const { bruto_no_fiscal, neto_fiscal } = fiscalData;
   const venta_neta = bruto_no_fiscal + neto_fiscal;
 
-  const cmv_e2_pct   = record != null ? n(record.cmv_e2_pct)   : 45;
-  const cmv_alim_pct = record != null ? n(record.cmv_alim_pct) : 70;
+  const cmv_e2_pct    = record != null ? n(record.cmv_e2_pct)   : 45;
+  const cmv_alim_pct  = record != null ? n(record.cmv_alim_pct) : 70;
+  const fee_marca_pct = record?.fee_marca_pct != null ? n(record.fee_marca_pct) : 2;
+  const fee_mkt_pct   = record?.fee_mkt_pct   != null ? n(record.fee_mkt_pct)   : 2;
   const gastos       = gastosDelMes(record, plantilla, DEFAULT_GASTOS);
   const imp          = record?.impuestos || { iibb: 0, novecientos31: 0, ganancias: 0 };
 
   const venta_e2        = venta_neta * 0.90;
   const venta_alim      = venta_neta * 0.10;
-  const cmv             = (venta_e2 * cmv_e2_pct / 100) + (venta_alim * cmv_alim_pct / 100);
+  const cmv_e2          = venta_e2 * cmv_e2_pct / 100;
+  const cmv             = cmv_e2 + (venta_alim * cmv_alim_pct / 100);
   const margen_bruto    = venta_neta - cmv;
+  // Los fees de la franquicia se calculan sobre lo que se le compra a Entre Dos.
+  const fee_marca       = cmv_e2 * fee_marca_pct / 100;
+  const fee_mkt         = cmv_e2 * fee_mkt_pct / 100;
+  const total_fees      = fee_marca + fee_mkt;
   const total_gastos    = calcTotalGastos(gastos);
-  const ebitda          = margen_bruto - total_gastos;
+  const ebitda          = margen_bruto - total_fees - total_gastos;
   const iibb            = n(imp.iibb);
   const novecientos31   = n(imp.novecientos31);
   const ganancias       = n(imp.ganancias);
@@ -1662,6 +1669,7 @@ function calcEerr(fiscalData, record, plantilla = null) {
     venta_neta, venta_e2, venta_alim,
     cmv_e2_pct, cmv_alim_pct, cmv,
     margen_bruto,
+    fees: { marca: fee_marca, mkt: fee_mkt, total: total_fees, marca_pct: fee_marca_pct, mkt_pct: fee_mkt_pct },
     gastos_bloques: gastos.bloques,
     total_gastos,
     gastos_cargados: total_gastos > 0,
@@ -1672,6 +1680,7 @@ function calcEerr(fiscalData, record, plantilla = null) {
     pcts: {
       cmv:             p(cmv),
       margen_bruto:    p(margen_bruto),
+      total_fees:      p(total_fees),
       total_gastos:    p(total_gastos),
       ebitda:          p(ebitda),
       total_impuestos: p(total_impuestos),
@@ -1737,22 +1746,26 @@ router.get('/eerr', requireAuth, async (req, res) => {
 
 router.post('/eerr', requireAuth, async (req, res) => {
   try {
-    const { local_id, mes, cmv_e2_pct, cmv_alim_pct, gastos, impuestos } = req.body;
+    const { local_id, mes, cmv_e2_pct, cmv_alim_pct, fee_marca_pct, fee_mkt_pct, gastos, impuestos } = req.body;
     if (!local_id || !mes) return res.status(400).json({ ok: false, error: 'local_id y mes requeridos' });
 
     await pool.query(`
-      INSERT INTO eerr_local (local_id, mes, cmv_e2_pct, cmv_alim_pct, gastos, impuestos, updated_at)
-      VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,NOW())
+      INSERT INTO eerr_local (local_id, mes, cmv_e2_pct, cmv_alim_pct, fee_marca_pct, fee_mkt_pct, gastos, impuestos, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,NOW())
       ON CONFLICT (local_id, mes) DO UPDATE SET
-        cmv_e2_pct   = EXCLUDED.cmv_e2_pct,
-        cmv_alim_pct = EXCLUDED.cmv_alim_pct,
-        gastos       = EXCLUDED.gastos,
-        impuestos    = EXCLUDED.impuestos,
-        updated_at   = NOW()
+        cmv_e2_pct    = EXCLUDED.cmv_e2_pct,
+        cmv_alim_pct  = EXCLUDED.cmv_alim_pct,
+        fee_marca_pct = EXCLUDED.fee_marca_pct,
+        fee_mkt_pct   = EXCLUDED.fee_mkt_pct,
+        gastos        = EXCLUDED.gastos,
+        impuestos     = EXCLUDED.impuestos,
+        updated_at    = NOW()
     `, [
       local_id, mes,
-      cmv_e2_pct   ?? 45,
-      cmv_alim_pct ?? 70,
+      cmv_e2_pct    ?? 45,
+      cmv_alim_pct  ?? 70,
+      fee_marca_pct ?? 2,
+      fee_mkt_pct   ?? 2,
       JSON.stringify(gastos    || DEFAULT_GASTOS),
       JSON.stringify(impuestos || { iibb: 0, novecientos31: 0, ganancias: 0 }),
     ]);
@@ -2543,7 +2556,7 @@ async function resumenEerr(local, mes) {
     return {
       ...resumenBruta(e.desglose_fiscal),
       venta_neta: Math.round(e.venta_neta), cmv: Math.round(e.cmv), margen_bruto: Math.round(e.margen_bruto),
-      gastos: Math.round(e.total_gastos), ebitda: Math.round(e.ebitda),
+      fees: Math.round(e.fees.total), gastos: Math.round(e.total_gastos), ebitda: Math.round(e.ebitda),
       impuestos: Math.round(e.impuestos.total), resultado_neto: Math.round(e.resultado_neto),
       gastos_cargados: e.gastos_cargados, impuestos_cargados: e.impuestos_cargados,
     };

@@ -262,32 +262,41 @@ function formatQuincenalRows(qRows) {
 
 // ── Fiscal queries (module-scope, reutilizadas en /eerr y /finanzas/kpi) ─────
 
-const QUERY_FISCAL = `
-  SELECT
-    COALESCE(SUM(CASE WHEN vt.fiscal = false THEN vt.total ELSE 0 END), 0) AS bruto_no_fiscal,
-    COALESCE(SUM(CASE WHEN vt.fiscal = true  THEN vt.total ELSE 0 END), 0) AS bruto_fiscal,
-    COALESCE(SUM(vf.total_sin_impuestos), 0)                                AS neto_fiscal,
-    COALESCE(SUM(vf.iva_21),  0)                                            AS total_iva_21,
-    COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
+// Venta neta: lo que se vendió sin factura entra completo; a lo facturado se le saca el
+// IVA dividiendo por 1,21. Un ticket cuenta como facturado si el POS lo marcó fiscal o si
+// tiene comprobante en ventas_fiscales: el Café marca todo como no fiscal aunque facture,
+// y antes esas ventas se sumaban dos veces (enteras y sin IVA).
+// Se pregunta con EXISTS y no con JOIN porque un ticket puede tener más de un comprobante
+// (factura + nota de crédito) y el JOIN repetía el total del ticket.
+const IVA = 1.21;
+
+const TICKETS_FACTURADOS = `
+  SELECT vt.local_id, vt.fecha, vt.total,
+         (vt.fiscal OR EXISTS (
+            SELECT 1 FROM ventas_fiscales vf
+            WHERE vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
+         )) AS facturado
   FROM ventas_tickets vt
-  LEFT JOIN ventas_fiscales vf
-         ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
-  WHERE vt.estado = 'cerrada' AND vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
+  WHERE vt.estado = 'cerrada'
+`;
+
+const QUERY_FISCAL = `
+  WITH t AS (${TICKETS_FACTURADOS} AND vt.local_id = $1 AND vt.fecha BETWEEN $2 AND $3)
+  SELECT
+    COALESCE(SUM(total) FILTER (WHERE NOT facturado), 0) AS bruto_no_fiscal,
+    COALESCE(SUM(total) FILTER (WHERE facturado),     0) AS bruto_fiscal
+  FROM t
 `;
 
 const QUERY_FISCAL_MULTI = `
+  WITH t AS (${TICKETS_FACTURADOS} AND vt.local_id = ANY($1::int[]) AND vt.fecha BETWEEN $2 AND $3)
   SELECT
-    vt.local_id,
-    TO_CHAR(DATE_TRUNC('month', vt.fecha), 'YYYY-MM') AS mes,
-    COALESCE(SUM(CASE WHEN vt.fiscal = false THEN vt.total ELSE 0 END), 0) AS bruto_no_fiscal,
-    COALESCE(SUM(CASE WHEN vt.fiscal = true  THEN vt.total ELSE 0 END), 0) AS bruto_fiscal,
-    COALESCE(SUM(vf.total_sin_impuestos), 0)                                AS neto_fiscal,
-    COALESCE(SUM(vf.iva_21),  0)                                            AS total_iva_21,
-    COALESCE(SUM(vf.iva_105), 0)                                            AS total_iva_105
-  FROM ventas_tickets vt
-  LEFT JOIN ventas_fiscales vf ON vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id
-  WHERE vt.estado = 'cerrada' AND vt.local_id = ANY($1::int[]) AND vt.fecha BETWEEN $2 AND $3
-  GROUP BY vt.local_id, mes
+    local_id,
+    TO_CHAR(DATE_TRUNC('month', fecha), 'YYYY-MM') AS mes,
+    COALESCE(SUM(total) FILTER (WHERE NOT facturado), 0) AS bruto_no_fiscal,
+    COALESCE(SUM(total) FILTER (WHERE facturado),     0) AS bruto_fiscal
+  FROM t
+  GROUP BY local_id, mes
   ORDER BY mes
 `;
 
@@ -1593,34 +1602,52 @@ function calcTotalGastos(gastos) {
 }
 
 function toFiscalData(row) {
+  const bruto_no_fiscal = n(row?.bruto_no_fiscal);
+  const bruto_fiscal    = n(row?.bruto_fiscal);
+  return { bruto_no_fiscal, bruto_fiscal, neto_fiscal: bruto_fiscal / IVA };
+}
+
+function desgloseFiscal({ bruto_no_fiscal, bruto_fiscal, neto_fiscal }) {
+  const venta_neta = bruto_no_fiscal + neto_fiscal;
   return {
-    bruto_no_fiscal: n(row.bruto_no_fiscal),
-    bruto_fiscal:    n(row.bruto_fiscal),
-    neto_fiscal:     n(row.neto_fiscal),
-    total_iva_21:    n(row.total_iva_21),
-    total_iva_105:   n(row.total_iva_105),
+    bruto_no_fiscal:        Math.round(bruto_no_fiscal),
+    bruto_fiscal:           Math.round(bruto_fiscal),
+    neto_fiscal:            Math.round(neto_fiscal),
+    iva_descontado:         Math.round(bruto_fiscal - neto_fiscal),
+    pct_fiscal_sobre_total: venta_neta > 0 ? Math.round(neto_fiscal / venta_neta * 1000) / 10 : 0,
+    tiene_fiscal:           bruto_fiscal > 0,
   };
 }
 
-function calcEerr(fiscalData, record) {
-  const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, total_iva_21, total_iva_105 } = fiscalData;
+// Los gastos se cargan de cero cada mes, pero los renglones se mantienen: un mes sin
+// cargar arranca con los conceptos del último mes que tuvo gastos, todos en $ 0.
+async function plantillaGastos(local_id, mes, fallback) {
+  const { rows } = await pool.query(`
+    SELECT gastos FROM eerr_local
+    WHERE local_id = $1 AND mes < $2 AND jsonb_array_length(COALESCE(gastos->'bloques', '[]'::jsonb)) > 0
+    ORDER BY mes DESC LIMIT 1
+  `, [local_id, mes]);
+  const base = rows[0]?.gastos || fallback;
+  return {
+    bloques: base.bloques.map(b => ({
+      ...b,
+      conceptos: (b.conceptos || []).map(c => ({ nombre: c.nombre, monto: 0 })),
+    })),
+  };
+}
 
-  const venta_neta     = bruto_no_fiscal + neto_fiscal;
-  const iva_descontado = Math.round(bruto_fiscal - neto_fiscal);
+function gastosDelMes(record, plantilla, fallback) {
+  const g = record?.gastos;
+  return g?.bloques?.length > 0 ? g : (plantilla || fallback);
+}
 
-  let tipo_iva = null;
-  if (total_iva_21 > 0 && total_iva_105 > 0) tipo_iva = 'IVA mixto';
-  else if (total_iva_21 > 0)                  tipo_iva = 'IVA 21%';
-  else if (total_iva_105 > 0)                 tipo_iva = 'IVA 10,5%';
-
-  const pct_fiscal_sobre_total = venta_neta > 0
-    ? Math.round(neto_fiscal / venta_neta * 1000) / 10
-    : 0;
+function calcEerr(fiscalData, record, plantilla = null) {
+  const { bruto_no_fiscal, neto_fiscal } = fiscalData;
+  const venta_neta = bruto_no_fiscal + neto_fiscal;
 
   const cmv_e2_pct   = record != null ? n(record.cmv_e2_pct)   : 45;
   const cmv_alim_pct = record != null ? n(record.cmv_alim_pct) : 70;
-  const gastos_raw   = record?.gastos;
-  const gastos       = (gastos_raw?.bloques?.length > 0) ? gastos_raw : DEFAULT_GASTOS;
+  const gastos       = gastosDelMes(record, plantilla, DEFAULT_GASTOS);
   const imp          = record?.impuestos || { iibb: 0, novecientos31: 0, ganancias: 0 };
 
   const venta_e2        = venta_neta * 0.90;
@@ -1643,8 +1670,10 @@ function calcEerr(fiscalData, record) {
     margen_bruto,
     gastos_bloques: gastos.bloques,
     total_gastos,
+    gastos_cargados: total_gastos > 0,
     ebitda,
     impuestos: { iibb, novecientos31, ganancias, total: total_impuestos },
+    impuestos_cargados: total_impuestos > 0,
     resultado_neto,
     pcts: {
       cmv:             p(cmv),
@@ -1654,16 +1683,7 @@ function calcEerr(fiscalData, record) {
       total_impuestos: p(total_impuestos),
       resultado_neto:  p(resultado_neto),
     },
-    desglose_fiscal: {
-      bruto_no_fiscal,
-      bruto_fiscal,
-      neto_fiscal:              Math.round(neto_fiscal),
-      iva_descontado,
-      tipo_iva,
-      pct_fiscal_sobre_total,
-      tiene_fiscal:             bruto_fiscal > 0,
-      tiene_datos_fiscales:     neto_fiscal  > 0,
-    },
+    desglose_fiscal: desgloseFiscal(fiscalData),
   };
 }
 
@@ -1681,6 +1701,16 @@ router.get('/eerr/locales', requireAuth, async (req, res) => {
   }
 });
 
+async function eerrTienda(local_id, mes) {
+  const { ini, fin } = mesRange(mes);
+  const [vnR, recR, plantilla] = await Promise.all([
+    pool.query(QUERY_FISCAL, [local_id, ini, fin]),
+    pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+    plantillaGastos(local_id, mes, DEFAULT_GASTOS),
+  ]);
+  return calcEerr(toFiscalData(vnR.rows[0]), recR.rows[0], plantilla);
+}
+
 router.get('/eerr', requireAuth, async (req, res) => {
   try {
     const { local_id, mes } = req.query;
@@ -1688,29 +1718,18 @@ router.get('/eerr', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
     }
 
-    const mes_ant   = prevMes(mes);
-    const { ini, fin }         = mesRange(mes);
-    const { ini: ini_ant, fin: fin_ant } = mesRange(mes_ant);
-
-    const [localR, vnR, vnAntR, recR, recAntR] = await Promise.all([
+    const mes_ant = prevMes(mes);
+    const [localR, actual, anterior] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
-      pool.query(QUERY_FISCAL, [local_id, ini,     fin    ]),
-      pool.query(QUERY_FISCAL, [local_id, ini_ant, fin_ant]),
-      pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
-      pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes_ant]),
+      eerrTienda(local_id, mes),
+      eerrTienda(local_id, mes_ant),
     ]);
 
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
     res.json({
       ok: true,
-      data: {
-        local:        localR.rows[0],
-        mes,
-        mes_anterior: mes_ant,
-        actual:       calcEerr(toFiscalData(vnR.rows[0]),    recR.rows[0]),
-        anterior:     calcEerr(toFiscalData(vnAntR.rows[0]), recAntR.rows[0]),
-      },
+      data: { local: localR.rows[0], mes, mes_anterior: mes_ant, actual, anterior },
     });
   } catch (err) {
     console.error('[red/eerr GET]', err);
@@ -2282,8 +2301,25 @@ router.post('/finanzas/kpi/init', requireAuth, requireAdmin, async (req, res) =>
 
 // ── K) EERR Cafetería ────────────────────────────────────────────────────────
 
-const CATS_CAFETERIA = ['cafeteria', 'panificados', 'promociones', 'menu_almuerzos', 'principales', 'bebidas'];
-const CMV_DEFAULTS_CAFETERIA = { cafeteria: 28, panificados: 40, promociones: 33, menu_almuerzos: 50, principales: 50, bebidas: 27 };
+// El CMV del Café se calcula por rubro, igual que en el Excel "Info Financiera Cafeteria":
+// la venta neta se reparte entre los rubros de Fudo según lo que vendió cada uno, y cada
+// rubro tiene un % de costo editable. El % de un mes queda para los siguientes hasta que
+// se cambie. Los sugeridos son los del último mes del Excel (diciembre 2025); un rubro que
+// no estaba en el Excel arranca sin % y avisa.
+const CMV_SUGERIDO_CAFE = [
+  ['cafeteria', 27], ['panificados', 39], ['promociones', 35],
+  ['menu', 51], ['principales', 55], ['bebidas', 30],
+];
+const SIN_RUBRO = 'Sin rubro';
+
+function normRubro(r) {
+  return String(r || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+function cmvSugeridoCafe(rubro) {
+  const r = normRubro(rubro);
+  const hit = CMV_SUGERIDO_CAFE.find(([k]) => r.startsWith(k));
+  return hit ? hit[1] : null;
+}
 
 const DEFAULT_GASTOS_CAFETERIA = {
   bloques: [{
@@ -2303,113 +2339,109 @@ const DEFAULT_GASTOS_CAFETERIA = {
   }],
 };
 
-function calcEerrCafeteria({ ventaRows, cmvMap, gastosRecord, impuestosRecord, dolarRecord, fiscalData = null }) {
-  // Ventas por categoría
-  const ventaMap = {};
-  let venta_neta = 0, sin_categoria = 0;
-  for (const row of (ventaRows || [])) {
-    const venta = n(row.venta);
-    if (CATS_CAFETERIA.includes(row.categoria)) {
-      ventaMap[row.categoria] = (ventaMap[row.categoria] || 0) + venta;
-    } else {
-      sin_categoria += venta;
-    }
-    venta_neta += venta;
-  }
+function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, impuestosRecord }) {
+  const venta_neta = fiscalData.bruto_no_fiscal + fiscalData.neto_fiscal;
 
-  // CMV desglose
-  const cmvDesglose = CATS_CAFETERIA.map(cat => {
-    const pct   = n(cmvMap[cat] ?? CMV_DEFAULTS_CAFETERIA[cat]);
-    const venta = n(ventaMap[cat] || 0);
-    return { categoria: cat, cmv_pct: pct, venta: Math.round(venta), costo: Math.round(venta * pct / 100) };
-  });
-  const cmv_total = cmvDesglose.reduce((s, r) => s + r.costo, 0);
-  const cmv_ponderado_pct = venta_neta > 0 ? Math.round(cmv_total / venta_neta * 1000) / 10 : 0;
+  // Lo que vendió cada rubro (según los ítems) sirve solo como proporción: el monto sale
+  // de la venta neta, que es la que cierra contra los tickets.
+  const totalBruto = rubrosBrutos.reduce((s, r) => s + r.venta, 0);
+  const rubros = (totalBruto > 0 ? rubrosBrutos : [{ rubro: SIN_RUBRO, venta: 1 }])
+    .map(r => {
+      const venta   = venta_neta * r.venta / (totalBruto || 1);
+      const cmv_pct = pctMap[r.rubro] ?? cmvSugeridoCafe(r.rubro);
+      return {
+        rubro:     r.rubro,
+        venta:     Math.round(venta),
+        pct_venta: venta_neta > 0 ? Math.round(venta / venta_neta * 1000) / 10 : 0,
+        cmv_pct,
+        costo:     Math.round(venta * n(cmv_pct) / 100),
+      };
+    })
+    .sort((x, y) => y.venta - x.venta);
 
-  const margen_bruto = venta_neta - cmv_total;
+  const cmv_total         = rubros.reduce((s, r) => s + r.costo, 0);
+  const rubros_sin_pct    = rubros.filter(r => r.cmv_pct == null && r.venta > 0).map(r => r.rubro);
+  const margen_bruto      = venta_neta - cmv_total;
+  const total_gastos      = calcTotalGastos(gastos);
+  const ebitda            = margen_bruto - total_gastos;
+  const ebitda_base       = Math.max(ebitda, 0);
 
-  // Gastos (reutiliza eerr_local)
-  const gastosRaw = gastosRecord?.gastos;
-  const gastos    = gastosRaw?.bloques?.length > 0 ? gastosRaw : DEFAULT_GASTOS_CAFETERIA;
-  const total_gastos = calcTotalGastos(gastos);
-
-  const ebitda      = margen_bruto - total_gastos;
-  const ebitda_base = Math.max(ebitda, 0);
-
-  // Impuestos (% de EBITDA)
+  // IIBB se paga sobre la venta; impuestos generales y fee de marca, sobre el EBITDA.
+  // En el Excel solo se restaba IIBB: los otros dos arrancan en 0% y se pueden cargar.
   const iibb_pct      = impuestosRecord ? n(impuestosRecord.iibb_pct)      : 3;
-  const imp_gen_pct   = impuestosRecord ? n(impuestosRecord.imp_gen_pct)   : 30;
-  const fee_marca_pct = impuestosRecord ? n(impuestosRecord.fee_marca_pct) : 4;
-  const iibb          = Math.round(ebitda_base * iibb_pct      / 100);
+  const imp_gen_pct   = impuestosRecord ? n(impuestosRecord.imp_gen_pct)   : 0;
+  const fee_marca_pct = impuestosRecord ? n(impuestosRecord.fee_marca_pct) : 0;
+  const iibb          = Math.round(venta_neta  * iibb_pct      / 100);
   const imp_gen       = Math.round(ebitda_base * imp_gen_pct   / 100);
   const fee_marca     = Math.round(ebitda_base * fee_marca_pct / 100);
   const total_imp     = iibb + imp_gen + fee_marca;
-  const total_imp_pct = ebitda_base > 0 ? Math.round(total_imp / ebitda_base * 1000) / 10 : 0;
 
-  const resultado_neto  = ebitda - total_imp;
-  const dolar_fin_mes   = dolarRecord ? n(dolarRecord.dolar_fin_mes) || null : null;
+  const resultado_neto = ebitda - total_imp;
 
   const p = v => venta_neta > 0 ? Math.round(v / venta_neta * 1000) / 10 : 0;
 
-  // Desglose fiscal (si se proveyó fiscalData desde el handler)
-  let desglose_fiscal = null;
-  if (fiscalData) {
-    const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, total_iva_21, total_iva_105 } = fiscalData;
-    const iva_descontado = Math.round(bruto_fiscal - neto_fiscal);
-    let tipo_iva = null;
-    if (total_iva_21 > 0 && total_iva_105 > 0) tipo_iva = 'IVA mixto';
-    else if (total_iva_21 > 0)                  tipo_iva = 'IVA 21%';
-    else if (total_iva_105 > 0)                 tipo_iva = 'IVA 10,5%';
-    const pct_fiscal_sobre_total = venta_neta > 0
-      ? Math.round(neto_fiscal / venta_neta * 1000) / 10 : 0;
-    desglose_fiscal = {
-      bruto_no_fiscal:       Math.round(bruto_no_fiscal),
-      bruto_fiscal:          Math.round(bruto_fiscal),
-      neto_fiscal:           Math.round(neto_fiscal),
-      iva_descontado,
-      tipo_iva,
-      pct_fiscal_sobre_total,
-      tiene_fiscal:          bruto_fiscal > 0,
-      tiene_datos_fiscales:  neto_fiscal  > 0,
-    };
-  }
-
   return {
     venta_neta:       Math.round(venta_neta),
-    sin_categoria:    Math.round(sin_categoria),
-    venta_categorias: cmvDesglose.map(r => ({ categoria: r.categoria, venta: r.venta, pct_venta: p(r.venta) })),
-    cmv_desglose:     cmvDesglose,
+    rubros,
+    rubros_sin_pct,
     cmv_total:        Math.round(cmv_total),
-    cmv_ponderado_pct,
+    cmv_ponderado_pct: p(cmv_total),
     margen_bruto:     Math.round(margen_bruto),
     gastos_bloques:   gastos.bloques,
     total_gastos:     Math.round(total_gastos),
+    gastos_cargados:  total_gastos > 0,
     ebitda:           Math.round(ebitda),
     impuestos: {
       iibb_pct, imp_gen_pct, fee_marca_pct,
       iibb, imp_gen, fee_marca,
-      total: total_imp, total_pct: total_imp_pct,
+      total: total_imp,
     },
     resultado_neto: Math.round(resultado_neto),
-    dolar_fin_mes,
-    distribucion: {
-      agus_pct:   50,
-      agus_ars:   Math.round(resultado_neto / 2),
-      agus_usd:   dolar_fin_mes ? Math.round(resultado_neto / 2 / dolar_fin_mes * 100) / 100 : null,
-      plumas_pct: 50,
-      plumas_ars: Math.round(resultado_neto / 2),
-      plumas_usd: dolar_fin_mes ? Math.round(resultado_neto / 2 / dolar_fin_mes * 100) / 100 : null,
-    },
     pcts: {
-      cmv:           p(cmv_total),
-      margen_bruto:  p(margen_bruto),
-      gastos:        p(total_gastos),
-      ebitda:        p(ebitda),
-      impuestos:     p(total_imp),
+      cmv:            p(cmv_total),
+      margen_bruto:   p(margen_bruto),
+      gastos:         p(total_gastos),
+      ebitda:         p(ebitda),
+      impuestos:      p(total_imp),
       resultado_neto: p(resultado_neto),
     },
-    ...(desglose_fiscal ? { desglose_fiscal } : {}),
+    desglose_fiscal: desgloseFiscal(fiscalData),
   };
+}
+
+async function eerrCafe(local_id, mes) {
+  const { ini, fin } = mesRange(mes);
+  const [fiscalR, rubrosR, pctR, gastosR, plantilla, impR] = await Promise.all([
+    pool.query(QUERY_FISCAL, [local_id, ini, fin]),
+    pool.query(`
+      SELECT COALESCE(NULLIF(TRIM(p.categoria), ''), NULLIF(TRIM(vi.categoria_raw), ''), $4) AS rubro,
+             COALESCE(SUM(vi.precio_total), 0) AS venta
+      FROM ventas_items vi
+      JOIN ventas_tickets vt ON vt.id = vi.ticket_id
+      LEFT JOIN productos_catalogo p ON p.id = vi.producto_id
+      WHERE vt.estado = 'cerrada' AND vi.local_id = $1 AND vt.fecha BETWEEN $2 AND $3
+        AND COALESCE(vi.cancelada, false) = false
+      GROUP BY 1
+    `, [local_id, ini, fin, SIN_RUBRO]),
+    // El último % cargado de cada rubro, hasta este mes inclusive.
+    pool.query(`
+      SELECT DISTINCT ON (categoria) categoria, cmv_pct
+      FROM eerr_cafeteria_cmv
+      WHERE local_id = $1 AND mes <= $2
+      ORDER BY categoria, mes DESC
+    `, [local_id, mes]),
+    pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+    plantillaGastos(local_id, mes, DEFAULT_GASTOS_CAFETERIA),
+    pool.query('SELECT * FROM eerr_cafeteria_impuestos WHERE local_id=$1 AND mes=$2', [local_id, mes]),
+  ]);
+
+  return calcEerrCafeteria({
+    fiscalData:      toFiscalData(fiscalR.rows[0]),
+    rubrosBrutos:    rubrosR.rows.map(r => ({ rubro: r.rubro, venta: n(r.venta) })).filter(r => r.venta > 0),
+    pctMap:          Object.fromEntries(pctR.rows.map(r => [r.categoria, n(r.cmv_pct)])),
+    gastos:          gastosDelMes(gastosR.rows[0], plantilla, DEFAULT_GASTOS_CAFETERIA),
+    impuestosRecord: impR.rows[0] || null,
+  });
 }
 
 router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
@@ -2418,99 +2450,13 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
     if (!local_id || !mes || !/^\d{4}-\d{2}$/.test(mes))
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
 
-    const { ini, fin } = mesRange(mes);
-
-    const [localR, fiscalR, itemsByCatR, cmvR, gastosR, impR, dolarR, sinCatR] = await Promise.all([
+    const [localR, eerr] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
-
-      // VN fiscal correcta: no-fiscal entra completo, fiscal sin IVA (igual que otros locales)
-      pool.query(QUERY_FISCAL, [local_id, ini, fin]),
-
-      // Desglose bruto por categoría desde ventas_items (se escala por factor fiscal después)
-      pool.query(`
-        SELECT COALESCE(pcc.categoria, 'sin_categoria') AS categoria,
-               COALESCE(SUM(vi.precio_total), 0)        AS venta
-        FROM ventas_items vi
-        JOIN ventas_tickets vt ON vt.id = vi.ticket_id
-        LEFT JOIN productos_categoria_cafeteria pcc
-               ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
-        WHERE vt.estado = 'cerrada' AND vi.local_id = $1 AND vt.fecha >= $2 AND vt.fecha <= $3
-          AND COALESCE(vi.cancelada, false) = false
-        GROUP BY categoria ORDER BY venta DESC
-      `, [local_id, ini, fin]),
-
-      pool.query('SELECT categoria, cmv_pct FROM eerr_cafeteria_cmv WHERE local_id=$1 AND mes=$2', [local_id, mes]),
-      pool.query('SELECT * FROM eerr_local WHERE local_id=$1 AND mes=$2', [local_id, mes]),
-      pool.query('SELECT * FROM eerr_cafeteria_impuestos WHERE local_id=$1 AND mes=$2', [local_id, mes]),
-      pool.query('SELECT * FROM eerr_cafeteria_dolar WHERE local_id=$1 AND mes=$2', [local_id, mes]),
-      pool.query(`
-        SELECT COUNT(DISTINCT LOWER(TRIM(vi.producto_nombre_raw))) AS cnt
-        FROM ventas_items vi
-        LEFT JOIN productos_categoria_cafeteria pcc
-               ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
-        WHERE vi.local_id = $1 AND pcc.producto_nombre_norm IS NULL
-          AND COALESCE(vi.cancelada, false) = false
-      `, [local_id]),
+      eerrCafe(local_id, mes),
     ]);
-
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    // VN fiscal correcta: no-fiscal completo + fiscal sin IVA (única fuente de verdad)
-    const fiscalData = toFiscalData(fiscalR.rows[0] || {});
-    const { bruto_no_fiscal, bruto_fiscal, neto_fiscal } = fiscalData;
-    const venta_neta = bruto_no_fiscal + neto_fiscal;
-
-    // Items: solo como pesos proporcionales por categoría.
-    // NO se usan como montos absolutos — pueden estar duplicados si hubo re-imports.
-    const itemsByCatBruto = {};
-    let itemsBrutoTotal = 0;
-    for (const r of itemsByCatR.rows) {
-      const v = n(r.venta);
-      itemsByCatBruto[r.categoria] = (itemsByCatBruto[r.categoria] || 0) + v;
-      itemsBrutoTotal += v;
-    }
-    const itemsTotal = itemsBrutoTotal; // para tiene_detalle_items
-
-    // Distribuir venta_neta proporcionalmente según peso de cada categoría en items
-    const itemsByCat = {};
-    if (itemsBrutoTotal > 0) {
-      for (const [cat, brutoV] of Object.entries(itemsByCatBruto)) {
-        itemsByCat[cat] = (brutoV / itemsBrutoTotal) * venta_neta;
-      }
-    } else {
-      // Sin datos de items: todo sin_categoria, el usuario asigna manualmente
-      itemsByCat['sin_categoria'] = venta_neta;
-    }
-
-    // Construir ventaRows para calcEerrCafeteria
-    const ventaRows = Object.entries(itemsByCat)
-      .map(([categoria, venta]) => ({ categoria, venta }))
-      .filter(r => r.venta > 0);
-
-    const cmvMap = Object.fromEntries(cmvR.rows.map(r => [r.categoria, n(r.cmv_pct)]));
-
-    const eerr = calcEerrCafeteria({
-      ventaRows,
-      cmvMap,
-      gastosRecord:    gastosR.rows[0] || null,
-      impuestosRecord: impR.rows[0]    || null,
-      dolarRecord:     dolarR.rows[0]  || null,
-      fiscalData,
-    });
-
-    res.json({
-      ok: true,
-      data: {
-        local: localR.rows[0],
-        mes,
-        ...eerr,
-        cmv_categorias_config: Object.fromEntries(
-          CATS_CAFETERIA.map(cat => [cat, cmvMap[cat] ?? CMV_DEFAULTS_CAFETERIA[cat]])
-        ),
-        productos_sin_categoria: Number(sinCatR.rows[0]?.cnt || 0),
-        tiene_detalle_items: itemsTotal > 0,
-      },
-    });
+    res.json({ ok: true, data: { local: localR.rows[0], mes, ...eerr } });
   } catch (err) {
     console.error('[red/eerr/cafeteria GET]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -2522,12 +2468,13 @@ router.post('/eerr/cafeteria/cmv', requireAuth, async (req, res) => {
     const { local_id, mes, categorias } = req.body;
     if (!local_id || !mes || !categorias) return res.status(400).json({ ok: false, error: 'local_id, mes, categorias requeridos' });
     for (const [cat, pct] of Object.entries(categorias)) {
-      if (!CATS_CAFETERIA.includes(cat)) continue;
+      const v = parseFloat(pct);
+      if (!String(cat).trim() || !Number.isFinite(v)) continue;
       await pool.query(`
         INSERT INTO eerr_cafeteria_cmv (local_id, mes, categoria, cmv_pct, updated_at)
         VALUES ($1,$2,$3,$4,NOW())
         ON CONFLICT (local_id, mes, categoria) DO UPDATE SET cmv_pct=EXCLUDED.cmv_pct, updated_at=NOW()
-      `, [local_id, mes, cat, parseFloat(pct) || 0]);
+      `, [local_id, mes, cat, v]);
     }
     res.json({ ok: true });
   } catch (err) {
@@ -2570,143 +2517,59 @@ router.post('/eerr/cafeteria/impuestos', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/eerr/cafeteria/dolar', requireAuth, async (req, res) => {
+// ── Vistas de varias columnas: toda la red en un mes, o un local en varios meses ──
+
+async function resumenEerr(local, mes) {
+  if (local.es_alfajorera) {
+    const e = await eerrTienda(local.id, mes);
+    return {
+      venta_neta: Math.round(e.venta_neta), cmv: Math.round(e.cmv), margen_bruto: Math.round(e.margen_bruto),
+      gastos: Math.round(e.total_gastos), ebitda: Math.round(e.ebitda),
+      impuestos: Math.round(e.impuestos.total), resultado_neto: Math.round(e.resultado_neto),
+      gastos_cargados: e.gastos_cargados, impuestos_cargados: e.impuestos_cargados,
+    };
+  }
+  const e = await eerrCafe(local.id, mes);
+  return {
+    venta_neta: e.venta_neta, cmv: e.cmv_total, margen_bruto: e.margen_bruto,
+    gastos: e.total_gastos, ebitda: e.ebitda,
+    impuestos: e.impuestos.total, resultado_neto: e.resultado_neto,
+    gastos_cargados: e.gastos_cargados, impuestos_cargados: true,
+    rubros_sin_pct: e.rubros_sin_pct,
+  };
+}
+
+router.get('/eerr/red', requireAuth, async (req, res) => {
   try {
-    const { local_id, mes, dolar_fin_mes } = req.body;
-    if (!local_id || !mes) return res.status(400).json({ ok: false, error: 'local_id y mes requeridos' });
-    await pool.query(`
-      INSERT INTO eerr_cafeteria_dolar (local_id, mes, dolar_fin_mes, updated_at)
-      VALUES ($1,$2,$3,NOW())
-      ON CONFLICT (local_id, mes) DO UPDATE SET dolar_fin_mes=EXCLUDED.dolar_fin_mes, updated_at=NOW()
-    `, [local_id, mes, parseFloat(dolar_fin_mes) || null]);
-    res.json({ ok: true });
+    const { mes } = req.query;
+    if (!mes || !/^\d{4}-\d{2}$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'mes (YYYY-MM) requerido' });
+    const { rows: locales } = await pool.query(
+      'SELECT id, nombre, es_alfajorera FROM locales WHERE activo = true ORDER BY es_alfajorera DESC, nombre'
+    );
+    const resumenes = await Promise.all(locales.map(l => resumenEerr(l, mes)));
+    res.json({ ok: true, data: { mes, locales: locales.map((l, i) => ({ ...l, ...resumenes[i] })) } });
   } catch (err) {
-    console.error('[red/eerr/cafeteria/dolar]', err);
+    console.error('[red/eerr/red]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-router.get('/eerr/cafeteria/productos-categorias', requireAuth, async (req, res) => {
+router.get('/eerr/meses', requireAuth, async (req, res) => {
   try {
-    const { local_id } = req.query;
-    const lid = parseInt(local_id);
-    if (!lid) return res.status(400).json({ ok: false, error: 'local_id requerido' });
-    const { rows } = await pool.query(`
-      SELECT LOWER(TRIM(vi.producto_nombre_raw)) AS nombre_norm,
-             vi.producto_nombre_raw              AS nombre_raw,
-             pcc.categoria,
-             SUM(vi.precio_total)                AS venta_total,
-             COUNT(*)                            AS apariciones
-      FROM ventas_items vi
-      LEFT JOIN productos_categoria_cafeteria pcc
-             ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
-      WHERE vi.local_id = $1 AND COALESCE(vi.cancelada, false) = false
-      GROUP BY 1, 2, 3
-      ORDER BY pcc.categoria NULLS FIRST, venta_total DESC
-    `, [lid]);
-    res.json({ ok: true, data: rows });
+    const { local_id, hasta } = req.query;
+    const cant = Math.min(Math.max(parseInt(req.query.cant) || 6, 1), 12);
+    if (!local_id || !hasta || !/^\d{4}-\d{2}$/.test(hasta))
+      return res.status(400).json({ ok: false, error: 'local_id y hasta (YYYY-MM) requeridos' });
+    const { rows } = await pool.query('SELECT id, nombre, es_alfajorera FROM locales WHERE id = $1', [local_id]);
+    if (!rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+
+    const meses = [hasta];
+    while (meses.length < cant) meses.unshift(prevMes(meses[0]));
+    const resumenes = await Promise.all(meses.map(m => resumenEerr(rows[0], m)));
+    res.json({ ok: true, data: { local: rows[0], meses: meses.map((m, i) => ({ mes: m, ...resumenes[i] })) } });
   } catch (err) {
-    console.error('[red/eerr/cafeteria/productos-categorias GET]', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-router.post('/eerr/cafeteria/productos-categorias', requireAuth, async (req, res) => {
-  try {
-    const { asignaciones } = req.body;
-    if (!Array.isArray(asignaciones) || !asignaciones.length)
-      return res.status(400).json({ ok: false, error: 'asignaciones[] requerido' });
-    for (const { producto_nombre_norm, categoria } of asignaciones) {
-      if (!producto_nombre_norm || !CATS_CAFETERIA.includes(categoria)) continue;
-      await pool.query(`
-        INSERT INTO productos_categoria_cafeteria (producto_nombre_norm, categoria)
-        VALUES ($1,$2)
-        ON CONFLICT (producto_nombre_norm) DO UPDATE SET categoria=EXCLUDED.categoria
-      `, [producto_nombre_norm.toLowerCase().trim(), categoria]);
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[red/eerr/cafeteria/productos-categorias POST]', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ── Locales disponibles para EERR cafetería ──────────────────────────────────
-router.get('/eerr/cafeteria/locales', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query(`SELECT id, nombre, es_alfajorera FROM locales ORDER BY nombre`);
-    res.json({ ok: true, locales: r.rows });
-  } catch (err) {
-    console.error('[eerr/cafeteria/locales]', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ── TEMP: init migración 025 cafetería en prod ────────────────────────────────
-router.post('/eerr/cafeteria/init', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS eerr_cafeteria_cmv (
-        local_id INT NOT NULL REFERENCES locales(id),
-        mes CHAR(7) NOT NULL,
-        categoria TEXT NOT NULL,
-        cmv_pct NUMERIC(5,2) NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (local_id, mes, categoria)
-      )
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS eerr_cafeteria_impuestos (
-        local_id INT NOT NULL REFERENCES locales(id),
-        mes CHAR(7) NOT NULL,
-        iibb_pct NUMERIC(5,2) NOT NULL DEFAULT 3,
-        imp_gen_pct NUMERIC(5,2) NOT NULL DEFAULT 30,
-        fee_marca_pct NUMERIC(5,2) NOT NULL DEFAULT 4,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (local_id, mes)
-      )
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS eerr_cafeteria_dolar (
-        local_id INT NOT NULL REFERENCES locales(id),
-        mes CHAR(7) NOT NULL,
-        dolar_fin_mes NUMERIC(10,2),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (local_id, mes)
-      )
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS productos_categoria_cafeteria (
-        producto_nombre_norm TEXT PRIMARY KEY,
-        categoria TEXT NOT NULL
-          CHECK (categoria IN ('cafeteria','panificados','promociones',
-                               'menu_almuerzos','principales','bebidas'))
-      )
-    `);
-
-    // Contar productos de cafetería todavía sin categoría asignada
-    const sinCat = await pool.query(`
-      SELECT COUNT(DISTINCT LOWER(TRIM(vi.producto_nombre_raw))) AS cnt
-      FROM ventas_items vi
-      JOIN locales l ON l.id = vi.local_id AND l.es_alfajorera = false AND l.activo = true
-      LEFT JOIN productos_categoria_cafeteria pcc
-             ON LOWER(TRIM(vi.producto_nombre_raw)) = pcc.producto_nombre_norm
-      WHERE COALESCE(vi.cancelada, false) = false
-        AND pcc.producto_nombre_norm IS NULL
-    `);
-
-    res.json({
-      ok: true,
-      tablas_creadas: [
-        'eerr_cafeteria_cmv',
-        'eerr_cafeteria_impuestos',
-        'eerr_cafeteria_dolar',
-        'productos_categoria_cafeteria',
-      ],
-      productos_sin_categoria: Number(sinCat.rows[0]?.cnt || 0),
-    });
-  } catch (err) {
-    console.error('[red/eerr/cafeteria/init]', err);
+    console.error('[red/eerr/meses]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

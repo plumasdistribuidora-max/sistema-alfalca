@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { fmtARS, fmtPct, shortName } from '../redUtils';
 import EerrCafeteriaSection from '../../finanzas/EerrCafeteriaSection';
+import { EerrRed, EerrMeses, FiscalDesglose, mesEnCurso } from '../../finanzas/EerrTablas';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -133,62 +134,6 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function FiscalDesglose({ df }) {
-  if (!df) return null;
-  const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, iva_descontado, tipo_iva,
-          pct_fiscal_sobre_total, tiene_fiscal, tiene_datos_fiscales } = df;
-  return (
-    <div className="mt-4 pt-4 border-t border-stone-100">
-      <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-3">Composición fiscal</p>
-      <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
-        <div className="grid grid-cols-3 px-4 py-2 bg-stone-50 text-xs text-stone-400 font-semibold">
-          <span>Tipo</span>
-          <span className="text-right">Bruto</span>
-          <span className="text-right">Neto</span>
-        </div>
-        {/* No fiscal */}
-        <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
-          <div>
-            <span className="font-medium text-stone-700">No fiscal</span>
-            <span className="ml-1.5 text-xs text-stone-400">entra completo</span>
-          </div>
-          <span className="text-right text-stone-600">{fmt$(bruto_no_fiscal)}</span>
-          <span className="text-right font-semibold text-stone-900">{fmt$(bruto_no_fiscal)}</span>
-        </div>
-        {/* Fiscal */}
-        {tiene_fiscal ? (
-          <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
-            <div>
-              <span className="font-medium text-stone-700">Fiscal</span>
-              {tipo_iva && <span className="ml-1.5 text-xs text-stone-400">{tipo_iva}</span>}
-            </div>
-            <span className="text-right text-stone-400 line-through">{fmt$(bruto_fiscal)}</span>
-            <span className="text-right font-semibold text-stone-900">
-              {tiene_datos_fiscales ? fmt$(neto_fiscal) : '—'}
-            </span>
-          </div>
-        ) : (
-          <div className="px-4 py-3 text-xs text-stone-400 italic border-b border-stone-50">
-            Sin facturación fiscal en este período
-          </div>
-        )}
-      </div>
-      {tiene_fiscal && tiene_datos_fiscales && (
-        <div className="mt-2.5 space-y-1.5 px-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-stone-500">% fiscal sobre el total</span>
-            <span className="font-semibold text-stone-700">{pct_fiscal_sobre_total}%</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-stone-500">IVA descontado</span>
-            <span className="font-semibold text-red-500">−{fmt$(iva_descontado)}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -405,15 +350,13 @@ export default function EerrSection() {
   const [locales,     setLocales]     = useState([]);
   const [selLocal,    setSelLocal]    = useState('');
   const [selMes,      setSelMes]      = useState(MONTH_OPTIONS[0]?.value || '');
+  const [vista,       setVista]       = useState('red');
   const selLocalObj = locales.find(l => String(l.id) === selLocal);
   const esCafeteria = selLocalObj ? !selLocalObj.es_alfajorera : false;
   const [data,      setData]      = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [openModal, setOpenModal] = useState(null);
   const [saving,    setSaving]    = useState(false);
-  const [alertaDismissed, setAlertaDismissed] = useState(
-    () => localStorage.getItem('eerr_fiscal_alert_v1') === '1'
-  );
 
   const [editCmv, setEditCmv] = useState({ e2: '45', alim: '70' });
   const [editGastos, setEditGastos] = useState({ bloques: [] });
@@ -432,14 +375,14 @@ export default function EerrSection() {
 
   // Recarga EERR cuando cambia local o mes (solo para locales alfajoreros)
   useEffect(() => {
-    if (!selLocal || !selMes || esCafeteria) return;
+    if (vista !== 'local' || !selLocal || !selMes || esCafeteria) return;
     setLoading(true);
     setData(null);
     api.get('/red/eerr', { params: { local_id: selLocal, mes: selMes } })
       .then(r => setData(r.data.data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [selLocal, selMes, esCafeteria]);
+  }, [vista, selLocal, selMes, esCafeteria]);
 
   function openFor(name) {
     if (!data?.actual) return;
@@ -516,69 +459,77 @@ export default function EerrSection() {
   const b = data?.anterior;
   const ml = mesLabel(selMes);
 
-  function dismissAlerta() {
-    localStorage.setItem('eerr_fiscal_alert_v1', '1');
-    setAlertaDismissed(true);
-  }
+  const curso = mesEnCurso(selMes);
 
   return (
     <div className="space-y-4">
 
-      {/* ── Alerta migración cálculo fiscal (solo alfajoreras) ── */}
-      {!esCafeteria && !alertaDismissed && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          <span className="flex-shrink-0 mt-0.5">⚠</span>
-          <span className="flex-1">
-            <strong>Cambió el cálculo de Venta Neta:</strong> ahora descuenta el IVA de las ventas fiscales correctamente (usando la columna "Total sin impuestos" del POS). Los números pueden bajar respecto a antes.
-          </span>
-          <button
-            onClick={dismissAlerta}
-            className="flex-shrink-0 font-bold text-amber-600 hover:text-amber-900 leading-none"
-          >✕</button>
-        </div>
-      )}
-
       {/* ── Selectors ── */}
-      <div className="flex gap-3">
-        <select
-          value={selLocal}
-          onChange={e => { setSelLocal(e.target.value); setOpenModal(null); }}
-          className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
-        >
-          {locales.map(l => (
-            <option key={l.id} value={String(l.id)}>{shortName(l.nombre)}</option>
+      <div className="flex flex-wrap gap-3">
+        <div className="inline-flex rounded-xl border border-stone-200 bg-white p-0.5">
+          {[['red', 'Red'], ['local', 'Por local'], ['meses', 'Varios meses']].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => { setVista(id); setOpenModal(null); }}
+              className={`px-3.5 py-1.5 rounded-[10px] text-sm font-semibold transition-colors ${vista === id ? 'text-white' : 'text-stone-500 hover:text-stone-800'}`}
+              style={vista === id ? { background: '#45484c' } : undefined}
+            >
+              {label}
+            </button>
           ))}
-        </select>
+        </div>
+        {vista !== 'red' && (
+          <select
+            value={selLocal}
+            onChange={e => { setSelLocal(e.target.value); setOpenModal(null); }}
+            className="flex-1 min-w-[140px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+          >
+            {locales.map(l => (
+              <option key={l.id} value={String(l.id)}>{shortName(l.nombre)}</option>
+            ))}
+          </select>
+        )}
         <select
           value={selMes}
           onChange={e => { setSelMes(e.target.value); setOpenModal(null); }}
-          className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+          className="flex-1 min-w-[140px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
         >
           {MONTH_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value}>{vista === 'meses' ? `Hasta ${o.label}` : o.label}</option>
           ))}
         </select>
       </div>
 
+      {curso && vista !== 'meses' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
+          <strong>Mes en curso:</strong> lleva {curso.dia} de {curso.dias} días. Los números no son de un mes completo.
+        </div>
+      )}
+
+      {vista === 'red' && (
+        <EerrRed mes={selMes} onAbrirLocal={id => { setSelLocal(String(id)); setVista('local'); }} />
+      )}
+      {vista === 'meses' && <EerrMeses localId={selLocal} hasta={selMes} />}
+
       {/* ── Cafetería ── */}
-      {esCafeteria && selLocal && selMes && (
+      {vista === 'local' && esCafeteria && selLocal && selMes && (
         <EerrCafeteriaSection localId={selLocal} mes={selMes} />
       )}
 
       {/* ── Loading (alfajoreras) ── */}
-      {!esCafeteria && loading && (
+      {vista === 'local' && !esCafeteria && loading && (
         <div className="space-y-3">
           {[1,2,3,4].map(i => <div key={i} className="h-20 bg-stone-100 rounded-2xl animate-pulse" />)}
         </div>
       )}
 
       {/* ── Sin datos (alfajoreras) ── */}
-      {!esCafeteria && !loading && !a && (
+      {vista === 'local' && !esCafeteria && !loading && !a && (
         <div className="card p-8 text-center text-stone-400">Sin datos para el período seleccionado.</div>
       )}
 
       {/* ── Contenido alfajoreras ── */}
-      {!esCafeteria && !loading && a && (
+      {vista === 'local' && !esCafeteria && !loading && a && (
         <>
           {/* KPIs */}
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -592,7 +543,7 @@ export default function EerrSection() {
           <div className="card p-4">
             <CascadeCard
               title="Venta Neta"
-              subtitle={`Entre Dos 90% · Alimendos 10%${a.desglose_fiscal?.tiene_fiscal ? ' · IVA descontado' : ''}`}
+              subtitle={`Entre Dos 90% · Alimendos 10%${a.desglose_fiscal?.tiene_fiscal ? ' · facturado sin IVA' : ''}`}
               value={a.venta_neta} pct={100}
               varA={a.venta_neta} varB={b?.venta_neta}
               onClick={() => openFor('venta')} sk="venta"
@@ -613,7 +564,7 @@ export default function EerrSection() {
             />
             <Connector sign="−" />
             <CascadeCard
-              title="Gastos Operativos" subtitle="Comerciales + estructura"
+              title="Gastos Operativos" subtitle={a.gastos_cargados ? 'Comerciales + estructura' : 'Sin cargar · tocá para cargarlos'}
               value={a.total_gastos} pct={a.pcts.total_gastos}
               varA={a.total_gastos} varB={b?.total_gastos} inverted
               onClick={() => openFor('gastos')} sk="gastos"
@@ -627,7 +578,7 @@ export default function EerrSection() {
             />
             <Connector sign="−" />
             <CascadeCard
-              title="Impuestos" subtitle="IIBB · 931 · Ganancias"
+              title="Impuestos" subtitle={a.impuestos_cargados ? 'IIBB · 931 · Ganancias' : 'Sin cargar · tocá para cargarlos'}
               value={a.impuestos.total} pct={a.pcts.total_impuestos}
               varA={a.impuestos.total} varB={b?.impuestos?.total} inverted
               onClick={() => openFor('impuestos')} sk="impuestos"

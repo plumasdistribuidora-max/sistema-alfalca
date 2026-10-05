@@ -1754,9 +1754,16 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </p>
 
       <h3>EERR — el estado de resultados</h3>
+      <p>Arriba elegís cómo mirarlo:</p>
+      <ul class="simple">
+        <li><strong>Red</strong>: un mes, con una columna por local, el total de las tiendas y el total de la red. Tocando el nombre de un local se abre su detalle.</li>
+        <li><strong>Por local</strong>: la cascada de un local en un mes. Arranca en lo que se vendió y va restando hasta llegar a lo que quedó.</li>
+        <li><strong>Varios meses</strong>: un local en los últimos seis meses, lado a lado.</li>
+      </ul>
       <p>
-        Elegís un local y un mes, y el sistema arma la cascada: arranca en lo que se vendió y
-        va restando hasta llegar a lo que quedó.
+        <strong>Venta neta:</strong> lo que se vendió sin factura entra completo; a lo facturado se
+        le saca el IVA dividiendo por 1,21. El <strong>CMV</strong> de las tiendas se calcula con
+        los % de Entre Dos y Alimendos (90% y 10% de la venta).
       </p>
 
       <figure class="figura">
@@ -1769,11 +1776,12 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div class="m-tabs"><b class="on">EERR</b><b>Cash Flow</b><b>KPI</b></div>
             </div>
             <div class="m-fila" style="gap:9px;margin-top:4px">
+              <span class="m-input">Por local</span>
               <span class="m-input" style="flex:1">Peatonal</span>
               <span class="m-input" style="flex:1">Agosto 2026</span>
             </div>
             <div class="m-cascada">
-              <div class="lin"><span class="op"></span><span><b>Venta Neta</b><em>Entre Dos 90% · Alimendos 10% · IVA descontado</em></span><span class="mto">$ 14.180.400</span></div>
+              <div class="lin"><span class="op"></span><span><b>Venta Neta</b><em>Entre Dos 90% · Alimendos 10% · facturado sin IVA</em></span><span class="mto">$ 14.180.400</span></div>
               <div class="lin"><span class="op">−</span><span><b>CMV</b><em>Costo de lo que vendiste</em></span><span class="mto">$ 6.735.690</span></div>
               <div class="lin"><span class="op">=</span><span><b>Margen Bruto</b><em>Venta Neta − CMV</em></span><span class="mto">$ 7.444.710</span></div>
               <div class="lin"><span class="op">−</span><span><b>Gastos Operativos</b><em>Comerciales + estructura</em></span><span class="mto">$ 4.120.000</span></div>
@@ -1787,8 +1795,20 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </figure>
 
       <p>
-        La cafetería tiene su propia versión de esta pantalla, con el desglose por categoría
-        de producto y la distribución entre socios.
+        <strong>Los gastos se cargan de cero cada mes.</strong> Los renglones (alquiler, luz,
+        sueldos…) quedan los del último mes cargado, pero todos en $ 0. Mientras un mes no tenga
+        gastos o impuestos, dice <em>Sin cargar</em> y el EBITDA y el resultado aparecen como
+        <em>Incompleto</em>: un número sin gastos parece ganancia y no lo es.
+      </p>
+      <p>
+        Si elegís el mes en curso, arriba avisa cuántos días lleva, para no leerlo como un mes completo.
+      </p>
+      <p>
+        <strong>El Café</strong> calcula el CMV por rubro, con los rubros de Fudo (Cafetería,
+        Panificados, Promociones, Menú, Principales, Bebidas…). La venta neta se reparte entre los
+        rubros según lo que vendió cada uno, y cada rubro tiene su % de costo, que se edita tocando
+        el CMV. El % que guardes sigue valiendo los meses siguientes hasta que lo cambies. Si aparece
+        un rubro nuevo, arranca sin % y la pantalla lo avisa. Ingresos Brutos se calcula sobre la venta.
       </p>
 
       <h3>Cash Flow — la plata de los próximos días</h3>
@@ -2078,7 +2098,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <div><dt>Ticket</dt><dd>Una venta. Un cliente que pagó.</dd></div>
         <div><dt>Ticket promedio</dt><dd>Cuánto gastó en promedio cada cliente: la facturación dividida por la cantidad de tickets.</dd></div>
         <div><dt>Cerrada</dt><dd>El estado de un ticket que se cobró de verdad. Solo esos cuentan como venta.</dd></div>
-        <div><dt>Venta Neta</dt><dd>Lo que vendiste, sacándole el IVA a la parte fiscal.</dd></div>
+        <div><dt>Venta Neta</dt><dd>Lo que vendiste: lo que fue sin factura entra completo y a lo facturado se le saca el IVA (se divide por 1,21).</dd></div>
         <div><dt>CMV</dt><dd>Costo de la Mercadería Vendida: lo que te costó a vos el producto que vendiste.</dd></div>
         <div><dt>Margen Bruto</dt><dd>La venta neta menos el CMV. Lo que queda antes de pagar todo lo demás.</dd></div>
         <div><dt>EBITDA</dt><dd>Lo que deja la operación después de los gastos, pero antes de impuestos.</dd></div>

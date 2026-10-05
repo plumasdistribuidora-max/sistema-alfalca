@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api';
 import { fmtARS, fmtPct } from '../red/redUtils';
+import { FiscalDesglose } from './EerrTablas';
 
 const MESES_FULL = {
   '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril',
@@ -8,16 +9,7 @@ const MESES_FULL = {
   '09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre',
 };
 
-const CATS = [
-  { key: 'cafeteria',      label: 'Cafetería'      },
-  { key: 'panificados',    label: 'Panificados'    },
-  { key: 'promociones',    label: 'Promociones'    },
-  { key: 'menu_almuerzos', label: 'Menú Almuerzos' },
-  { key: 'principales',    label: 'Principales'    },
-  { key: 'bebidas',        label: 'Bebidas'        },
-];
-
-const CMV_WARN_THRESHOLD = 45;
+const CMV_WARN_THRESHOLD = 60;
 
 const CS = {
   venta:     { bg: '#f0fdf4', border: '#bbf7d0', title: '#14532d', sub: '#166534' },
@@ -31,7 +23,6 @@ const CS = {
 
 const fmt$ = v => fmtARS(Math.round(Number(v) || 0));
 const fmtP = v => fmtPct(Number(v) || 0);
-const fmtU = v => v != null ? `U$D ${Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—';
 
 function mesLabel(yyyymm) {
   if (!yyyymm) return '';
@@ -95,103 +86,30 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
   );
 }
 
-// ── Popup: Venta Neta por categoría ───────────────────────────────────────────
-
-function FiscalDesglose({ df }) {
-  if (!df) return null;
-  const { bruto_no_fiscal, bruto_fiscal, neto_fiscal, iva_descontado, tipo_iva,
-          pct_fiscal_sobre_total, tiene_fiscal, tiene_datos_fiscales } = df;
-  return (
-    <div className="mt-4 pt-4 border-t border-stone-100">
-      <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-3">Composición fiscal</p>
-      <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
-        <div className="grid grid-cols-3 px-4 py-2 bg-stone-50 text-xs text-stone-400 font-semibold">
-          <span>Tipo</span>
-          <span className="text-right">Bruto</span>
-          <span className="text-right">Neto</span>
-        </div>
-        <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
-          <div>
-            <span className="font-medium text-stone-700">No fiscal</span>
-            <span className="ml-1.5 text-xs text-stone-400">entra completo</span>
-          </div>
-          <span className="text-right text-stone-600">{fmt$(bruto_no_fiscal)}</span>
-          <span className="text-right font-semibold text-stone-900">{fmt$(bruto_no_fiscal)}</span>
-        </div>
-        {tiene_fiscal ? (
-          <div className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50">
-            <div>
-              <span className="font-medium text-stone-700">Fiscal</span>
-              {tipo_iva && <span className="ml-1.5 text-xs text-stone-400">{tipo_iva}</span>}
-            </div>
-            <span className="text-right text-stone-400 line-through">{fmt$(bruto_fiscal)}</span>
-            <span className="text-right font-semibold text-stone-900">
-              {tiene_datos_fiscales ? fmt$(neto_fiscal) : '—'}
-            </span>
-          </div>
-        ) : (
-          <div className="px-4 py-3 text-xs text-stone-400 italic border-b border-stone-50">
-            Sin facturación fiscal en este período
-          </div>
-        )}
-      </div>
-      {tiene_fiscal && tiene_datos_fiscales && (
-        <div className="mt-2.5 space-y-1.5 px-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-stone-500">% fiscal sobre el total</span>
-            <span className="font-semibold text-stone-700">{pct_fiscal_sobre_total}%</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-stone-500">IVA descontado</span>
-            <span className="font-semibold text-red-500">−{fmt$(iva_descontado)}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ── Popup: Venta Neta por rubro ────────────────────────────────────────────────
 
 function VentaModal({ data, onClose }) {
-  const vn = data.venta_neta;
-  const top = data.venta_categorias
-    .filter(c => c.venta > 0)
-    .sort((a, b) => b.venta - a.venta)[0];
   return (
     <ModalShell title={`Venta Neta · ${mesLabel(data.mes)}`} onClose={onClose}>
       <div className="space-y-2 text-sm">
-        <p className="text-stone-400 text-xs mb-3">Desglose por categoría de producto</p>
+        <p className="text-stone-400 text-xs mb-3">Por rubro de Fudo, en proporción a lo que vendió cada uno</p>
         <div className="rounded-xl border border-stone-100 overflow-hidden">
           <div className="grid grid-cols-3 px-4 py-2 bg-stone-50 text-xs text-stone-400 font-semibold border-b border-stone-100">
-            <span>Categoría</span><span className="text-right">Venta</span><span className="text-right">%</span>
+            <span>Rubro</span><span className="text-right">Venta</span><span className="text-right">%</span>
           </div>
-          {CATS.map(cat => {
-            const row = data.venta_categorias.find(r => r.categoria === cat.key) || { venta: 0, pct_venta: 0 };
-            return (
-              <div key={cat.key} className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50 last:border-0">
-                <span className="font-medium text-stone-700">{cat.label}</span>
-                <span className="text-right text-stone-600">{fmt$(row.venta)}</span>
-                <span className="text-right text-stone-400">{fmtP(row.pct_venta)}</span>
-              </div>
-            );
-          })}
-          {data.sin_categoria > 0 && (
-            <div className="grid grid-cols-3 items-center px-4 py-3 bg-amber-50 border-b border-stone-50">
-              <span className="font-medium text-amber-700">Sin categoría ⚠</span>
-              <span className="text-right text-amber-600">{fmt$(data.sin_categoria)}</span>
-              <span className="text-right text-amber-500">{fmtP(vn > 0 ? data.sin_categoria / vn * 100 : 0)}</span>
+          {data.rubros.map(r => (
+            <div key={r.rubro} className="grid grid-cols-3 items-center px-4 py-3 border-b border-stone-50 last:border-0">
+              <span className="font-medium text-stone-700">{r.rubro}</span>
+              <span className="text-right text-stone-600">{fmt$(r.venta)}</span>
+              <span className="text-right text-stone-400">{fmtP(r.pct_venta)}</span>
             </div>
-          )}
+          ))}
           <div className="grid grid-cols-3 items-center px-4 py-3 bg-green-50">
             <span className="font-bold text-green-800">Total Venta Neta</span>
-            <span className="text-right font-bold text-green-800 text-base">{fmt$(vn)}</span>
+            <span className="text-right font-bold text-green-800 text-base">{fmt$(data.venta_neta)}</span>
             <span className="text-right font-bold text-green-700">100%</span>
           </div>
         </div>
-        {top && (
-          <p className="text-xs text-stone-400 px-1">
-            Categoría dominante: <strong className="text-stone-600">{CATS.find(c => c.key === top.categoria)?.label}</strong> ({fmtP(top.pct_venta)})
-          </p>
-        )}
         <FiscalDesglose df={data.desglose_fiscal} />
       </div>
     </ModalShell>
@@ -202,14 +120,14 @@ function VentaModal({ data, onClose }) {
 
 function CmvModal({ data, onClose, onSaved, localId }) {
   const [pcts,   setPcts]   = useState(() =>
-    Object.fromEntries(CATS.map(c => [c.key, String(data.cmv_categorias_config[c.key] ?? '')]))
+    Object.fromEntries(data.rubros.map(r => [r.rubro, r.cmv_pct == null ? '' : String(r.cmv_pct)]))
   );
   const [saving, setSaving] = useState(false);
 
-  const desglose = CATS.map(c => {
-    const pct   = parseFloat(pcts[c.key]) || 0;
-    const venta = data.venta_categorias.find(r => r.categoria === c.key)?.venta || 0;
-    return { ...c, pct, venta, costo: Math.round(venta * pct / 100) };
+  const desglose = data.rubros.map(r => {
+    const vacio = pcts[r.rubro] === '';
+    const pct   = parseFloat(pcts[r.rubro]) || 0;
+    return { ...r, vacio, pct, costo: Math.round(r.venta * pct / 100) };
   });
   const totalVenta = desglose.reduce((s, r) => s + r.venta, 0);
   const totalCosto = desglose.reduce((s, r) => s + r.costo, 0);
@@ -218,7 +136,9 @@ function CmvModal({ data, onClose, onSaved, localId }) {
   async function save() {
     setSaving(true);
     try {
-      const categorias = Object.fromEntries(CATS.map(c => [c.key, parseFloat(pcts[c.key]) || 0]));
+      const categorias = Object.fromEntries(
+        Object.entries(pcts).filter(([, v]) => v !== '').map(([k, v]) => [k, parseFloat(v) || 0])
+      );
       await api.post('/red/eerr/cafeteria/cmv', { local_id: localId, mes: data.mes, categorias });
       onSaved();
     } catch (err) {
@@ -232,10 +152,10 @@ function CmvModal({ data, onClose, onSaved, localId }) {
   return (
     <ModalShell title={`CMV · ${mesLabel(data.mes)}`} onClose={onClose} onSave={save} saving={saving}>
       <div className="space-y-3 text-sm">
-        <p className="text-stone-400 text-xs mb-2">% de costo por categoría (editable)</p>
+        <p className="text-stone-400 text-xs mb-2">% de costo de cada rubro. Lo que guardes acá sigue valiendo los meses siguientes hasta que lo cambies.</p>
         <div className="rounded-xl border border-stone-100 overflow-hidden">
           <div className="grid grid-cols-4 px-4 py-2 bg-stone-50 text-xs text-stone-400 font-semibold border-b border-stone-100">
-            <span>Categoría</span>
+            <span>Rubro</span>
             <span className="text-right">Venta</span>
             <span className="text-right">CMV %</span>
             <span className="text-right">Costo</span>
@@ -243,15 +163,15 @@ function CmvModal({ data, onClose, onSaved, localId }) {
           {desglose.map(row => {
             const warn = row.pct > CMV_WARN_THRESHOLD;
             return (
-              <div key={row.key} className={`grid grid-cols-4 items-center px-4 py-3 border-b border-stone-50 last:border-0 ${warn ? 'bg-red-50' : ''}`}>
-                <span className={`font-medium ${warn ? 'text-red-700' : 'text-stone-700'}`}>{row.label}</span>
+              <div key={row.rubro} className={`grid grid-cols-4 items-center px-4 py-3 border-b border-stone-50 last:border-0 ${row.vacio ? 'bg-amber-50' : warn ? 'bg-red-50' : ''}`}>
+                <span className={`font-medium ${row.vacio ? 'text-amber-700' : warn ? 'text-red-700' : 'text-stone-700'}`}>{row.rubro}</span>
                 <span className="text-right text-stone-500">{fmt$(row.venta)}</span>
                 <div className="flex items-center justify-end gap-1">
                   <input
-                    type="number" min="0" max="100" step="0.5"
-                    value={pcts[row.key]}
-                    onChange={e => setPcts(p => ({ ...p, [row.key]: e.target.value }))}
-                    className={`w-16 text-right rounded-lg border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 ${warn ? 'border-red-300 bg-red-50' : 'border-stone-200'}`}
+                    type="number" min="0" max="100" step="0.5" placeholder="—"
+                    value={pcts[row.rubro]}
+                    onChange={e => setPcts(p => ({ ...p, [row.rubro]: e.target.value }))}
+                    className={`w-16 text-right rounded-lg border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 ${row.vacio ? 'border-amber-300 bg-white' : warn ? 'border-red-300 bg-red-50' : 'border-stone-200'}`}
                   />
                   <span className="text-stone-400 text-xs">%</span>
                 </div>
@@ -357,22 +277,23 @@ function GastosModal({ ventaNeta, editGastos, setEditGastos, onClose, onSave, sa
 
 // ── Popup: Impuestos y fee marca ───────────────────────────────────────────────
 
-function ImpuestosModal({ ebitda, impuestosData, onClose, onSaved, localId, mes }) {
+function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, localId, mes }) {
   const [edit,   setEdit]   = useState({
     iibb_pct:      String(impuestosData?.iibb_pct      ?? 3),
-    imp_gen_pct:   String(impuestosData?.imp_gen_pct   ?? 30),
-    fee_marca_pct: String(impuestosData?.fee_marca_pct ?? 4),
+    imp_gen_pct:   String(impuestosData?.imp_gen_pct   ?? 0),
+    fee_marca_pct: String(impuestosData?.fee_marca_pct ?? 0),
   });
   const [saving, setSaving] = useState(false);
 
-  const items = [
-    { key: 'iibb_pct',      label: 'Ingresos Brutos' },
-    { key: 'imp_gen_pct',   label: 'Impuestos generales' },
-    { key: 'fee_marca_pct', label: 'Fee Marca' },
-  ];
   const ebitda_base = Math.max(ebitda, 0);
-  const totalPct    = items.reduce((s, it) => s + (parseFloat(edit[it.key]) || 0), 0);
-  const totalMonto  = Math.round(ebitda_base * totalPct / 100);
+  // IIBB se paga sobre la venta; el resto, sobre el EBITDA.
+  const items = [
+    { key: 'iibb_pct',      label: 'Ingresos Brutos',     base: ventaNeta,   sobre: 'de la venta' },
+    { key: 'imp_gen_pct',   label: 'Impuestos generales', base: ebitda_base, sobre: 'del EBITDA' },
+    { key: 'fee_marca_pct', label: 'Fee Marca',           base: ebitda_base, sobre: 'del EBITDA' },
+  ];
+  const monto      = it => Math.round(it.base * (parseFloat(edit[it.key]) || 0) / 100);
+  const totalMonto = items.reduce((s, it) => s + monto(it), 0);
 
   async function save() {
     setSaving(true);
@@ -395,15 +316,16 @@ function ImpuestosModal({ ebitda, impuestosData, onClose, onSaved, localId, mes 
   return (
     <ModalShell title={`Impuestos y Fee · ${mesLabel(mes)}`} onClose={onClose} onSave={save} saving={saving}>
       <div className="text-sm space-y-3">
-        <p className="text-stone-400 text-xs">Calculados como % del EBITDA ({fmt$(ebitda_base)})</p>
+        <p className="text-stone-400 text-xs">Venta neta {fmt$(ventaNeta)} · EBITDA {fmt$(ebitda_base)}</p>
         <div className="rounded-xl border border-stone-100 overflow-hidden">
           {items.map((item, i) => {
-            const pct   = parseFloat(edit[item.key]) || 0;
-            const monto = Math.round(ebitda_base * pct / 100);
             return (
               <div key={item.key} className={`flex items-center justify-between px-4 py-3 border-b border-stone-50 ${i % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}>
-                <span className="font-medium text-stone-700 flex-1">{item.label}</span>
-                <span className="text-stone-400 text-xs w-24 text-right mr-3">{fmt$(monto)}</span>
+                <span className="flex-1">
+                  <span className="font-medium text-stone-700">{item.label}</span>
+                  <span className="block text-xs text-stone-400">% {item.sobre}</span>
+                </span>
+                <span className="text-stone-400 text-xs w-24 text-right mr-3">{fmt$(monto(item))}</span>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="number" min="0" max="100" step="0.5"
@@ -418,209 +340,10 @@ function ImpuestosModal({ ebitda, impuestosData, onClose, onSaved, localId, mes 
           })}
           <div className="flex items-center justify-between px-4 py-3 bg-violet-50">
             <span className="font-bold text-violet-900">Total</span>
-            <span className="text-violet-500 text-xs mr-auto ml-3">{fmtP(totalPct)} EBITDA</span>
+
             <span className="font-bold text-violet-900 text-base">{fmt$(totalMonto)}</span>
           </div>
         </div>
-      </div>
-    </ModalShell>
-  );
-}
-
-// ── Popup: Dólar fin de mes ────────────────────────────────────────────────────
-
-function DolarModal({ mes, dolarActual, resultadoNeto, onClose, onSaved, localId }) {
-  const [valor,  setValor]  = useState(String(dolarActual ?? ''));
-  const [saving, setSaving] = useState(false);
-
-  const dolar = parseFloat(valor) || null;
-  const mitad = resultadoNeto / 2;
-
-  async function save() {
-    setSaving(true);
-    try {
-      await api.post('/red/eerr/cafeteria/dolar', { local_id: localId, mes, dolar_fin_mes: dolar });
-      onSaved();
-    } catch (err) {
-      console.error(err);
-      alert('Error al guardar tipo de cambio.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <ModalShell title={`Dólar fin de mes · ${mesLabel(mes)}`} onClose={onClose} onSave={save} saving={saving}>
-      <div className="text-sm space-y-4">
-        <div>
-          <label className="block text-stone-500 mb-1.5">Tipo de cambio (ARS/USD)</label>
-          <div className="flex items-center gap-2">
-            <span className="text-stone-400">$</span>
-            <input
-              type="number" min="0" step="1"
-              value={valor}
-              onChange={e => setValor(e.target.value)}
-              placeholder="ej. 1150"
-              className="flex-1 rounded-xl border border-stone-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
-            />
-            <span className="text-stone-400">por USD</span>
-          </div>
-        </div>
-        {dolar && (
-          <div className="rounded-xl bg-stone-50 border border-stone-100 p-4 space-y-2">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Distribución estimada</p>
-            <div className="flex justify-between">
-              <span className="text-stone-600">Agus (50%)</span>
-              <div className="text-right">
-                <span className="font-semibold text-stone-800">{fmt$(mitad)}</span>
-                <span className="text-stone-400 ml-2 text-xs">{fmtU(mitad / dolar)}</span>
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-stone-600">Plumas (50%)</span>
-              <div className="text-right">
-                <span className="font-semibold text-stone-800">{fmt$(mitad)}</span>
-                <span className="text-stone-400 ml-2 text-xs">{fmtU(mitad / dolar)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </ModalShell>
-  );
-}
-
-// ── Popup: Gestión de categorías de productos ─────────────────────────────────
-
-// Reglas de sugerencia automática por nombre de producto
-const REGLAS_SUGERENCIA = [
-  { cat: 'promociones',    test: n => n.startsWith('promo') || n.includes('combo') || n.includes('mediatareando') || n.includes('mendo') },
-  { cat: 'cafeteria',      words: ['cafe','café','espresso','capuchino','cappuccino','latte','americano','cortado','lagrima','lágrima','submarino','macchiato','chai','té ','te ','infusion','infusión','mocaccino','mocca'] },
-  { cat: 'panificados',    words: ['medialuna','tortita','factura','chipa','budin','budín','torta','scon','scone','muffin','criollo','palmera','palmerita','cuernito','vigilante','croissant','medialunas','baguette','pan ','pancito'] },
-  { cat: 'menu_almuerzos', words: ['menu','menú','almuerzo','ejecutivo'] },
-  { cat: 'principales',    words: ['milanesa','tarta','pizza','empanada','sandwich','sándwich','wrap','ensalada','omelette','tostado','tostada','striploin','bife','pollo ','pesca','focaccia'] },
-  { cat: 'bebidas',        words: ['agua ','agua$','gaseosa','jugo','limonada','cerveza','vino','soda','saborizada','yogurt','yogur','fernet','aperol','coke','pepsi','sprite'] },
-];
-
-function sugerirCategoria(nombreNorm) {
-  const n = nombreNorm.toLowerCase();
-  for (const regla of REGLAS_SUGERENCIA) {
-    if (regla.test && regla.test(n)) return regla.cat;
-    if (regla.words && regla.words.some(w => n.includes(w.replace('$', '')))) return regla.cat;
-  }
-  return null;
-}
-
-function ProductosModal({ localId, onClose }) {
-  const [productos, setProductos]   = useState([]);
-  const [asignados, setAsignados]   = useState({});
-  const [loading,   setLoading]     = useState(true);
-  const [saving,    setSaving]      = useState(false);
-  const [filtroSin, setFiltroSin]   = useState(true);
-
-  useEffect(() => {
-    api.get('/red/eerr/cafeteria/productos-categorias', { params: { local_id: localId } })
-      .then(r => setProductos(r.data.data || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [localId]);
-
-  function aplicarSugerencias() {
-    const nuevas = {};
-    for (const p of productos) {
-      if (!p.categoria && !asignados[p.nombre_norm]) {
-        const sug = sugerirCategoria(p.nombre_norm);
-        if (sug) nuevas[p.nombre_norm] = sug;
-      }
-    }
-    setAsignados(prev => ({ ...prev, ...nuevas }));
-  }
-
-  function setCategoria(norm, cat) {
-    setAsignados(p => ({ ...p, [norm]: cat || undefined }));
-  }
-
-  async function save() {
-    setSaving(true);
-    try {
-      const asignaciones = Object.entries(asignados)
-        .filter(([, cat]) => cat)
-        .map(([producto_nombre_norm, categoria]) => ({ producto_nombre_norm, categoria }));
-      await api.post('/red/eerr/cafeteria/productos-categorias', { asignaciones });
-      const r = await api.get('/red/eerr/cafeteria/productos-categorias', { params: { local_id: localId } });
-      setProductos(r.data.data || []);
-      setAsignados({});
-    } catch (err) {
-      console.error(err);
-      alert('Error al guardar categorías.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const display = filtroSin
-    ? productos.filter(p => !p.categoria && !asignados[p.nombre_norm])
-    : productos;
-  const pendientes = productos.filter(p => !p.categoria).length;
-  const sugerencias_pendientes = productos.filter(p => !p.categoria && !asignados[p.nombre_norm] && sugerirCategoria(p.nombre_norm)).length;
-
-  return (
-    <ModalShell title="Mapeo producto → categoría" onClose={onClose} onSave={Object.keys(asignados).length ? save : null} saving={saving}>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-stone-400">{pendientes} producto{pendientes !== 1 ? 's' : ''} sin categoría</span>
-          <button
-            onClick={() => setFiltroSin(p => !p)}
-            className="text-violet-600 hover:text-violet-800 font-semibold"
-          >
-            {filtroSin ? 'Ver todos' : 'Solo sin categoría'}
-          </button>
-        </div>
-
-        {/* Botón sugerencias automáticas */}
-        {!loading && sugerencias_pendientes > 0 && (
-          <button
-            onClick={aplicarSugerencias}
-            className="w-full py-2 rounded-xl border border-violet-200 bg-violet-50 text-violet-700 text-xs font-semibold hover:bg-violet-100 transition-colors"
-          >
-            Aplicar sugerencias automáticas ({sugerencias_pendientes} producto{sugerencias_pendientes !== 1 ? 's' : ''})
-          </button>
-        )}
-
-        {loading && <div className="h-32 bg-stone-100 rounded-xl animate-pulse" />}
-        {!loading && (
-          <div className="rounded-xl border border-stone-100 overflow-hidden text-sm">
-            {display.map(p => {
-              const catActual = asignados[p.nombre_norm] ?? p.categoria ?? '';
-              const sug = (!p.categoria && !asignados[p.nombre_norm]) ? sugerirCategoria(p.nombre_norm) : null;
-              return (
-                <div key={p.nombre_norm} className="flex items-center gap-3 px-4 py-2.5 border-b border-stone-50 last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-stone-700 font-medium text-xs">{p.nombre_raw}</p>
-                    <p className="text-stone-400 text-xs">{fmt$(p.venta_total)} · {p.apariciones}×
-                      {sug && <span className="ml-1 text-violet-500">→ {CATS.find(c => c.key === sug)?.label}</span>}
-                    </p>
-                  </div>
-                  <select
-                    value={catActual}
-                    onChange={e => setCategoria(p.nombre_norm, e.target.value)}
-                    className={`rounded-lg border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 flex-shrink-0 ${
-                      !catActual ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-stone-200 text-stone-700'
-                    }`}
-                  >
-                    <option value="">Sin categoría</option>
-                    {CATS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                  </select>
-                </div>
-              );
-            })}
-            {display.length === 0 && (
-              <div className="px-4 py-8 text-center text-stone-400 text-xs">
-                {filtroSin ? 'Todos los productos tienen categoría asignada.' : 'No hay productos.'}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </ModalShell>
   );
@@ -685,35 +408,24 @@ export default function EerrCafeteriaSection({ localId, mes }) {
     return <div className="card p-8 text-center text-stone-400 mt-4">Sin datos para el período seleccionado.</div>;
   }
 
-  // Subtitle helpers
-  const ventaTop = [...data.venta_categorias].sort((a, b) => b.venta - a.venta)[0];
-  const ventaSubtitle = (() => {
-    const parts = data.venta_categorias.filter(c => c.venta > 0).slice(0, 2).map(c => `${CATS.find(x => x.key === c.categoria)?.label} ${Math.round(c.pct_venta)}%`);
-    if (data.sin_categoria > 0) parts.push('⚠ sin categoría');
-    const df = data.desglose_fiscal;
-    if (df?.tiene_fiscal) parts.push('IVA descontado');
-    return parts.join(' · ') || '6 categorías';
-  })();
+  const ventaSubtitle = [
+    ...data.rubros.slice(0, 2).map(r => `${r.rubro} ${Math.round(r.pct_venta)}%`),
+    ...(data.desglose_fiscal?.tiene_fiscal ? ['facturado sin IVA'] : []),
+  ].join(' · ');
 
-  const gastosSubtitle = (() => {
-    const items = (data.gastos_bloques || []).flatMap(b => b.conceptos || []).filter(c => c.monto > 0);
-    return items.slice(0, 3).map(c => c.nombre).join(' · ') || 'sin gastos';
-  })();
+  const gastosSubtitle = data.gastos_cargados
+    ? (data.gastos_bloques || []).flatMap(b => b.conceptos || []).filter(c => c.monto > 0).slice(0, 3).map(c => c.nombre).join(' · ')
+    : 'Sin cargar · tocá para cargarlos';
 
   return (
     <>
-      {/* Alerta productos sin categoría */}
-      {data.productos_sin_categoria > 0 && (
+      {data.rubros_sin_pct.length > 0 && (
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 mt-4">
-          <span className="flex-shrink-0">⚠</span>
           <span className="flex-1">
-            <strong>{data.productos_sin_categoria} producto{data.productos_sin_categoria !== 1 ? 's' : ''} sin categoría</strong> — su venta no está asignada a ninguna categoría.
+            <strong>Rubros sin % de CMV:</strong> {data.rubros_sin_pct.join(', ')}. Cuentan $ 0 de costo.
           </span>
-          <button
-            onClick={() => setOpenModal('productos')}
-            className="flex-shrink-0 font-semibold text-amber-700 hover:text-amber-900 underline"
-          >
-            Asignar
+          <button onClick={() => setOpenModal('cmv')} className="flex-shrink-0 font-semibold text-amber-700 hover:text-amber-900 underline">
+            Cargar %
           </button>
         </div>
       )}
@@ -753,43 +465,16 @@ export default function EerrCafeteriaSection({ localId, mes }) {
         <Connector sign="−" />
         <CascadeCard
           title="Impuestos y Fee Marca"
-          subtitle={`IIBB ${data.impuestos.iibb_pct}% + Imp. ${data.impuestos.imp_gen_pct}% + Fee ${data.impuestos.fee_marca_pct}% = ${fmtP(data.impuestos.total_pct)} EBITDA`}
+          subtitle={`IIBB ${data.impuestos.iibb_pct}% de la venta · Imp. ${data.impuestos.imp_gen_pct}% y Fee ${data.impuestos.fee_marca_pct}% del EBITDA`}
           value={data.impuestos.total} pct={data.pcts.impuestos}
           onClick={() => setOpenModal('impuestos')} sk="impuestos"
         />
         <Connector sign="=" />
         <CascadeCard
-          title="Resultado Neto" subtitle="para distribución entre socios"
+          title="Resultado Neto" subtitle="EBITDA − Impuestos"
           value={data.resultado_neto} pct={data.pcts.resultado_neto}
           onClick={() => {}} sk="resultado"
         />
-      </div>
-
-      {/* Distribución */}
-      <div className="card p-4 mt-0">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-widest">Distribución</p>
-          <button
-            onClick={() => setOpenModal('dolar')}
-            className="text-xs text-violet-600 hover:text-violet-800 font-semibold"
-          >
-            {data.dolar_fin_mes ? `USD $${data.dolar_fin_mes.toLocaleString('es-AR')}` : '+ Ingresar dólar'}
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { nombre: 'Agus', ars: data.distribucion.agus_ars, usd: data.distribucion.agus_usd },
-            { nombre: 'Plumas', ars: data.distribucion.plumas_ars, usd: data.distribucion.plumas_usd },
-          ].map(s => (
-            <div key={s.nombre} className="rounded-xl border border-stone-100 px-4 py-3 bg-green-50 border-green-100">
-              <p className="text-xs font-semibold text-green-700 mb-1">{s.nombre} — 50%</p>
-              <p className="text-lg font-bold text-green-900">{fmt$(s.ars)}</p>
-              {s.usd != null && (
-                <p className="text-xs text-green-600 mt-0.5">{fmtU(s.usd)}</p>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Modales */}
@@ -811,6 +496,7 @@ export default function EerrCafeteriaSection({ localId, mes }) {
       )}
       {openModal === 'impuestos' && (
         <ImpuestosModal
+          ventaNeta={data.venta_neta}
           ebitda={data.ebitda}
           impuestosData={data.impuestos}
           localId={localId}
@@ -818,19 +504,6 @@ export default function EerrCafeteriaSection({ localId, mes }) {
           onClose={() => setOpenModal(null)}
           onSaved={reload}
         />
-      )}
-      {openModal === 'dolar' && (
-        <DolarModal
-          mes={mes}
-          dolarActual={data.dolar_fin_mes}
-          resultadoNeto={data.resultado_neto}
-          localId={localId}
-          onClose={() => setOpenModal(null)}
-          onSaved={reload}
-        />
-      )}
-      {openModal === 'productos' && (
-        <ProductosModal localId={localId} onClose={() => { setOpenModal(null); reload(); }} />
       )}
     </>
   );

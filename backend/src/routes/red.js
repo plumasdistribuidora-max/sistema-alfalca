@@ -1583,12 +1583,6 @@ const DEFAULT_GASTOS = {
   ],
 };
 
-function prevMes(mes) {
-  const [y, m] = mes.split('-').map(Number);
-  const d = new Date(y, m - 2, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
 function mesRange(mes) {
   const [y, m] = mes.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
@@ -1718,19 +1712,14 @@ router.get('/eerr', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
     }
 
-    const mes_ant = prevMes(mes);
-    const [localR, actual, anterior] = await Promise.all([
+    const [localR, actual] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
       eerrTienda(local_id, mes),
-      eerrTienda(local_id, mes_ant),
     ]);
 
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    res.json({
-      ok: true,
-      data: { local: localR.rows[0], mes, mes_anterior: mes_ant, actual, anterior },
-    });
+    res.json({ ok: true, data: { local: localR.rows[0], mes, actual } });
   } catch (err) {
     console.error('[red/eerr GET]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -2450,15 +2439,13 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
     if (!local_id || !mes || !/^\d{4}-\d{2}$/.test(mes))
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
 
-    const mes_anterior = prevMes(mes);
-    const [localR, eerr, anterior] = await Promise.all([
+    const [localR, eerr] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
       eerrCafe(local_id, mes),
-      eerrCafe(local_id, mes_anterior),
     ]);
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    res.json({ ok: true, data: { local: localR.rows[0], mes, ...eerr, mes_anterior, anterior } });
+    res.json({ ok: true, data: { local: localR.rows[0], mes, ...eerr } });
   } catch (err) {
     console.error('[red/eerr/cafeteria GET]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -2567,21 +2554,23 @@ router.get('/eerr/red', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/eerr/meses', requireAuth, async (req, res) => {
+// Un local mes a mes en un año: de enero a diciembre, o hasta el mes en curso.
+router.get('/eerr/anio', requireAuth, async (req, res) => {
   try {
-    const { local_id, hasta } = req.query;
-    const cant = Math.min(Math.max(parseInt(req.query.cant) || 6, 1), 12);
-    if (!local_id || !hasta || !/^\d{4}-\d{2}$/.test(hasta))
-      return res.status(400).json({ ok: false, error: 'local_id y hasta (YYYY-MM) requeridos' });
+    const { local_id } = req.query;
+    const anio = parseInt(req.query.anio);
+    if (!local_id || !(anio >= 2000 && anio <= 2100))
+      return res.status(400).json({ ok: false, error: 'local_id y anio requeridos' });
     const { rows } = await pool.query('SELECT id, nombre, es_alfajorera FROM locales WHERE id = $1', [local_id]);
     if (!rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    const meses = [hasta];
-    while (meses.length < cant) meses.unshift(prevMes(meses[0]));
+    const hoy = new Date();
+    const hasta = anio < hoy.getFullYear() ? 12 : anio === hoy.getFullYear() ? hoy.getMonth() + 1 : 0;
+    const meses = Array.from({ length: hasta }, (_, i) => `${anio}-${String(i + 1).padStart(2, '0')}`);
     const resumenes = await Promise.all(meses.map(m => resumenEerr(rows[0], m)));
-    res.json({ ok: true, data: { local: rows[0], meses: meses.map((m, i) => ({ mes: m, ...resumenes[i] })) } });
+    res.json({ ok: true, data: { local: rows[0], anio, meses: meses.map((m, i) => ({ mes: m, ...resumenes[i] })) } });
   } catch (err) {
-    console.error('[red/eerr/meses]', err);
+    console.error('[red/eerr/anio]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

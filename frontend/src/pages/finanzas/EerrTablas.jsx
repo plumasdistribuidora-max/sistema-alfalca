@@ -183,27 +183,28 @@ export function EerrRed({ mes, onAbrirLocal }) {
   );
 }
 
-export function EerrMeses({ localId, hasta }) {
+export function EerrAnio({ localId, anio }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     if (!localId) return;
     let vigente = true;
     setData(null);
-    api.get('/red/eerr/meses', { params: { local_id: localId, hasta, cant: 6 } }).then(r => { if (vigente) setData(r.data.data); }).catch(console.error);
+    api.get('/red/eerr/anio', { params: { local_id: localId, anio } }).then(r => { if (vigente) setData(r.data.data); }).catch(console.error);
     return () => { vigente = false; };
-  }, [localId, hasta]);
+  }, [localId, anio]);
   if (!data) return <Cargando />;
+  if (!data.meses.length) return <div className="card p-8 text-center text-stone-400">Todavía no hay meses de {anio}.</div>;
 
   const columnas = data.meses.map(m => {
-    const [y, mm] = m.mes.split('-');
     const curso = mesEnCurso(m.mes);
     return {
       id: m.mes,
-      titulo: `${MESES_CORTOS[Number(mm) - 1]} ${y.slice(2)}`,
+      titulo: MESES_CORTOS[Number(m.mes.slice(5)) - 1],
       nota: curso ? `en curso · ${curso.dia} de ${curso.dias} días` : null,
       datos: m,
     };
   });
+  columnas.push({ id: 'total', titulo: `Total ${anio}`, datos: { ...sumar(data.meses), rubros_sin_pct: [] }, total: true });
   return (
     <div className="space-y-3">
       <Avisos cols={columnas} />
@@ -213,33 +214,19 @@ export function EerrMeses({ localId, hasta }) {
 }
 
 // ── Estado de resultados de un local: una tabla de contador ───────────────────
-// Cada fila: { tipo: 'grp'|'det'|'sub'|'fin', label, actual, anterior, costo, onEditar,
+// Cada fila: { tipo: 'grp'|'det'|'sub'|'fin', label, actual, costo, onEditar,
 // sinCargar, incompleto }. Los costos van en positivo con costo: true y se muestran restando.
 
-function Variacion({ a, b, costo }) {
-  if (a == null || !b) return null;
-  const v = (a - b) / Math.abs(b) * 100;
-  if (Math.abs(v) < 0.05) return <span className="text-stone-400">=</span>;
-  const bien = costo ? v <= 0 : v >= 0;
-  return (
-    <span className={bien ? 'text-green-700' : 'text-red-700'}>
-      {v >= 0 ? '↑' : '↓'} {Math.abs(v).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
-    </span>
-  );
-}
-
-export function EstadoResultados({ filas, ventaNeta, mesLabel, anteriorLabel }) {
+export function EstadoResultados({ filas, ventaNeta, mesLabel }) {
   const monto = (f, v) => (f.costo && v ? `− ${fmt$(v)}` : fmt$(v));
   return (
     <div className="card overflow-x-auto p-0">
-      <table className="w-full text-sm" style={{ minWidth: 620 }}>
+      <table className="w-full text-sm" style={{ minWidth: 420 }}>
         <thead>
           <tr className="border-b border-stone-200 text-[10.5px] uppercase tracking-wider text-stone-400">
             <th className="text-left px-4 py-2.5 font-bold" />
             <th className="text-right px-4 py-2.5 font-bold">{mesLabel}</th>
             <th className="text-right px-4 py-2.5 font-bold">% venta</th>
-            <th className="text-right px-4 py-2.5 font-bold">{anteriorLabel}</th>
-            <th className="text-right px-4 py-2.5 font-bold">Var.</th>
           </tr>
         </thead>
         <tbody>
@@ -278,12 +265,6 @@ export function EstadoResultados({ filas, ventaNeta, mesLabel, anteriorLabel }) 
                     </td>
                   </>
                 )}
-                <td className={`px-4 ${pad} text-right tabular-nums whitespace-nowrap ${fin ? 'text-white/80' : 'text-stone-500'}`}>
-                  {f.anterior == null ? '—' : monto(f, f.anterior)}
-                </td>
-                <td className={`px-4 ${pad} text-right text-xs font-semibold tabular-nums whitespace-nowrap ${fin ? '[&_span]:text-white' : ''}`}>
-                  {!vacio && <Variacion a={f.actual} b={f.anterior} costo={f.costo} />}
-                </td>
               </tr>
             );
           })}
@@ -294,13 +275,12 @@ export function EstadoResultados({ filas, ventaNeta, mesLabel, anteriorLabel }) 
 }
 
 // Arriba de la venta neta: lo vendido con y sin factura, y el IVA que se le saca a lo facturado.
-export function filasVentaBruta(df, dfAnt) {
+export function filasVentaBruta(df) {
   if (!df) return [];
-  const bruta = d => d && d.bruto_fiscal + d.bruto_no_fiscal;
   return [
-    { tipo: 'grp', label: 'Venta bruta', actual: bruta(df), anterior: bruta(dfAnt) },
-    { tipo: 'det', label: 'Con factura', actual: df.bruto_fiscal, anterior: dfAnt?.bruto_fiscal },
-    { tipo: 'det', label: 'Sin factura', actual: df.bruto_no_fiscal, anterior: dfAnt?.bruto_no_fiscal },
-    { tipo: 'grp', label: 'IVA de lo facturado (÷ 1,21)', actual: df.iva_descontado, anterior: dfAnt?.iva_descontado, costo: true },
+    { tipo: 'grp', label: 'Venta bruta', actual: df.bruto_fiscal + df.bruto_no_fiscal },
+    { tipo: 'det', label: 'Con factura', actual: df.bruto_fiscal },
+    { tipo: 'det', label: 'Sin factura', actual: df.bruto_no_fiscal },
+    { tipo: 'grp', label: 'IVA de lo facturado (÷ 1,21)', actual: df.iva_descontado, costo: true },
   ];
 }

@@ -309,35 +309,32 @@ function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, lo
   );
 }
 
-// Las filas del estado de resultados del Café: mes elegido contra el anterior.
+// Las filas del estado de resultados del Café en un mes.
 function filasCafe(d, abrir, abrirGastos) {
-  const b = d.anterior;
-  const ventaAnt = Object.fromEntries((b?.rubros || []).map(r => [r.rubro, r]));
   const gastos = (d.gastos_bloques || []).flatMap(bl => bl.conceptos || []);
-  const gastosAnt = Object.fromEntries((b?.gastos_bloques || []).flatMap(bl => bl.conceptos || []).map(c => [c.nombre, Number(c.monto) || 0]));
   const sinGastos = !d.gastos_cargados;
-  const imp = d.impuestos, impAnt = b?.impuestos;
+  const imp = d.impuestos;
   return [
-    ...filasVentaBruta(d.desglose_fiscal, b?.desglose_fiscal),
-    { tipo: 'sub', label: 'Venta neta', actual: d.venta_neta, anterior: b?.venta_neta, onEditar: () => abrir('venta'), accion: 'Ver detalle' },
-    ...d.rubros.map(r => ({ tipo: 'det', label: r.rubro, actual: r.venta, anterior: ventaAnt[r.rubro]?.venta ?? null })),
-    { tipo: 'grp', label: 'Costo de mercadería', actual: d.cmv_total, anterior: b?.cmv_total, costo: true, onEditar: () => abrir('cmv') },
+    ...filasVentaBruta(d.desglose_fiscal),
+    { tipo: 'sub', label: 'Venta neta', actual: d.venta_neta, onEditar: () => abrir('venta'), accion: 'Ver detalle' },
+    ...d.rubros.map(r => ({ tipo: 'det', label: r.rubro, actual: r.venta })),
+    { tipo: 'grp', label: 'Costo de mercadería', actual: d.cmv_total, costo: true, onEditar: () => abrir('cmv') },
     ...d.rubros.map(r => ({
       tipo: 'det',
       label: r.cmv_pct == null ? <>{r.rubro} · <span className="text-amber-600 font-semibold">sin %</span></> : `${r.rubro} · ${r.cmv_pct}%`,
-      actual: r.costo, anterior: ventaAnt[r.rubro]?.costo ?? null, costo: true,
+      actual: r.costo, costo: true,
     })),
-    { tipo: 'sub', label: 'Margen bruto', actual: d.margen_bruto, anterior: b?.margen_bruto },
-    { tipo: 'grp', label: 'Gastos operativos', actual: d.total_gastos, anterior: b?.gastos_cargados ? b.total_gastos : null, costo: true, sinCargar: sinGastos, onEditar: abrirGastos },
-    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0 || gastosAnt[c.nombre] > 0).map(c => (
-      { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, anterior: gastosAnt[c.nombre] ?? null, costo: true }
+    { tipo: 'sub', label: 'Margen bruto', actual: d.margen_bruto },
+    { tipo: 'grp', label: 'Gastos operativos', actual: d.total_gastos, costo: true, sinCargar: sinGastos, onEditar: abrirGastos },
+    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
+      { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
     ))),
-    { tipo: 'sub', label: 'EBITDA', actual: d.ebitda, anterior: b?.gastos_cargados ? b.ebitda : null, incompleto: sinGastos },
-    { tipo: 'grp', label: 'Impuestos', actual: imp.total, anterior: impAnt?.total, costo: true, onEditar: () => abrir('impuestos') },
-    { tipo: 'det', label: `Ingresos brutos · ${imp.iibb_pct}% de la venta`, actual: imp.iibb, anterior: impAnt?.iibb, costo: true },
-    ...(imp.imp_gen_pct || impAnt?.imp_gen ? [{ tipo: 'det', label: `Impuestos generales · ${imp.imp_gen_pct}% del EBITDA`, actual: imp.imp_gen, anterior: impAnt?.imp_gen, costo: true }] : []),
-    ...(imp.fee_marca_pct || impAnt?.fee_marca ? [{ tipo: 'det', label: `Fee de marca · ${imp.fee_marca_pct}% del EBITDA`, actual: imp.fee_marca, anterior: impAnt?.fee_marca, costo: true }] : []),
-    { tipo: 'fin', label: 'Resultado neto', actual: d.resultado_neto, anterior: b?.gastos_cargados ? b.resultado_neto : null, incompleto: sinGastos },
+    { tipo: 'sub', label: 'EBITDA', actual: d.ebitda, incompleto: sinGastos },
+    { tipo: 'grp', label: 'Impuestos', actual: imp.total, costo: true, onEditar: () => abrir('impuestos') },
+    { tipo: 'det', label: `Ingresos brutos · ${imp.iibb_pct}% de la venta`, actual: imp.iibb, costo: true },
+    ...(imp.imp_gen_pct ? [{ tipo: 'det', label: `Impuestos generales · ${imp.imp_gen_pct}% del EBITDA`, actual: imp.imp_gen, costo: true }] : []),
+    ...(imp.fee_marca_pct ? [{ tipo: 'det', label: `Fee de marca · ${imp.fee_marca_pct}% del EBITDA`, actual: imp.fee_marca, costo: true }] : []),
+    { tipo: 'fin', label: 'Resultado neto', actual: d.resultado_neto, incompleto: sinGastos },
   ];
 }
 
@@ -418,7 +415,7 @@ export default function EerrCafeteriaSection({ localId, mes }) {
       )}
 
       <div className="mt-4">
-        <EstadoResultados filas={filasCafe(data, setOpenModal, openGastos)} ventaNeta={data.venta_neta} mesLabel={mesLabel(mes)} anteriorLabel={mesLabel(data.mes_anterior)} />
+        <EstadoResultados filas={filasCafe(data, setOpenModal, openGastos)} ventaNeta={data.venta_neta} mesLabel={mesLabel(mes)} />
       </div>
 
       {/* Modales */}

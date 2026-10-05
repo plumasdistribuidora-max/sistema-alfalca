@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { fmtARS, fmtPct, shortName } from '../redUtils';
 import EerrCafeteriaSection from '../../finanzas/EerrCafeteriaSection';
-import { EerrRed, EerrMeses, EstadoResultados, FiscalDesglose, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
+import { EerrRed, EerrAnio, EstadoResultados, FiscalDesglose, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,7 @@ function getMonthOptions() {
   return opts;
 }
 const MONTH_OPTIONS = getMonthOptions();
+const ANIOS = [...new Set(MONTH_OPTIONS.map(o => Number(o.value.slice(0, 4))))];
 
 function mesLabel(yyyymm) {
   if (!yyyymm) return '';
@@ -273,33 +274,32 @@ function ImpuestosContent({ ventaNeta, editImp, setEditImp }) {
   );
 }
 
-// Las filas del estado de resultados de una tienda: mes elegido contra el anterior.
-function filasTienda(a, b, abrir) {
+// Las filas del estado de resultados de una tienda en un mes.
+function filasTienda(a, abrir) {
   const gastos = (a.gastos_bloques || []).flatMap(bl => bl.conceptos || []);
-  const gastosAnt = Object.fromEntries((b?.gastos_bloques || []).flatMap(bl => bl.conceptos || []).map(c => [c.nombre, Number(c.monto) || 0]));
   const sinGastos = !a.gastos_cargados;
   const sinImp    = !a.impuestos_cargados;
   return [
-    ...filasVentaBruta(a.desglose_fiscal, b?.desglose_fiscal),
-    { tipo: 'sub', label: 'Venta neta', actual: a.venta_neta, anterior: b?.venta_neta, onEditar: () => abrir('venta'), accion: 'Ver detalle' },
-    { tipo: 'det', label: 'Entre Dos (90%)', actual: a.venta_e2, anterior: b?.venta_e2 },
-    { tipo: 'det', label: 'Alimendos (10%)', actual: a.venta_alim, anterior: b?.venta_alim },
-    { tipo: 'grp', label: 'Costo de mercadería', actual: a.cmv, anterior: b?.cmv, costo: true, onEditar: () => abrir('cmv') },
-    { tipo: 'det', label: `Entre Dos · ${a.cmv_e2_pct}%`, actual: a.venta_e2 * a.cmv_e2_pct / 100, anterior: b && b.venta_e2 * b.cmv_e2_pct / 100, costo: true },
-    { tipo: 'det', label: `Alimendos · ${a.cmv_alim_pct}%`, actual: a.venta_alim * a.cmv_alim_pct / 100, anterior: b && b.venta_alim * b.cmv_alim_pct / 100, costo: true },
-    { tipo: 'sub', label: 'Margen bruto', actual: a.margen_bruto, anterior: b?.margen_bruto },
-    { tipo: 'grp', label: 'Gastos operativos', actual: a.total_gastos, anterior: b?.gastos_cargados ? b.total_gastos : null, costo: true, sinCargar: sinGastos, onEditar: () => abrir('gastos') },
-    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0 || gastosAnt[c.nombre] > 0).map(c => (
-      { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, anterior: gastosAnt[c.nombre] ?? null, costo: true }
+    ...filasVentaBruta(a.desglose_fiscal),
+    { tipo: 'sub', label: 'Venta neta', actual: a.venta_neta, onEditar: () => abrir('venta'), accion: 'Ver detalle' },
+    { tipo: 'det', label: 'Entre Dos (90%)', actual: a.venta_e2 },
+    { tipo: 'det', label: 'Alimendos (10%)', actual: a.venta_alim },
+    { tipo: 'grp', label: 'Costo de mercadería', actual: a.cmv, costo: true, onEditar: () => abrir('cmv') },
+    { tipo: 'det', label: `Entre Dos · ${a.cmv_e2_pct}%`, actual: a.venta_e2 * a.cmv_e2_pct / 100, costo: true },
+    { tipo: 'det', label: `Alimendos · ${a.cmv_alim_pct}%`, actual: a.venta_alim * a.cmv_alim_pct / 100, costo: true },
+    { tipo: 'sub', label: 'Margen bruto', actual: a.margen_bruto },
+    { tipo: 'grp', label: 'Gastos operativos', actual: a.total_gastos, costo: true, sinCargar: sinGastos, onEditar: () => abrir('gastos') },
+    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
+      { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
     ))),
-    { tipo: 'sub', label: 'EBITDA', actual: a.ebitda, anterior: b?.gastos_cargados ? b.ebitda : null, incompleto: sinGastos },
-    { tipo: 'grp', label: 'Impuestos', actual: a.impuestos.total, anterior: b?.impuestos_cargados ? b.impuestos.total : null, costo: true, sinCargar: sinImp, onEditar: () => abrir('impuestos') },
+    { tipo: 'sub', label: 'EBITDA', actual: a.ebitda, incompleto: sinGastos },
+    { tipo: 'grp', label: 'Impuestos', actual: a.impuestos.total, costo: true, sinCargar: sinImp, onEditar: () => abrir('impuestos') },
     ...(sinImp ? [] : [
-      { tipo: 'det', label: 'Ingresos brutos', actual: a.impuestos.iibb, anterior: b?.impuestos?.iibb, costo: true },
-      { tipo: 'det', label: '931', actual: a.impuestos.novecientos31, anterior: b?.impuestos?.novecientos31, costo: true },
-      ...(a.impuestos.ganancias || b?.impuestos?.ganancias ? [{ tipo: 'det', label: 'Ganancias', actual: a.impuestos.ganancias, anterior: b?.impuestos?.ganancias, costo: true }] : []),
+      { tipo: 'det', label: 'Ingresos brutos', actual: a.impuestos.iibb, costo: true },
+      { tipo: 'det', label: '931', actual: a.impuestos.novecientos31, costo: true },
+      ...(a.impuestos.ganancias ? [{ tipo: 'det', label: 'Ganancias', actual: a.impuestos.ganancias, costo: true }] : []),
     ]),
-    { tipo: 'fin', label: 'Resultado neto', actual: a.resultado_neto, anterior: b?.gastos_cargados && b?.impuestos_cargados ? b.resultado_neto : null, incompleto: sinGastos || sinImp },
+    { tipo: 'fin', label: 'Resultado neto', actual: a.resultado_neto, incompleto: sinGastos || sinImp },
   ];
 }
 
@@ -310,6 +310,7 @@ export default function EerrSection() {
   const [selLocal,    setSelLocal]    = useState('');
   const [selMes,      setSelMes]      = useState(MONTH_OPTIONS[0]?.value || '');
   const [vista,       setVista]       = useState('red');
+  const [selAnio,     setSelAnio]     = useState(ANIOS[0]);
   const selLocalObj = locales.find(l => String(l.id) === selLocal);
   const esCafeteria = selLocalObj ? !selLocalObj.es_alfajorera : false;
   const [data,      setData]      = useState(null);
@@ -417,7 +418,6 @@ export default function EerrSection() {
   }
 
   const a = data?.actual;
-  const b = data?.anterior;
   const ml = mesLabel(selMes);
 
   const curso = mesEnCurso(selMes);
@@ -428,7 +428,7 @@ export default function EerrSection() {
       {/* ── Selectors ── */}
       <div className="flex flex-wrap gap-3">
         <div className="inline-flex rounded-xl border border-stone-200 bg-white p-0.5">
-          {[['red', 'Red'], ['local', 'Por local'], ['meses', 'Varios meses']].map(([id, label]) => (
+          {[['red', 'Red'], ['local', 'Por local'], ['anio', 'Por año']].map(([id, label]) => (
             <button
               key={id}
               onClick={() => { setVista(id); setOpenModal(null); }}
@@ -450,18 +450,28 @@ export default function EerrSection() {
             ))}
           </select>
         )}
-        <select
-          value={selMes}
-          onChange={e => { setSelMes(e.target.value); setOpenModal(null); }}
-          className="flex-1 min-w-[140px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
-        >
-          {MONTH_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{vista === 'meses' ? `Hasta ${o.label}` : o.label}</option>
-          ))}
-        </select>
+        {vista === 'anio' ? (
+          <select
+            value={selAnio}
+            onChange={e => setSelAnio(Number(e.target.value))}
+            className="flex-1 min-w-[140px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+          >
+            {ANIOS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        ) : (
+          <select
+            value={selMes}
+            onChange={e => { setSelMes(e.target.value); setOpenModal(null); }}
+            className="flex-1 min-w-[140px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+          >
+            {MONTH_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {curso && vista !== 'meses' && (
+      {curso && vista !== 'anio' && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
           <strong>Mes en curso:</strong> lleva {curso.dia} de {curso.dias} días. Los números no son de un mes completo.
         </div>
@@ -470,7 +480,7 @@ export default function EerrSection() {
       {vista === 'red' && (
         <EerrRed mes={selMes} onAbrirLocal={id => { setSelLocal(String(id)); setVista('local'); }} />
       )}
-      {vista === 'meses' && <EerrMeses localId={selLocal} hasta={selMes} />}
+      {vista === 'anio' && <EerrAnio localId={selLocal} anio={selAnio} />}
 
       {/* ── Cafetería ── */}
       {vista === 'local' && esCafeteria && selLocal && selMes && (
@@ -491,7 +501,7 @@ export default function EerrSection() {
 
       {/* ── Contenido alfajoreras ── */}
       {vista === 'local' && !esCafeteria && !loading && a && (
-        <EstadoResultados filas={filasTienda(a, b, openFor)} ventaNeta={a.venta_neta} mesLabel={ml} anteriorLabel={mesLabel(data.mes_anterior)} />
+        <EstadoResultados filas={filasTienda(a, openFor)} ventaNeta={a.venta_neta} mesLabel={ml} />
       )}
 
       {/* ── Modales ── */}

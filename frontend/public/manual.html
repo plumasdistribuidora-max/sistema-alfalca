@@ -1757,8 +1757,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p>Arriba elegís cómo mirarlo:</p>
       <ul class="simple">
         <li><strong>Red</strong>: un mes, con una columna por local, el total de las tiendas y el total de la red. Tocando el nombre de un local se abre su detalle.</li>
-        <li><strong>Por local</strong>: el estado de resultados de un local, como lo arma un contador. Arranca en lo que se vendió y va restando hasta lo que quedó, con cada gasto en su renglón, el mes anterior al lado y cuánto cambió. <em>Editar</em>, al lado de cada bloque, abre la carga.</li>
-        <li><strong>Varios meses</strong>: un local en los últimos seis meses, lado a lado.</li>
+        <li><strong>Por local</strong>: el estado de resultados de un local, como lo arma un contador. Arranca en lo que se vendió y va restando hasta lo que quedó, con cada gasto en su renglón y su % sobre la venta. <em>Editar</em>, al lado de cada bloque, abre la carga.</li>
+        <li><strong>Por año</strong>: un local en un año, con una columna por mes y el total del año.</li>
       </ul>
       <p>
         <strong>Venta neta:</strong> lo que se vendió sin factura entra completo; a lo facturado se
@@ -1782,16 +1782,16 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             </div>
             <div class="m-card" style="padding:0;overflow-x:auto">
               <table class="m-tabla">
-                <thead><tr><th></th><th class="n">Agosto</th><th class="n">% venta</th><th class="n">Julio</th><th class="n">Var.</th></tr></thead>
+                <thead><tr><th></th><th class="n">Agosto</th><th class="n">% venta</th></tr></thead>
                 <tbody>
-                  <tr><td><b>Venta neta</b></td><td class="n"><b>$ 14.180.400</b></td><td class="n">100%</td><td class="n">$ 13.540.200</td><td class="n" style="color:#15803D">↑ 4,7%</td></tr>
-                  <tr><td style="padding-left:20px;color:#6B6472">Entre Dos (90%)</td><td class="n">$ 12.762.360</td><td class="n">90%</td><td class="n">$ 12.186.180</td><td class="n" style="color:#15803D">↑ 4,7%</td></tr>
-                  <tr><td><b>Costo de mercadería</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 6.735.690</td><td class="n">47,5%</td><td class="n">− $ 6.431.595</td><td class="n" style="color:#B91C1C">↑ 4,7%</td></tr>
-                  <tr style="background:#F4F2F0"><td><b>Margen bruto</b></td><td class="n"><b>$ 7.444.710</b></td><td class="n">52,5%</td><td class="n">$ 7.108.605</td><td class="n" style="color:#15803D">↑ 4,7%</td></tr>
-                  <tr><td><b>Gastos operativos</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 4.120.000</td><td class="n">29,1%</td><td class="n">− $ 4.050.000</td><td class="n" style="color:#B91C1C">↑ 1,7%</td></tr>
-                  <tr style="background:#F4F2F0"><td><b>EBITDA</b></td><td class="n"><b>$ 3.324.710</b></td><td class="n">23,4%</td><td class="n">$ 3.058.605</td><td class="n" style="color:#15803D">↑ 8,7%</td></tr>
-                  <tr><td><b>Impuestos</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 1.190.000</td><td class="n">8,4%</td><td class="n">− $ 1.150.000</td><td class="n" style="color:#B91C1C">↑ 3,5%</td></tr>
-                  <tr style="background:#45484c;color:#fff"><td><b>Resultado neto</b></td><td class="n"><b>$ 2.134.710</b></td><td class="n">15,1%</td><td class="n">$ 1.908.605</td><td class="n">↑ 11,8%</td></tr>
+                  <tr><td><b>Venta neta</b></td><td class="n"><b>$ 14.180.400</b></td><td class="n">100%</td></tr>
+                  <tr><td style="padding-left:20px;color:#6B6472">Entre Dos (90%)</td><td class="n">$ 12.762.360</td><td class="n">90%</td></tr>
+                  <tr><td><b>Costo de mercadería</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 6.735.690</td><td class="n">47,5%</td></tr>
+                  <tr style="background:#F4F2F0"><td><b>Margen bruto</b></td><td class="n"><b>$ 7.444.710</b></td><td class="n">52,5%</td></tr>
+                  <tr><td><b>Gastos operativos</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 4.120.000</td><td class="n">29,1%</td></tr>
+                  <tr style="background:#F4F2F0"><td><b>EBITDA</b></td><td class="n"><b>$ 3.324.710</b></td><td class="n">23,4%</td></tr>
+                  <tr><td><b>Impuestos</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 1.190.000</td><td class="n">8,4%</td></tr>
+                  <tr style="background:#45484c;color:#fff"><td><b>Resultado neto</b></td><td class="n"><b>$ 2.134.710</b></td><td class="n">15,1%</td></tr>
                 </tbody>
               </table>
             </div>

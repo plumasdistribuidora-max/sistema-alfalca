@@ -65,7 +65,11 @@ export function mesEnCurso(yyyymm) {
 }
 
 const FILAS = [
-  { key: 'venta_neta',     label: 'Venta neta' },
+  { key: 'venta_bruta',    label: 'Venta bruta' },
+  { key: 'con_factura',    label: 'Con factura',  det: true },
+  { key: 'sin_factura',    label: 'Sin factura',  det: true },
+  { key: 'iva',            label: 'IVA de lo facturado (÷ 1,21)', resta: true },
+  { key: 'venta_neta',     label: 'Venta neta',   fuerte: true },
   { key: 'cmv',            label: 'CMV' },
   { key: 'margen_bruto',   label: 'Margen bruto',      fuerte: true },
   { key: 'gastos',         label: 'Gastos operativos', falta: c => !c.gastos_cargados },
@@ -92,7 +96,7 @@ function Celda({ fila, col, total }) {
   const v = col[fila.key];
   return (
     <td className={`px-3 py-2 text-right whitespace-nowrap tabular-nums ${fin}`}>
-      <span className={fila.fuerte || fila.final ? 'font-bold' : 'font-medium'}>{fmt$(v)}</span>
+      <span className={fila.fuerte || fila.final ? 'font-bold' : fila.det ? 'text-stone-500' : 'font-medium'}>{fila.resta && v ? `− ${fmt$(v)}` : fmt$(v)}</span>
       {fila.key !== 'venta_neta' && (
         <span className={`block text-[11px] ${fila.final ? 'text-white/60' : 'text-stone-400'}`}>
           {fmtPct(col.venta_neta > 0 ? Math.round(v / col.venta_neta * 1000) / 10 : 0)}
@@ -122,7 +126,7 @@ function Tabla({ columnas }) {
         <tbody>
           {FILAS.map(f => (
             <tr key={f.key} className={`border-b border-stone-50 last:border-0 ${f.fuerte ? 'bg-stone-50/60' : ''}`}>
-              <td className={`sticky left-0 px-3 py-2 whitespace-nowrap ${f.final ? 'bg-stone-700 text-white font-bold' : `bg-white ${f.fuerte ? 'font-bold text-stone-900' : 'text-stone-600'}`}`}>
+              <td className={`sticky left-0 px-3 py-2 whitespace-nowrap ${f.det ? 'pl-7 text-[13px]' : ''} ${f.final ? 'bg-stone-700 text-white font-bold' : `bg-white ${f.fuerte ? 'font-bold text-stone-900' : f.det ? 'text-stone-400' : 'text-stone-600'}`}`}>
                 {f.label}
               </td>
               {columnas.map(c => <Celda key={c.id} fila={f} col={c.datos} total={c.total} />)}

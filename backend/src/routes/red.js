@@ -2521,10 +2521,19 @@ router.post('/eerr/cafeteria/impuestos', requireAuth, async (req, res) => {
 
 // ── Vistas de varias columnas: toda la red en un mes, o un local en varios meses ──
 
+// Venta bruta con y sin factura, y el IVA que se le saca a lo facturado.
+function resumenBruta(df) {
+  return {
+    venta_bruta: df.bruto_fiscal + df.bruto_no_fiscal,
+    con_factura: df.bruto_fiscal, sin_factura: df.bruto_no_fiscal, iva: df.iva_descontado,
+  };
+}
+
 async function resumenEerr(local, mes) {
   if (local.es_alfajorera) {
     const e = await eerrTienda(local.id, mes);
     return {
+      ...resumenBruta(e.desglose_fiscal),
       venta_neta: Math.round(e.venta_neta), cmv: Math.round(e.cmv), margen_bruto: Math.round(e.margen_bruto),
       gastos: Math.round(e.total_gastos), ebitda: Math.round(e.ebitda),
       impuestos: Math.round(e.impuestos.total), resultado_neto: Math.round(e.resultado_neto),
@@ -2533,6 +2542,7 @@ async function resumenEerr(local, mes) {
   }
   const e = await eerrCafe(local.id, mes);
   return {
+    ...resumenBruta(e.desglose_fiscal),
     venta_neta: e.venta_neta, cmv: e.cmv_total, margen_bruto: e.margen_bruto,
     gastos: e.total_gastos, ebitda: e.ebitda,
     impuestos: e.impuestos.total, resultado_neto: e.resultado_neto,

@@ -1695,6 +1695,15 @@ router.get('/eerr/locales', requireAuth, async (req, res) => {
   }
 });
 
+// Hasta 2025 el EERR de cada local está cargado tal cual venía en su planilla de Excel
+// (eerr_historico). Para esos meses se muestra eso y no el cálculo con las ventas.
+const DESDE_CALCULO = '2026-01';
+async function historicoDe(local_id, mes) {
+  if (mes >= DESDE_CALCULO) return null;
+  const { rows } = await pool.query('SELECT datos, fuente FROM eerr_historico WHERE local_id = $1 AND mes = $2', [local_id, mes]);
+  return rows[0] ? { ...rows[0].datos, fuente: rows[0].fuente } : null;
+}
+
 async function eerrTienda(local_id, mes) {
   const { ini, fin } = mesRange(mes);
   const [vnR, recR, plantilla] = await Promise.all([
@@ -1712,14 +1721,14 @@ router.get('/eerr', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
     }
 
-    const [localR, actual] = await Promise.all([
+    const [localR, historico] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
-      eerrTienda(local_id, mes),
+      historicoDe(local_id, mes),
     ]);
-
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+    if (historico) return res.json({ ok: true, data: { local: localR.rows[0], mes, historico } });
 
-    res.json({ ok: true, data: { local: localR.rows[0], mes, actual } });
+    res.json({ ok: true, data: { local: localR.rows[0], mes, actual: await eerrTienda(local_id, mes) } });
   } catch (err) {
     console.error('[red/eerr GET]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -2439,13 +2448,14 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
     if (!local_id || !mes || !/^\d{4}-\d{2}$/.test(mes))
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
 
-    const [localR, eerr] = await Promise.all([
+    const [localR, historico] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
-      eerrCafe(local_id, mes),
+      historicoDe(local_id, mes),
     ]);
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+    if (historico) return res.json({ ok: true, data: { local: localR.rows[0], mes, historico } });
 
-    res.json({ ok: true, data: { local: localR.rows[0], mes, ...eerr } });
+    res.json({ ok: true, data: { local: localR.rows[0], mes, ...(await eerrCafe(local_id, mes)) } });
   } catch (err) {
     console.error('[red/eerr/cafeteria GET]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -2517,6 +2527,17 @@ function resumenBruta(df) {
 }
 
 async function resumenEerr(local, mes) {
+  const h = await historicoDe(local.id, mes);
+  if (h) {
+    const sum = a => Math.round((a || []).reduce((s, x) => s + x.monto, 0));
+    return {
+      venta_bruta: null, con_factura: null, sin_factura: null, iva: null,
+      venta_neta: sum(h.ventas), cmv: sum(h.cmv), margen_bruto: Math.round(h.margen_bruto),
+      gastos: Math.round(h.gastos_total), ebitda: Math.round(h.ebitda),
+      otros: sum(h.otros), impuestos: sum(h.impuestos), resultado_neto: Math.round(h.resultado),
+      gastos_cargados: true, impuestos_cargados: true, historico: true,
+    };
+  }
   if (local.es_alfajorera) {
     const e = await eerrTienda(local.id, mes);
     return {

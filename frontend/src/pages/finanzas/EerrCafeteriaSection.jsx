@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api';
 import { fmtARS, fmtPct } from '../red/redUtils';
-import { EstadoResultados, FiscalDesglose, filasVentaBruta } from './EerrTablas';
+import { AvisoPlanilla, EstadoResultados, FiscalDesglose, filasHistorico, filasVentaBruta } from './EerrTablas';
 
 const MESES_FULL = {
   '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril',
@@ -399,6 +399,16 @@ export default function EerrCafeteriaSection({ localId, mes }) {
 
   if (!data) {
     return <div className="card p-8 text-center text-stone-400 mt-4">Sin datos para el período seleccionado.</div>;
+  }
+
+  if (data.historico) {
+    const filas = filasHistorico(data.historico);
+    return (
+      <div className="space-y-4">
+        <AvisoPlanilla fuente={data.historico.fuente} />
+        <EstadoResultados filas={filas} ventaNeta={filas[0].actual} mesLabel={mesLabel(mes)} />
+      </div>
+    );
   }
 
   return (

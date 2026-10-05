@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { fmtARS, fmtPct, shortName } from '../redUtils';
 import EerrCafeteriaSection from '../../finanzas/EerrCafeteriaSection';
-import { EerrRed, EerrAnio, EstadoResultados, FiscalDesglose, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
+import { AvisoPlanilla, EerrRed, EerrAnio, EstadoResultados, FiscalDesglose, filasHistorico, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -12,11 +12,13 @@ const MESES_FULL = {
   '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre',
 };
 
+// Desde septiembre 2023, el primer mes con estado de resultados (las planillas de Amigorena).
 function getMonthOptions() {
   const opts = [];
   const now = new Date();
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; ; i++) {
     const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    if (d < new Date(2023, 8, 1)) break;
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     opts.push({ value: `${d.getFullYear()}-${mm}`, label: `${MESES_FULL[mm]} ${d.getFullYear()}` });
   }
@@ -495,13 +497,19 @@ export default function EerrSection() {
       )}
 
       {/* ── Sin datos (alfajoreras) ── */}
-      {vista === 'local' && !esCafeteria && !loading && !a && (
+      {vista === 'local' && !esCafeteria && !loading && !a && !data?.historico && (
         <div className="card p-8 text-center text-stone-400">Sin datos para el período seleccionado.</div>
       )}
 
       {/* ── Contenido alfajoreras ── */}
       {vista === 'local' && !esCafeteria && !loading && a && (
         <EstadoResultados filas={filasTienda(a, openFor)} ventaNeta={a.venta_neta} mesLabel={ml} />
+      )}
+      {vista === 'local' && !esCafeteria && !loading && data?.historico && (
+        <>
+          <AvisoPlanilla fuente={data.historico.fuente} />
+          <EstadoResultados filas={filasHistorico(data.historico)} ventaNeta={filasHistorico(data.historico)[0].actual} mesLabel={ml} />
+        </>
       )}
 
       {/* ── Modales ── */}

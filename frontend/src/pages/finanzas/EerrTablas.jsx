@@ -74,13 +74,16 @@ const FILAS = [
   { key: 'margen_bruto',   label: 'Margen bruto',      fuerte: true },
   { key: 'gastos',         label: 'Gastos operativos', falta: c => !c.gastos_cargados },
   { key: 'ebitda',         label: 'EBITDA',            fuerte: true, incompleto: c => !c.gastos_cargados },
+  { key: 'otros',          label: 'Amortizaciones y otros', opcional: true },
   { key: 'impuestos',      label: 'Impuestos',         falta: c => !c.impuestos_cargados },
   { key: 'resultado_neto', label: 'Resultado neto',    final: true, incompleto: c => !c.gastos_cargados || !c.impuestos_cargados },
 ];
 
+// Un renglón que falta en alguna columna (la venta bruta de un mes de planilla) no se suma:
+// el total quedaría a medias.
 function sumar(cols) {
   const t = { gastos_cargados: cols.every(c => c.gastos_cargados), impuestos_cargados: cols.every(c => c.impuestos_cargados) };
-  for (const f of FILAS) t[f.key] = cols.reduce((s, c) => s + (Number(c[f.key]) || 0), 0);
+  for (const f of FILAS) t[f.key] = cols.some(c => c[f.key] == null && !f.opcional) ? null : cols.reduce((s, c) => s + (Number(c[f.key]) || 0), 0);
   return t;
 }
 
@@ -94,6 +97,7 @@ function Celda({ fila, col, total }) {
     return <td className={`px-3 py-2 text-right text-xs ${fila.final ? 'bg-stone-700 text-white/60' : `text-stone-400 ${base}`}`}>Incompleto</td>;
   }
   const v = col[fila.key];
+  if (v == null) return <td className={`px-3 py-2 text-right text-stone-300 ${base}`}>—</td>;
   return (
     <td className={`px-3 py-2 text-right whitespace-nowrap tabular-nums ${fin}`}>
       <span className={fila.fuerte || fila.final ? 'font-bold' : fila.det ? 'text-stone-500' : 'font-medium'}>{fila.resta && v ? `− ${fmt$(v)}` : fmt$(v)}</span>
@@ -118,13 +122,13 @@ function Tabla({ columnas }) {
                 {c.onClick
                   ? <button onClick={c.onClick} className="uppercase hover:text-stone-800 underline decoration-dotted underline-offset-4">{c.titulo}</button>
                   : c.titulo}
-                {c.nota && <span className="block normal-case tracking-normal text-[10px] font-semibold text-amber-600">{c.nota}</span>}
+                {c.nota && <span className={`block normal-case tracking-normal text-[10px] font-semibold ${c.nota === 'planilla' ? 'text-stone-400' : 'text-amber-600'}`}>{c.nota}</span>}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {FILAS.map(f => (
+          {FILAS.filter(f => !f.opcional || columnas.some(c => Number(c.datos[f.key]))).map(f => (
             <tr key={f.key} className={`border-b border-stone-50 last:border-0 ${f.fuerte ? 'bg-stone-50/60' : ''}`}>
               <td className={`sticky left-0 px-3 py-2 whitespace-nowrap ${f.det ? 'pl-7 text-[13px]' : ''} ${f.final ? 'bg-stone-700 text-white font-bold' : `bg-white ${f.fuerte ? 'font-bold text-stone-900' : f.det ? 'text-stone-400' : 'text-stone-600'}`}`}>
                 {f.label}
@@ -168,7 +172,7 @@ export function EerrRed({ mes, onAbrirLocal }) {
 
   const tiendas = data.locales.filter(l => l.es_alfajorera);
   const otros   = data.locales.filter(l => !l.es_alfajorera);
-  const col = l => ({ id: l.id, titulo: shortName(l.nombre), datos: l, onClick: () => onAbrirLocal(l.id) });
+  const col = l => ({ id: l.id, titulo: shortName(l.nombre), datos: l, nota: l.historico ? 'planilla' : null, onClick: () => onAbrirLocal(l.id) });
   const columnas = [
     ...tiendas.map(col),
     { id: 'tiendas', titulo: 'Tiendas', datos: sumar(tiendas), total: true },
@@ -200,7 +204,7 @@ export function EerrAnio({ localId, anio }) {
     return {
       id: m.mes,
       titulo: MESES_CORTOS[Number(m.mes.slice(5)) - 1],
-      nota: curso ? `en curso · ${curso.dia} de ${curso.dias} días` : null,
+      nota: curso ? `en curso · ${curso.dia} de ${curso.dias} días` : m.historico ? 'planilla' : null,
       datos: m,
     };
   });
@@ -283,4 +287,34 @@ export function filasVentaBruta(df) {
     { tipo: 'det', label: 'Sin factura', actual: df.bruto_no_fiscal },
     { tipo: 'grp', label: 'IVA de lo facturado (÷ 1,21)', actual: df.iva_descontado, costo: true },
   ];
+}
+
+// Un mes de planilla (anterior a 2026), tal cual vino del Excel.
+export function filasHistorico(h) {
+  const sum = a => (a || []).reduce((s, x) => s + x.monto, 0);
+  const otros = h.otros || [];
+  return [
+    { tipo: 'sub', label: 'Venta neta', actual: sum(h.ventas) },
+    ...h.ventas.map(v => ({ tipo: 'det', label: v.nombre, actual: v.monto })),
+    { tipo: 'grp', label: 'Costo de mercadería', actual: sum(h.cmv), costo: true },
+    ...h.cmv.map(c => ({ tipo: 'det', label: c.pct ? `${c.nombre} · ${c.pct}%` : c.nombre, actual: c.monto, costo: true })),
+    { tipo: 'sub', label: 'Margen bruto', actual: h.margen_bruto },
+    { tipo: 'grp', label: 'Gastos operativos', actual: h.gastos_total, costo: true },
+    ...h.gastos.map(g => ({ tipo: 'det', label: g.nombre, actual: g.monto, costo: true })),
+    { tipo: 'sub', label: 'EBITDA', actual: h.ebitda },
+    ...otros.map(o => ({ tipo: 'grp', label: o.nombre, actual: Math.abs(o.monto), costo: o.monto < 0 })),
+    ...(otros.length ? [{ tipo: 'sub', label: 'Resultado antes de impuestos', actual: h.ebt }] : []),
+    { tipo: 'grp', label: 'Impuestos', actual: sum(h.impuestos), costo: true },
+    ...h.impuestos.map(t => ({ tipo: 'det', label: t.pct ? `${t.nombre} · ${t.pct}%` : t.nombre, actual: t.monto, costo: true })),
+    { tipo: 'fin', label: 'Resultado neto', actual: h.resultado },
+  ];
+}
+
+export function AvisoPlanilla({ fuente }) {
+  return (
+    <div className="bg-stone-100 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-600">
+      <strong className="text-stone-800">Mes de planilla:</strong> estos números están tal cual en la planilla de Excel, no se recalculan ni se editan acá.
+      {fuente && <span className="block text-xs text-stone-400 mt-0.5">{fuente}</span>}
+    </div>
+  );
 }

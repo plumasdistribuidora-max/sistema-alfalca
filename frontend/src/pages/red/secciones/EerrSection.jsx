@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { fmtARS, fmtPct, shortName } from '../redUtils';
 import EerrCafeteriaSection from '../../finanzas/EerrCafeteriaSection';
-import { EerrRed, EerrMeses, FiscalDesglose, mesEnCurso } from '../../finanzas/EerrTablas';
+import { EerrRed, EerrMeses, EstadoResultados, FiscalDesglose, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -30,81 +30,10 @@ function mesLabel(yyyymm) {
   return `${MESES_FULL[m] || m} ${y}`;
 }
 
-// Estilos por línea de la cascada
-const CS = {
-  venta:     { bg: '#f0fdf4', border: '#bbf7d0', title: '#14532d', sub: '#166534' },
-  cmv:       { bg: '#fffbeb', border: '#fde68a', title: '#78350f', sub: '#b45309' },
-  margen:    { bg: '#fafaf9', border: '#e7e5e4', title: '#1c1917', sub: '#78716c' },
-  gastos:    { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
-  ebitda:    { bg: '#f0fdf4', border: '#86efac', title: '#14532d', sub: '#166534' },
-  impuestos: { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
-  resultado: { bg: '#16a34a', border: '#16a34a', title: '#ffffff', sub: 'rgba(255,255,255,0.7)' },
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const fmt$ = (v) => fmtARS(Math.round(Number(v) || 0));
 const fmtP = (v) => fmtPct(Number(v) || 0);
-
-function varPct(a, b) {
-  if (b == null || b === 0) return null;
-  return Math.round((a - b) / Math.abs(b) * 1000) / 10;
-}
-
-// ── Sub-componentes ───────────────────────────────────────────────────────────
-
-function VarBadge({ a, b, inverted = false }) {
-  const v = varPct(a, b);
-  if (v == null) return null;
-  const isGood = inverted ? v <= 0 : v >= 0;
-  return (
-    <span style={{ fontSize: 11, fontWeight: 600, color: isGood ? '#16a34a' : '#dc2626' }}>
-      {v >= 0 ? '↑' : '↓'} {Math.abs(v).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
-    </span>
-  );
-}
-
-function KpiCard({ label, value, pct, varA, varB, inverted }) {
-  return (
-    <div className="card p-4 flex-1 min-w-0">
-      <p className="text-xs text-stone-500 mb-1 truncate">{label}</p>
-      <p className="text-base font-bold text-stone-900 truncate">{fmt$(value)}</p>
-      <p className="text-xs text-stone-400">{fmtP(pct)}</p>
-      <div className="mt-1"><VarBadge a={varA} b={varB} inverted={inverted} /></div>
-    </div>
-  );
-}
-
-function CascadeCard({ title, subtitle, value, pct, varA, varB, inverted, onClick, sk }) {
-  const s = CS[sk];
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-left rounded-2xl px-5 py-4 flex items-center justify-between gap-4 transition-opacity hover:opacity-90 active:opacity-80"
-      style={{ background: s.bg, border: `1.5px solid ${s.border}` }}
-    >
-      <div className="min-w-0">
-        <p className="font-semibold text-sm" style={{ color: s.title }}>{title}</p>
-        <p className="text-xs mt-0.5 truncate" style={{ color: s.sub }}>{subtitle}</p>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-xl font-bold" style={{ color: s.title }}>{fmt$(value)}</p>
-        <p className="text-xs" style={{ color: s.sub }}>{fmtP(pct)} de ventas</p>
-        <div className="mt-0.5"><VarBadge a={varA} b={varB} inverted={inverted} /></div>
-      </div>
-    </button>
-  );
-}
-
-function Connector({ sign }) {
-  return (
-    <div className="flex flex-col items-center my-0.5" style={{ pointerEvents: 'none' }}>
-      <div style={{ width: 1, height: 10, background: '#d4d4d0' }} />
-      <span style={{ fontSize: 16, fontWeight: 700, color: '#a8a29e', lineHeight: 1, padding: '2px 0' }}>{sign}</span>
-      <div style={{ width: 1, height: 10, background: '#d4d4d0' }} />
-    </div>
-  );
-}
 
 function ModalShell({ title, onClose, onSave, saving, children }) {
   return (
@@ -344,6 +273,36 @@ function ImpuestosContent({ ventaNeta, editImp, setEditImp }) {
   );
 }
 
+// Las filas del estado de resultados de una tienda: mes elegido contra el anterior.
+function filasTienda(a, b, abrir) {
+  const gastos = (a.gastos_bloques || []).flatMap(bl => bl.conceptos || []);
+  const gastosAnt = Object.fromEntries((b?.gastos_bloques || []).flatMap(bl => bl.conceptos || []).map(c => [c.nombre, Number(c.monto) || 0]));
+  const sinGastos = !a.gastos_cargados;
+  const sinImp    = !a.impuestos_cargados;
+  return [
+    ...filasVentaBruta(a.desglose_fiscal, b?.desglose_fiscal),
+    { tipo: 'sub', label: 'Venta neta', actual: a.venta_neta, anterior: b?.venta_neta, onEditar: () => abrir('venta'), accion: 'Ver detalle' },
+    { tipo: 'det', label: 'Entre Dos (90%)', actual: a.venta_e2, anterior: b?.venta_e2 },
+    { tipo: 'det', label: 'Alimendos (10%)', actual: a.venta_alim, anterior: b?.venta_alim },
+    { tipo: 'grp', label: 'Costo de mercadería', actual: a.cmv, anterior: b?.cmv, costo: true, onEditar: () => abrir('cmv') },
+    { tipo: 'det', label: `Entre Dos · ${a.cmv_e2_pct}%`, actual: a.venta_e2 * a.cmv_e2_pct / 100, anterior: b && b.venta_e2 * b.cmv_e2_pct / 100, costo: true },
+    { tipo: 'det', label: `Alimendos · ${a.cmv_alim_pct}%`, actual: a.venta_alim * a.cmv_alim_pct / 100, anterior: b && b.venta_alim * b.cmv_alim_pct / 100, costo: true },
+    { tipo: 'sub', label: 'Margen bruto', actual: a.margen_bruto, anterior: b?.margen_bruto },
+    { tipo: 'grp', label: 'Gastos operativos', actual: a.total_gastos, anterior: b?.gastos_cargados ? b.total_gastos : null, costo: true, sinCargar: sinGastos, onEditar: () => abrir('gastos') },
+    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0 || gastosAnt[c.nombre] > 0).map(c => (
+      { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, anterior: gastosAnt[c.nombre] ?? null, costo: true }
+    ))),
+    { tipo: 'sub', label: 'EBITDA', actual: a.ebitda, anterior: b?.gastos_cargados ? b.ebitda : null, incompleto: sinGastos },
+    { tipo: 'grp', label: 'Impuestos', actual: a.impuestos.total, anterior: b?.impuestos_cargados ? b.impuestos.total : null, costo: true, sinCargar: sinImp, onEditar: () => abrir('impuestos') },
+    ...(sinImp ? [] : [
+      { tipo: 'det', label: 'Ingresos brutos', actual: a.impuestos.iibb, anterior: b?.impuestos?.iibb, costo: true },
+      { tipo: 'det', label: '931', actual: a.impuestos.novecientos31, anterior: b?.impuestos?.novecientos31, costo: true },
+      ...(a.impuestos.ganancias || b?.impuestos?.ganancias ? [{ tipo: 'det', label: 'Ganancias', actual: a.impuestos.ganancias, anterior: b?.impuestos?.ganancias, costo: true }] : []),
+    ]),
+    { tipo: 'fin', label: 'Resultado neto', actual: a.resultado_neto, anterior: b?.gastos_cargados && b?.impuestos_cargados ? b.resultado_neto : null, incompleto: sinGastos || sinImp },
+  ];
+}
+
 // ── Componente principal ───────────────────────────────────────────────────────
 
 export default function EerrSection() {
@@ -376,12 +335,14 @@ export default function EerrSection() {
   // Recarga EERR cuando cambia local o mes (solo para locales alfajoreros)
   useEffect(() => {
     if (vista !== 'local' || !selLocal || !selMes || esCafeteria) return;
+    let vigente = true;   // una respuesta de otro local o mes que llega tarde se descarta
     setLoading(true);
     setData(null);
     api.get('/red/eerr', { params: { local_id: selLocal, mes: selMes } })
-      .then(r => setData(r.data.data))
+      .then(r => { if (vigente) setData(r.data.data); })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (vigente) setLoading(false); });
+    return () => { vigente = false; };
   }, [vista, selLocal, selMes, esCafeteria]);
 
   function openFor(name) {
@@ -530,68 +491,7 @@ export default function EerrSection() {
 
       {/* ── Contenido alfajoreras ── */}
       {vista === 'local' && !esCafeteria && !loading && a && (
-        <>
-          {/* KPIs */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            <KpiCard label="Venta Neta"     value={a.venta_neta}     pct={100}                   varA={a.venta_neta}     varB={b?.venta_neta}     />
-            <KpiCard label="Margen Bruto"   value={a.margen_bruto}   pct={a.pcts.margen_bruto}   varA={a.margen_bruto}   varB={b?.margen_bruto}   />
-            <KpiCard label="EBITDA"         value={a.ebitda}         pct={a.pcts.ebitda}         varA={a.ebitda}         varB={b?.ebitda}         />
-            <KpiCard label="Resultado Neto" value={a.resultado_neto} pct={a.pcts.resultado_neto} varA={a.resultado_neto} varB={b?.resultado_neto} />
-          </div>
-
-          {/* Cascada */}
-          <div className="card p-4">
-            <CascadeCard
-              title="Venta Neta"
-              subtitle={`Entre Dos 90% · Alimendos 10%${a.desglose_fiscal?.tiene_fiscal ? ' · facturado sin IVA' : ''}`}
-              value={a.venta_neta} pct={100}
-              varA={a.venta_neta} varB={b?.venta_neta}
-              onClick={() => openFor('venta')} sk="venta"
-            />
-            <Connector sign="−" />
-            <CascadeCard
-              title="CMV" subtitle={`E2 ${a.cmv_e2_pct}% · Alim ${a.cmv_alim_pct}% · editable`}
-              value={a.cmv} pct={a.pcts.cmv}
-              varA={a.cmv} varB={b?.cmv} inverted
-              onClick={() => openFor('cmv')} sk="cmv"
-            />
-            <Connector sign="=" />
-            <CascadeCard
-              title="Margen Bruto" subtitle="Venta Neta − CMV"
-              value={a.margen_bruto} pct={a.pcts.margen_bruto}
-              varA={a.margen_bruto} varB={b?.margen_bruto}
-              onClick={() => openFor('margen')} sk="margen"
-            />
-            <Connector sign="−" />
-            <CascadeCard
-              title="Gastos Operativos" subtitle={a.gastos_cargados ? 'Comerciales + estructura' : 'Sin cargar · tocá para cargarlos'}
-              value={a.total_gastos} pct={a.pcts.total_gastos}
-              varA={a.total_gastos} varB={b?.total_gastos} inverted
-              onClick={() => openFor('gastos')} sk="gastos"
-            />
-            <Connector sign="=" />
-            <CascadeCard
-              title="EBITDA" subtitle="Margen Bruto − Gastos Operativos"
-              value={a.ebitda} pct={a.pcts.ebitda}
-              varA={a.ebitda} varB={b?.ebitda}
-              onClick={() => openFor('ebitda')} sk="ebitda"
-            />
-            <Connector sign="−" />
-            <CascadeCard
-              title="Impuestos" subtitle={a.impuestos_cargados ? 'IIBB · 931 · Ganancias' : 'Sin cargar · tocá para cargarlos'}
-              value={a.impuestos.total} pct={a.pcts.total_impuestos}
-              varA={a.impuestos.total} varB={b?.impuestos?.total} inverted
-              onClick={() => openFor('impuestos')} sk="impuestos"
-            />
-            <Connector sign="=" />
-            <CascadeCard
-              title="Resultado Neto" subtitle="EBITDA − Impuestos"
-              value={a.resultado_neto} pct={a.pcts.resultado_neto}
-              varA={a.resultado_neto} varB={b?.resultado_neto}
-              onClick={() => openFor('resultado')} sk="resultado"
-            />
-          </div>
-        </>
+        <EstadoResultados filas={filasTienda(a, b, openFor)} ventaNeta={a.venta_neta} mesLabel={ml} anteriorLabel={mesLabel(data.mes_anterior)} />
       )}
 
       {/* ── Modales ── */}
@@ -616,15 +516,6 @@ export default function EerrSection() {
         </ModalShell>
       )}
 
-      {openModal === 'margen' && a && (
-        <ModalShell title={`Margen Bruto · ${ml}`} onClose={() => setOpenModal(null)}>
-          <FormulaRows rows={[
-            { label: 'Venta Neta',    value: a.venta_neta,   pct: 100               },
-            { label: '− CMV',         value: -a.cmv,         pct: -a.pcts.cmv       },
-            { label: '= Margen Bruto', value: a.margen_bruto, pct: a.pcts.margen_bruto, highlight: true },
-          ]} />
-        </ModalShell>
-      )}
 
       {openModal === 'gastos' && a && (
         <ModalShell title={`Gastos Operativos · ${ml}`} onClose={() => setOpenModal(null)} onSave={handleSaveGastos} saving={saving}>
@@ -632,15 +523,6 @@ export default function EerrSection() {
         </ModalShell>
       )}
 
-      {openModal === 'ebitda' && a && (
-        <ModalShell title={`EBITDA · ${ml}`} onClose={() => setOpenModal(null)}>
-          <FormulaRows rows={[
-            { label: 'Margen Bruto',          value: a.margen_bruto,   pct: a.pcts.margen_bruto     },
-            { label: '− Gastos Operativos',   value: -a.total_gastos,  pct: -a.pcts.total_gastos    },
-            { label: '= EBITDA',              value: a.ebitda,         pct: a.pcts.ebitda, highlight: true },
-          ]} />
-        </ModalShell>
-      )}
 
       {openModal === 'impuestos' && a && (
         <ModalShell title={`Impuestos · ${ml}`} onClose={() => setOpenModal(null)} onSave={handleSaveImp} saving={saving}>
@@ -648,15 +530,6 @@ export default function EerrSection() {
         </ModalShell>
       )}
 
-      {openModal === 'resultado' && a && (
-        <ModalShell title={`Resultado Neto · ${ml}`} onClose={() => setOpenModal(null)}>
-          <FormulaRows rows={[
-            { label: 'EBITDA',           value: a.ebitda,          pct: a.pcts.ebitda           },
-            { label: '− Impuestos',      value: -a.impuestos.total, pct: -a.pcts.total_impuestos },
-            { label: '= Resultado Neto', value: a.resultado_neto,  pct: a.pcts.resultado_neto, highlight: true },
-          ]} />
-        </ModalShell>
-      )}
 
     </div>
   );

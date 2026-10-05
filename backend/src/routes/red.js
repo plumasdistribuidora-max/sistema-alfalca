@@ -2450,13 +2450,15 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
     if (!local_id || !mes || !/^\d{4}-\d{2}$/.test(mes))
       return res.status(400).json({ ok: false, error: 'local_id y mes (YYYY-MM) requeridos' });
 
-    const [localR, eerr] = await Promise.all([
+    const mes_anterior = prevMes(mes);
+    const [localR, eerr, anterior] = await Promise.all([
       pool.query('SELECT id, nombre FROM locales WHERE id = $1', [local_id]),
       eerrCafe(local_id, mes),
+      eerrCafe(local_id, mes_anterior),
     ]);
     if (!localR.rows[0]) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
 
-    res.json({ ok: true, data: { local: localR.rows[0], mes, ...eerr } });
+    res.json({ ok: true, data: { local: localR.rows[0], mes, ...eerr, mes_anterior, anterior } });
   } catch (err) {
     console.error('[red/eerr/cafeteria GET]', err);
     res.status(500).json({ ok: false, error: err.message });

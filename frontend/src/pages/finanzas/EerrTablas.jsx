@@ -155,8 +155,10 @@ function Cargando() {
 export function EerrRed({ mes, onAbrirLocal }) {
   const [data, setData] = useState(null);
   useEffect(() => {
+    let vigente = true;
     setData(null);
-    api.get('/red/eerr/red', { params: { mes } }).then(r => setData(r.data.data)).catch(console.error);
+    api.get('/red/eerr/red', { params: { mes } }).then(r => { if (vigente) setData(r.data.data); }).catch(console.error);
+    return () => { vigente = false; };
   }, [mes]);
   if (!data) return <Cargando />;
 
@@ -181,8 +183,10 @@ export function EerrMeses({ localId, hasta }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     if (!localId) return;
+    let vigente = true;
     setData(null);
-    api.get('/red/eerr/meses', { params: { local_id: localId, hasta, cant: 6 } }).then(r => setData(r.data.data)).catch(console.error);
+    api.get('/red/eerr/meses', { params: { local_id: localId, hasta, cant: 6 } }).then(r => { if (vigente) setData(r.data.data); }).catch(console.error);
+    return () => { vigente = false; };
   }, [localId, hasta]);
   if (!data) return <Cargando />;
 
@@ -202,4 +206,97 @@ export function EerrMeses({ localId, hasta }) {
       <Tabla columnas={columnas} />
     </div>
   );
+}
+
+// ── Estado de resultados de un local: una tabla de contador ───────────────────
+// Cada fila: { tipo: 'grp'|'det'|'sub'|'fin', label, actual, anterior, costo, onEditar,
+// sinCargar, incompleto }. Los costos van en positivo con costo: true y se muestran restando.
+
+function Variacion({ a, b, costo }) {
+  if (a == null || !b) return null;
+  const v = (a - b) / Math.abs(b) * 100;
+  if (Math.abs(v) < 0.05) return <span className="text-stone-400">=</span>;
+  const bien = costo ? v <= 0 : v >= 0;
+  return (
+    <span className={bien ? 'text-green-700' : 'text-red-700'}>
+      {v >= 0 ? '↑' : '↓'} {Math.abs(v).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+    </span>
+  );
+}
+
+export function EstadoResultados({ filas, ventaNeta, mesLabel, anteriorLabel }) {
+  const monto = (f, v) => (f.costo && v ? `− ${fmt$(v)}` : fmt$(v));
+  return (
+    <div className="card overflow-x-auto p-0">
+      <table className="w-full text-sm" style={{ minWidth: 620 }}>
+        <thead>
+          <tr className="border-b border-stone-200 text-[10.5px] uppercase tracking-wider text-stone-400">
+            <th className="text-left px-4 py-2.5 font-bold" />
+            <th className="text-right px-4 py-2.5 font-bold">{mesLabel}</th>
+            <th className="text-right px-4 py-2.5 font-bold">% venta</th>
+            <th className="text-right px-4 py-2.5 font-bold">{anteriorLabel}</th>
+            <th className="text-right px-4 py-2.5 font-bold">Var.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f, i) => {
+            const cls = {
+              grp: 'font-semibold text-stone-900',
+              det: 'text-stone-500 text-[13px]',
+              sub: 'font-bold text-stone-900 bg-stone-50 border-t border-stone-800',
+              fin: 'font-extrabold text-white text-[14.5px]',
+            }[f.tipo];
+            const pad = f.tipo === 'grp' ? 'pt-3 pb-1.5' : 'py-1.5';
+            const fin = f.tipo === 'fin';
+            const vacio = f.sinCargar ? 'Sin cargar' : f.incompleto ? 'Incompleto' : null;
+            return (
+              <tr key={i} className={cls} style={fin ? { background: '#45484c' } : undefined}>
+                <td className={`px-4 ${pad} text-left ${f.tipo === 'det' ? 'pl-9' : ''}`}>
+                  {f.label}
+                  {f.onEditar && (
+                    <button
+                      onClick={f.onEditar}
+                      className="ml-3 text-[11.5px] font-semibold text-stone-500 hover:text-stone-900 underline decoration-dotted underline-offset-4"
+                    >
+                      {f.accion || (f.sinCargar ? 'Cargar' : 'Editar')}
+                    </button>
+                  )}
+                </td>
+                {vacio ? (
+                  <td colSpan={2} className={`px-4 ${pad} text-right text-xs font-semibold ${f.sinCargar ? 'text-amber-600' : fin ? 'text-white/60' : 'text-stone-400'}`}>
+                    {vacio}
+                  </td>
+                ) : (
+                  <>
+                    <td className={`px-4 ${pad} text-right tabular-nums whitespace-nowrap`}>{monto(f, f.actual)}</td>
+                    <td className={`px-4 ${pad} text-right tabular-nums text-xs ${fin ? 'text-white/60' : 'text-stone-400'}`}>
+                      {fmtPct(ventaNeta > 0 ? Math.round(f.actual / ventaNeta * 1000) / 10 : 0)}
+                    </td>
+                  </>
+                )}
+                <td className={`px-4 ${pad} text-right tabular-nums whitespace-nowrap ${fin ? 'text-white/80' : 'text-stone-500'}`}>
+                  {f.anterior == null ? '—' : monto(f, f.anterior)}
+                </td>
+                <td className={`px-4 ${pad} text-right text-xs font-semibold tabular-nums whitespace-nowrap ${fin ? '[&_span]:text-white' : ''}`}>
+                  {!vacio && <Variacion a={f.actual} b={f.anterior} costo={f.costo} />}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Arriba de la venta neta: lo vendido con y sin factura, y el IVA que se le saca a lo facturado.
+export function filasVentaBruta(df, dfAnt) {
+  if (!df) return [];
+  const bruta = d => d && d.bruto_fiscal + d.bruto_no_fiscal;
+  return [
+    { tipo: 'grp', label: 'Venta bruta', actual: bruta(df), anterior: bruta(dfAnt) },
+    { tipo: 'det', label: 'Con factura', actual: df.bruto_fiscal, anterior: dfAnt?.bruto_fiscal },
+    { tipo: 'det', label: 'Sin factura', actual: df.bruto_no_fiscal, anterior: dfAnt?.bruto_no_fiscal },
+    { tipo: 'grp', label: 'IVA de lo facturado (÷ 1,21)', actual: df.iva_descontado, anterior: dfAnt?.iva_descontado, costo: true },
+  ];
 }

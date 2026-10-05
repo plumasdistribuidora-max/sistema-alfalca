@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api';
 import { fmtARS, fmtPct } from '../red/redUtils';
-import { FiscalDesglose } from './EerrTablas';
+import { EstadoResultados, FiscalDesglose, filasVentaBruta } from './EerrTablas';
 
 const MESES_FULL = {
   '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril',
@@ -11,16 +11,6 @@ const MESES_FULL = {
 
 const CMV_WARN_THRESHOLD = 60;
 
-const CS = {
-  venta:     { bg: '#f0fdf4', border: '#bbf7d0', title: '#14532d', sub: '#166534' },
-  cmv:       { bg: '#fffbeb', border: '#fde68a', title: '#78350f', sub: '#b45309' },
-  margen:    { bg: '#fafaf9', border: '#e7e5e4', title: '#1c1917', sub: '#78716c' },
-  gastos:    { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
-  ebitda:    { bg: '#f0fdf4', border: '#86efac', title: '#14532d', sub: '#166534' },
-  impuestos: { bg: '#f4f4f2', border: '#dcdbd6', title: '#3b0764', sub: '#55585c' },
-  resultado: { bg: '#16a34a', border: '#16a34a', title: '#ffffff', sub: 'rgba(255,255,255,0.7)' },
-};
-
 const fmt$ = v => fmtARS(Math.round(Number(v) || 0));
 const fmtP = v => fmtPct(Number(v) || 0);
 
@@ -28,36 +18,6 @@ function mesLabel(yyyymm) {
   if (!yyyymm) return '';
   const [y, m] = yyyymm.split('-');
   return `${MESES_FULL[m] || m} ${y}`;
-}
-
-function CascadeCard({ title, subtitle, value, pct, onClick, sk }) {
-  const s = CS[sk];
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-left rounded-2xl px-5 py-4 flex items-center justify-between gap-4 transition-opacity hover:opacity-90 active:opacity-80"
-      style={{ background: s.bg, border: `1.5px solid ${s.border}` }}
-    >
-      <div className="min-w-0">
-        <p className="font-semibold text-sm" style={{ color: s.title }}>{title}</p>
-        <p className="text-xs mt-0.5 truncate" style={{ color: s.sub }}>{subtitle}</p>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-xl font-bold" style={{ color: s.title }}>{fmt$(value)}</p>
-        <p className="text-xs" style={{ color: s.sub }}>{fmtP(pct)} de ventas</p>
-      </div>
-    </button>
-  );
-}
-
-function Connector({ sign }) {
-  return (
-    <div className="flex flex-col items-center my-0.5" style={{ pointerEvents: 'none' }}>
-      <div style={{ width: 1, height: 10, background: '#d4d4d0' }} />
-      <span style={{ fontSize: 16, fontWeight: 700, color: '#a8a29e', lineHeight: 1, padding: '2px 0' }}>{sign}</span>
-      <div style={{ width: 1, height: 10, background: '#d4d4d0' }} />
-    </div>
-  );
 }
 
 function ModalShell({ title, onClose, onSave, saving, children }) {
@@ -349,6 +309,38 @@ function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, lo
   );
 }
 
+// Las filas del estado de resultados del Café: mes elegido contra el anterior.
+function filasCafe(d, abrir, abrirGastos) {
+  const b = d.anterior;
+  const ventaAnt = Object.fromEntries((b?.rubros || []).map(r => [r.rubro, r]));
+  const gastos = (d.gastos_bloques || []).flatMap(bl => bl.conceptos || []);
+  const gastosAnt = Object.fromEntries((b?.gastos_bloques || []).flatMap(bl => bl.conceptos || []).map(c => [c.nombre, Number(c.monto) || 0]));
+  const sinGastos = !d.gastos_cargados;
+  const imp = d.impuestos, impAnt = b?.impuestos;
+  return [
+    ...filasVentaBruta(d.desglose_fiscal, b?.desglose_fiscal),
+    { tipo: 'sub', label: 'Venta neta', actual: d.venta_neta, anterior: b?.venta_neta, onEditar: () => abrir('venta'), accion: 'Ver detalle' },
+    ...d.rubros.map(r => ({ tipo: 'det', label: r.rubro, actual: r.venta, anterior: ventaAnt[r.rubro]?.venta ?? null })),
+    { tipo: 'grp', label: 'Costo de mercadería', actual: d.cmv_total, anterior: b?.cmv_total, costo: true, onEditar: () => abrir('cmv') },
+    ...d.rubros.map(r => ({
+      tipo: 'det',
+      label: r.cmv_pct == null ? <>{r.rubro} · <span className="text-amber-600 font-semibold">sin %</span></> : `${r.rubro} · ${r.cmv_pct}%`,
+      actual: r.costo, anterior: ventaAnt[r.rubro]?.costo ?? null, costo: true,
+    })),
+    { tipo: 'sub', label: 'Margen bruto', actual: d.margen_bruto, anterior: b?.margen_bruto },
+    { tipo: 'grp', label: 'Gastos operativos', actual: d.total_gastos, anterior: b?.gastos_cargados ? b.total_gastos : null, costo: true, sinCargar: sinGastos, onEditar: abrirGastos },
+    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0 || gastosAnt[c.nombre] > 0).map(c => (
+      { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, anterior: gastosAnt[c.nombre] ?? null, costo: true }
+    ))),
+    { tipo: 'sub', label: 'EBITDA', actual: d.ebitda, anterior: b?.gastos_cargados ? b.ebitda : null, incompleto: sinGastos },
+    { tipo: 'grp', label: 'Impuestos', actual: imp.total, anterior: impAnt?.total, costo: true, onEditar: () => abrir('impuestos') },
+    { tipo: 'det', label: `Ingresos brutos · ${imp.iibb_pct}% de la venta`, actual: imp.iibb, anterior: impAnt?.iibb, costo: true },
+    ...(imp.imp_gen_pct || impAnt?.imp_gen ? [{ tipo: 'det', label: `Impuestos generales · ${imp.imp_gen_pct}% del EBITDA`, actual: imp.imp_gen, anterior: impAnt?.imp_gen, costo: true }] : []),
+    ...(imp.fee_marca_pct || impAnt?.fee_marca ? [{ tipo: 'det', label: `Fee de marca · ${imp.fee_marca_pct}% del EBITDA`, actual: imp.fee_marca, anterior: impAnt?.fee_marca, costo: true }] : []),
+    { tipo: 'fin', label: 'Resultado neto', actual: d.resultado_neto, anterior: b?.gastos_cargados ? b.resultado_neto : null, incompleto: sinGastos },
+  ];
+}
+
 // ── Componente principal ───────────────────────────────────────────────────────
 
 export default function EerrCafeteriaSection({ localId, mes }) {
@@ -360,12 +352,16 @@ export default function EerrCafeteriaSection({ localId, mes }) {
 
   useEffect(() => {
     if (!localId || !mes) return;
+    // Si cambian el mes mientras carga, la respuesta vieja se descarta: si no, podía
+    // llegar después y mostrar otro mes con el título del elegido.
+    let vigente = true;
     setLoading(true);
     setData(null);
     api.get('/red/eerr/cafeteria', { params: { local_id: localId, mes } })
-      .then(r => setData(r.data.data))
+      .then(r => { if (vigente) setData(r.data.data); })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (vigente) setLoading(false); });
+    return () => { vigente = false; };
   }, [localId, mes]);
 
   async function reload() {
@@ -408,15 +404,6 @@ export default function EerrCafeteriaSection({ localId, mes }) {
     return <div className="card p-8 text-center text-stone-400 mt-4">Sin datos para el período seleccionado.</div>;
   }
 
-  const ventaSubtitle = [
-    ...data.rubros.slice(0, 2).map(r => `${r.rubro} ${Math.round(r.pct_venta)}%`),
-    ...(data.desglose_fiscal?.tiene_fiscal ? ['facturado sin IVA'] : []),
-  ].join(' · ');
-
-  const gastosSubtitle = data.gastos_cargados
-    ? (data.gastos_bloques || []).flatMap(b => b.conceptos || []).filter(c => c.monto > 0).slice(0, 3).map(c => c.nombre).join(' · ')
-    : 'Sin cargar · tocá para cargarlos';
-
   return (
     <>
       {data.rubros_sin_pct.length > 0 && (
@@ -430,51 +417,8 @@ export default function EerrCafeteriaSection({ localId, mes }) {
         </div>
       )}
 
-      {/* Cascada */}
-      <div className="card p-4 mt-4">
-        <CascadeCard
-          title="Venta Neta" subtitle={ventaSubtitle}
-          value={data.venta_neta} pct={100}
-          onClick={() => setOpenModal('venta')} sk="venta"
-        />
-        <Connector sign="−" />
-        <CascadeCard
-          title="CMV"
-          subtitle={`CMV pond. ${fmtP(data.cmv_ponderado_pct)} · click para editar %`}
-          value={data.cmv_total} pct={data.pcts.cmv}
-          onClick={() => setOpenModal('cmv')} sk="cmv"
-        />
-        <Connector sign="=" />
-        <CascadeCard
-          title="Margen Bruto" subtitle="Venta Neta − CMV"
-          value={data.margen_bruto} pct={data.pcts.margen_bruto}
-          onClick={() => {}} sk="margen"
-        />
-        <Connector sign="−" />
-        <CascadeCard
-          title="Gastos Operativos" subtitle={gastosSubtitle}
-          value={data.total_gastos} pct={data.pcts.gastos}
-          onClick={openGastos} sk="gastos"
-        />
-        <Connector sign="=" />
-        <CascadeCard
-          title="EBITDA" subtitle="Margen Bruto − Gastos"
-          value={data.ebitda} pct={data.pcts.ebitda}
-          onClick={() => {}} sk="ebitda"
-        />
-        <Connector sign="−" />
-        <CascadeCard
-          title="Impuestos y Fee Marca"
-          subtitle={`IIBB ${data.impuestos.iibb_pct}% de la venta · Imp. ${data.impuestos.imp_gen_pct}% y Fee ${data.impuestos.fee_marca_pct}% del EBITDA`}
-          value={data.impuestos.total} pct={data.pcts.impuestos}
-          onClick={() => setOpenModal('impuestos')} sk="impuestos"
-        />
-        <Connector sign="=" />
-        <CascadeCard
-          title="Resultado Neto" subtitle="EBITDA − Impuestos"
-          value={data.resultado_neto} pct={data.pcts.resultado_neto}
-          onClick={() => {}} sk="resultado"
-        />
+      <div className="mt-4">
+        <EstadoResultados filas={filasCafe(data, setOpenModal, openGastos)} ventaNeta={data.venta_neta} mesLabel={mesLabel(mes)} anteriorLabel={mesLabel(data.mes_anterior)} />
       </div>
 
       {/* Modales */}

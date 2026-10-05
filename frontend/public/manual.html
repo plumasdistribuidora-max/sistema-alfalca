@@ -1757,12 +1757,12 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p>Arriba elegís cómo mirarlo:</p>
       <ul class="simple">
         <li><strong>Red</strong>: un mes, con una columna por local, el total de las tiendas y el total de la red. Tocando el nombre de un local se abre su detalle.</li>
-        <li><strong>Por local</strong>: la cascada de un local en un mes. Arranca en lo que se vendió y va restando hasta llegar a lo que quedó.</li>
+        <li><strong>Por local</strong>: el estado de resultados de un local, como lo arma un contador. Arranca en lo que se vendió y va restando hasta lo que quedó, con cada gasto en su renglón, el mes anterior al lado y cuánto cambió. <em>Editar</em>, al lado de cada bloque, abre la carga.</li>
         <li><strong>Varios meses</strong>: un local en los últimos seis meses, lado a lado.</li>
       </ul>
       <p>
         <strong>Venta neta:</strong> lo que se vendió sin factura entra completo; a lo facturado se
-        le saca el IVA dividiendo por 1,21. El <strong>CMV</strong> de las tiendas se calcula con
+        le saca el IVA dividiendo por 1,21. Arriba de la venta neta, la tabla muestra la <strong>venta bruta</strong> separada en con factura y sin factura, y el IVA que se descuenta. El <strong>CMV</strong> de las tiendas se calcula con
         los % de Entre Dos y Alimendos (90% y 10% de la venta).
       </p>
 
@@ -1780,18 +1780,24 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <span class="m-input" style="flex:1">Peatonal</span>
               <span class="m-input" style="flex:1">Agosto 2026</span>
             </div>
-            <div class="m-cascada">
-              <div class="lin"><span class="op"></span><span><b>Venta Neta</b><em>Entre Dos 90% · Alimendos 10% · facturado sin IVA</em></span><span class="mto">$ 14.180.400</span></div>
-              <div class="lin"><span class="op">−</span><span><b>CMV</b><em>Costo de lo que vendiste</em></span><span class="mto">$ 6.735.690</span></div>
-              <div class="lin"><span class="op">=</span><span><b>Margen Bruto</b><em>Venta Neta − CMV</em></span><span class="mto">$ 7.444.710</span></div>
-              <div class="lin"><span class="op">−</span><span><b>Gastos Operativos</b><em>Comerciales + estructura</em></span><span class="mto">$ 4.120.000</span></div>
-              <div class="lin"><span class="op">=</span><span><b>EBITDA</b><em>Margen Bruto − Gastos Operativos</em></span><span class="mto">$ 3.324.710</span></div>
-              <div class="lin"><span class="op">−</span><span><b>Impuestos</b><em>IIBB · 931 · Ganancias</em></span><span class="mto">$ 1.190.000</span></div>
-              <div class="lin res"><span class="op">=</span><span><b>Resultado Neto</b><em>EBITDA − Impuestos</em></span><span class="mto">$ 2.134.710</span></div>
+            <div class="m-card" style="padding:0;overflow-x:auto">
+              <table class="m-tabla">
+                <thead><tr><th></th><th class="n">Agosto</th><th class="n">% venta</th><th class="n">Julio</th><th class="n">Var.</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Venta neta</b></td><td class="n"><b>$ 14.180.400</b></td><td class="n">100%</td><td class="n">$ 13.540.200</td><td class="n" style="color:#15803D">↑ 4,7%</td></tr>
+                  <tr><td style="padding-left:20px;color:#6B6472">Entre Dos (90%)</td><td class="n">$ 12.762.360</td><td class="n">90%</td><td class="n">$ 12.186.180</td><td class="n" style="color:#15803D">↑ 4,7%</td></tr>
+                  <tr><td><b>Costo de mercadería</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 6.735.690</td><td class="n">47,5%</td><td class="n">− $ 6.431.595</td><td class="n" style="color:#B91C1C">↑ 4,7%</td></tr>
+                  <tr style="background:#F4F2F0"><td><b>Margen bruto</b></td><td class="n"><b>$ 7.444.710</b></td><td class="n">52,5%</td><td class="n">$ 7.108.605</td><td class="n" style="color:#15803D">↑ 4,7%</td></tr>
+                  <tr><td><b>Gastos operativos</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 4.120.000</td><td class="n">29,1%</td><td class="n">− $ 4.050.000</td><td class="n" style="color:#B91C1C">↑ 1,7%</td></tr>
+                  <tr style="background:#F4F2F0"><td><b>EBITDA</b></td><td class="n"><b>$ 3.324.710</b></td><td class="n">23,4%</td><td class="n">$ 3.058.605</td><td class="n" style="color:#15803D">↑ 8,7%</td></tr>
+                  <tr><td><b>Impuestos</b> <span style="font-size:9px;text-decoration:underline dotted">Editar</span></td><td class="n">− $ 1.190.000</td><td class="n">8,4%</td><td class="n">− $ 1.150.000</td><td class="n" style="color:#B91C1C">↑ 3,5%</td></tr>
+                  <tr style="background:#45484c;color:#fff"><td><b>Resultado neto</b></td><td class="n"><b>$ 2.134.710</b></td><td class="n">15,1%</td><td class="n">$ 1.908.605</td><td class="n">↑ 11,8%</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-        <figcaption><b>EERR de un mes.</b> Los gastos y los impuestos se cargan a mano; el resto sale de las ventas importadas.</figcaption>
+        <figcaption><b>EERR de un local, resumido.</b> En la pantalla cada bloque muestra también su detalle. Los gastos y los impuestos se cargan a mano; el resto sale de las ventas importadas.</figcaption>
       </figure>
 
       <p>

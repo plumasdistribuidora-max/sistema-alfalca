@@ -2377,15 +2377,13 @@ function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, impuestos
   const ebitda            = margen_bruto - total_gastos;
   const ebitda_base       = Math.max(ebitda, 0);
 
-  // IIBB se paga sobre la venta; impuestos generales y fee de marca, sobre el EBITDA.
-  // En el Excel solo se restaba IIBB: los otros dos arrancan en 0% y se pueden cargar.
-  const iibb_pct      = impuestosRecord ? n(impuestosRecord.iibb_pct)      : 3;
-  const imp_gen_pct   = impuestosRecord ? n(impuestosRecord.imp_gen_pct)   : 0;
-  const fee_marca_pct = impuestosRecord ? n(impuestosRecord.fee_marca_pct) : 0;
-  const iibb          = Math.round(venta_neta  * iibb_pct      / 100);
-  const imp_gen       = Math.round(ebitda_base * imp_gen_pct   / 100);
-  const fee_marca     = Math.round(ebitda_base * fee_marca_pct / 100);
-  const total_imp     = iibb + imp_gen + fee_marca;
+  // IIBB se paga sobre la venta; impuestos generales, sobre el EBITDA (en el Excel no se
+  // restaban: arranca en 0% y se puede cargar). El Café no paga fee de marca.
+  const iibb_pct    = impuestosRecord ? n(impuestosRecord.iibb_pct)    : 3;
+  const imp_gen_pct = impuestosRecord ? n(impuestosRecord.imp_gen_pct) : 0;
+  const iibb        = Math.round(venta_neta  * iibb_pct    / 100);
+  const imp_gen     = Math.round(ebitda_base * imp_gen_pct / 100);
+  const total_imp   = iibb + imp_gen;
 
   const resultado_neto = ebitda - total_imp;
 
@@ -2403,8 +2401,8 @@ function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, impuestos
     gastos_cargados:  total_gastos > 0,
     ebitda:           Math.round(ebitda),
     impuestos: {
-      iibb_pct, imp_gen_pct, fee_marca_pct,
-      iibb, imp_gen, fee_marca,
+      iibb_pct, imp_gen_pct,
+      iibb, imp_gen,
       total: total_imp,
     },
     resultado_neto: Math.round(resultado_neto),
@@ -2513,7 +2511,7 @@ router.post('/eerr/cafeteria/gastos', requireAuth, async (req, res) => {
 
 router.post('/eerr/cafeteria/impuestos', requireAuth, async (req, res) => {
   try {
-    const { local_id, mes, iibb_pct, imp_gen_pct, fee_marca_pct } = req.body;
+    const { local_id, mes, iibb_pct, imp_gen_pct } = req.body;
     if (!local_id || !mes) return res.status(400).json({ ok: false, error: 'local_id y mes requeridos' });
     await pool.query(`
       INSERT INTO eerr_cafeteria_impuestos (local_id, mes, iibb_pct, imp_gen_pct, fee_marca_pct, updated_at)
@@ -2521,7 +2519,7 @@ router.post('/eerr/cafeteria/impuestos', requireAuth, async (req, res) => {
       ON CONFLICT (local_id, mes) DO UPDATE
         SET iibb_pct=EXCLUDED.iibb_pct, imp_gen_pct=EXCLUDED.imp_gen_pct,
             fee_marca_pct=EXCLUDED.fee_marca_pct, updated_at=NOW()
-    `, [local_id, mes, parseFloat(iibb_pct) ?? 3, parseFloat(imp_gen_pct) ?? 30, parseFloat(fee_marca_pct) ?? 4]);
+    `, [local_id, mes, parseFloat(iibb_pct) || 0, parseFloat(imp_gen_pct) || 0, 0]);   // el Café no paga fee
     res.json({ ok: true });
   } catch (err) {
     console.error('[red/eerr/cafeteria/impuestos]', err);

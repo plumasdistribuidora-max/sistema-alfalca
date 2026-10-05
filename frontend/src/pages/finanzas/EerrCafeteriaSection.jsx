@@ -235,13 +235,12 @@ function GastosModal({ ventaNeta, editGastos, setEditGastos, onClose, onSave, sa
   );
 }
 
-// ── Popup: Impuestos y fee marca ───────────────────────────────────────────────
+// ── Popup: Impuestos ───────────────────────────────────────────────────────────
 
 function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, localId, mes }) {
   const [edit,   setEdit]   = useState({
     iibb_pct:      String(impuestosData?.iibb_pct      ?? 3),
     imp_gen_pct:   String(impuestosData?.imp_gen_pct   ?? 0),
-    fee_marca_pct: String(impuestosData?.fee_marca_pct ?? 0),
   });
   const [saving, setSaving] = useState(false);
 
@@ -250,7 +249,6 @@ function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, lo
   const items = [
     { key: 'iibb_pct',      label: 'Ingresos Brutos',     base: ventaNeta,   sobre: 'de la venta' },
     { key: 'imp_gen_pct',   label: 'Impuestos generales', base: ebitda_base, sobre: 'del EBITDA' },
-    { key: 'fee_marca_pct', label: 'Fee Marca',           base: ebitda_base, sobre: 'del EBITDA' },
   ];
   const monto      = it => Math.round(it.base * (parseFloat(edit[it.key]) || 0) / 100);
   const totalMonto = items.reduce((s, it) => s + monto(it), 0);
@@ -262,7 +260,6 @@ function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, lo
         local_id: localId, mes,
         iibb_pct:      parseFloat(edit.iibb_pct)      || 0,
         imp_gen_pct:   parseFloat(edit.imp_gen_pct)   || 0,
-        fee_marca_pct: parseFloat(edit.fee_marca_pct) || 0,
       });
       onSaved();
     } catch (err) {
@@ -274,7 +271,7 @@ function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, lo
   }
 
   return (
-    <ModalShell title={`Impuestos y Fee · ${mesLabel(mes)}`} onClose={onClose} onSave={save} saving={saving}>
+    <ModalShell title={`Impuestos · ${mesLabel(mes)}`} onClose={onClose} onSave={save} saving={saving}>
       <div className="text-sm space-y-3">
         <p className="text-stone-400 text-xs">Venta neta {fmt$(ventaNeta)} · EBITDA {fmt$(ebitda_base)}</p>
         <div className="rounded-xl border border-stone-100 overflow-hidden">
@@ -334,7 +331,6 @@ function filasCafe(d, abrir, abrirGastos) {
     { tipo: 'grp', label: 'Impuestos', actual: imp.total, costo: true, onEditar: () => abrir('impuestos') },
     { tipo: 'det', label: `Ingresos brutos · ${imp.iibb_pct}% de la venta`, actual: imp.iibb, costo: true },
     ...(imp.imp_gen_pct ? [{ tipo: 'det', label: `Impuestos generales · ${imp.imp_gen_pct}% del EBITDA`, actual: imp.imp_gen, costo: true }] : []),
-    ...(imp.fee_marca_pct ? [{ tipo: 'det', label: `Fee de marca · ${imp.fee_marca_pct}% del EBITDA`, actual: imp.fee_marca, costo: true }] : []),
     { tipo: 'fin', label: 'Resultado neto', actual: d.resultado_neto, incompleto: sinGastos },
   ];
 }

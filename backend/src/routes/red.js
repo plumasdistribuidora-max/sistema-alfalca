@@ -1635,6 +1635,11 @@ function gastosDelMes(record, plantilla, fallback) {
   return g?.bloques?.length > 0 ? g : (plantilla || fallback);
 }
 
+// Lo que cobran las tarjetas: un % de toda la venta bruta (con y sin factura), 2% por defecto.
+function costoTarjetas(fiscalData, pct) {
+  return (fiscalData.bruto_fiscal + fiscalData.bruto_no_fiscal) * pct / 100;
+}
+
 function calcEerr(fiscalData, record, plantilla = null) {
   const { bruto_no_fiscal, neto_fiscal } = fiscalData;
   const venta_neta = bruto_no_fiscal + neto_fiscal;
@@ -1643,6 +1648,7 @@ function calcEerr(fiscalData, record, plantilla = null) {
   const cmv_alim_pct  = record != null ? n(record.cmv_alim_pct) : 70;
   const fee_marca_pct = record?.fee_marca_pct != null ? n(record.fee_marca_pct) : 2;
   const fee_mkt_pct   = record?.fee_mkt_pct   != null ? n(record.fee_mkt_pct)   : 2;
+  const tarjeta_pct   = record?.tarjeta_pct   != null ? n(record.tarjeta_pct)   : 2;
   const gastos       = gastosDelMes(record, plantilla, DEFAULT_GASTOS);
   const imp          = record?.impuestos || { iibb: 0, novecientos31: 0, ganancias: 0 };
 
@@ -1655,8 +1661,9 @@ function calcEerr(fiscalData, record, plantilla = null) {
   const fee_marca       = cmv_e2 * fee_marca_pct / 100;
   const fee_mkt         = cmv_e2 * fee_mkt_pct / 100;
   const total_fees      = fee_marca + fee_mkt;
+  const costo_tarjetas  = costoTarjetas(fiscalData, tarjeta_pct);
   const total_gastos    = calcTotalGastos(gastos);
-  const ebitda          = margen_bruto - total_fees - total_gastos;
+  const ebitda          = margen_bruto - total_fees - costo_tarjetas - total_gastos;
   const iibb            = n(imp.iibb);
   const novecientos31   = n(imp.novecientos31);
   const ganancias       = n(imp.ganancias);
@@ -1670,6 +1677,7 @@ function calcEerr(fiscalData, record, plantilla = null) {
     cmv_e2_pct, cmv_alim_pct, cmv,
     margen_bruto,
     fees: { marca: fee_marca, mkt: fee_mkt, total: total_fees, marca_pct: fee_marca_pct, mkt_pct: fee_mkt_pct },
+    tarjetas: { pct: tarjeta_pct, monto: costo_tarjetas },
     gastos_bloques: gastos.bloques,
     total_gastos,
     gastos_cargados: total_gastos > 0,
@@ -2350,7 +2358,7 @@ const DEFAULT_GASTOS_CAFETERIA = {
   }],
 };
 
-function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, impuestosRecord }) {
+function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, tarjetaPct, impuestosRecord }) {
   const venta_neta = fiscalData.bruto_no_fiscal + fiscalData.neto_fiscal;
 
   // Lo que vendió cada rubro (según los ítems) sirve solo como proporción: el monto sale
@@ -2373,8 +2381,9 @@ function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, impuestos
   const cmv_total         = rubros.reduce((s, r) => s + r.costo, 0);
   const rubros_sin_pct    = rubros.filter(r => r.cmv_pct == null && r.venta > 0).map(r => r.rubro);
   const margen_bruto      = venta_neta - cmv_total;
+  const costo_tarjetas    = costoTarjetas(fiscalData, tarjetaPct);
   const total_gastos      = calcTotalGastos(gastos);
-  const ebitda            = margen_bruto - total_gastos;
+  const ebitda            = margen_bruto - costo_tarjetas - total_gastos;
   const ebitda_base       = Math.max(ebitda, 0);
 
   // IIBB se paga sobre la venta; impuestos generales, sobre el EBITDA (en el Excel no se
@@ -2396,6 +2405,7 @@ function calcEerrCafeteria({ fiscalData, rubrosBrutos, pctMap, gastos, impuestos
     cmv_total:        Math.round(cmv_total),
     cmv_ponderado_pct: p(cmv_total),
     margen_bruto:     Math.round(margen_bruto),
+    tarjetas:         { pct: tarjetaPct, monto: Math.round(costo_tarjetas) },
     gastos_bloques:   gastos.bloques,
     total_gastos:     Math.round(total_gastos),
     gastos_cargados:  total_gastos > 0,
@@ -2449,6 +2459,7 @@ async function eerrCafe(local_id, mes) {
     rubrosBrutos:    rubrosR.rows.map(r => ({ rubro: r.rubro, venta: n(r.venta) })).filter(r => r.venta > 0),
     pctMap:          Object.fromEntries(pctR.rows.map(r => [r.categoria, n(r.cmv_pct)])),
     gastos:          gastosDelMes(gastosR.rows[0], plantilla, DEFAULT_GASTOS_CAFETERIA),
+    tarjetaPct:      gastosR.rows[0]?.tarjeta_pct != null ? n(gastosR.rows[0].tarjeta_pct) : 2,
     impuestosRecord: impR.rows[0] || null,
   });
 }
@@ -2469,6 +2480,25 @@ router.get('/eerr/cafeteria', requireAuth, async (req, res) => {
     res.json({ ok: true, data: { local: localR.rows[0], mes, ...(await eerrCafe(local_id, mes)) } });
   } catch (err) {
     console.error('[red/eerr/cafeteria GET]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// El % del costo de tarjetas de un local en un mes (tiendas y Café).
+router.post('/eerr/tarjeta', requireAuth, async (req, res) => {
+  try {
+    const { local_id, mes } = req.body;
+    const pct = parseFloat(req.body.tarjeta_pct);
+    if (!local_id || !/^\d{4}-\d{2}$/.test(mes || '') || !Number.isFinite(pct))
+      return res.status(400).json({ ok: false, error: 'local_id, mes y tarjeta_pct requeridos' });
+    await pool.query(`
+      INSERT INTO eerr_local (local_id, mes, tarjeta_pct, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (local_id, mes) DO UPDATE SET tarjeta_pct = EXCLUDED.tarjeta_pct, updated_at = NOW()
+    `, [local_id, mes, pct]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[red/eerr/tarjeta]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
@@ -2554,7 +2584,7 @@ async function resumenEerr(local, mes) {
     return {
       ...resumenBruta(e.desglose_fiscal),
       venta_neta: Math.round(e.venta_neta), cmv: Math.round(e.cmv), margen_bruto: Math.round(e.margen_bruto),
-      fees: Math.round(e.fees.total), gastos: Math.round(e.total_gastos), ebitda: Math.round(e.ebitda),
+      fees: Math.round(e.fees.total), tarjetas: Math.round(e.tarjetas.monto), gastos: Math.round(e.total_gastos), ebitda: Math.round(e.ebitda),
       impuestos: Math.round(e.impuestos.total), resultado_neto: Math.round(e.resultado_neto),
       gastos_cargados: e.gastos_cargados, impuestos_cargados: e.impuestos_cargados,
     };
@@ -2563,7 +2593,7 @@ async function resumenEerr(local, mes) {
   return {
     ...resumenBruta(e.desglose_fiscal),
     venta_neta: e.venta_neta, cmv: e.cmv_total, margen_bruto: e.margen_bruto,
-    gastos: e.total_gastos, ebitda: e.ebitda,
+    fees: 0, tarjetas: e.tarjetas.monto, gastos: e.total_gastos, ebitda: e.ebitda,   // el Café no paga fee
     impuestos: e.impuestos.total, resultado_neto: e.resultado_neto,
     gastos_cargados: e.gastos_cargados, impuestos_cargados: true,
     rubros_sin_pct: e.rubros_sin_pct,

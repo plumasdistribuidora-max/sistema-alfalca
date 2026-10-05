@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { fmtARS, fmtPct, shortName } from '../redUtils';
 import EerrCafeteriaSection from '../../finanzas/EerrCafeteriaSection';
-import { AvisoPlanilla, EerrRed, EerrAnio, EstadoResultados, FiscalDesglose, filasHistorico, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
+import { AvisoPlanilla, EditarTarjeta, EerrRed, EerrAnio, EstadoResultados, FiscalDesglose, filasHistorico, filasVentaBruta, mesEnCurso } from '../../finanzas/EerrTablas';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -331,6 +331,7 @@ function filasTienda(a, abrir) {
     { tipo: 'grp', label: 'Fees de la marca', actual: a.fees.total, costo: true, onEditar: () => abrir('fees') },
     { tipo: 'det', label: `Fee de marca · ${a.fees.marca_pct}% de la compra a Entre Dos`, actual: a.fees.marca, costo: true },
     { tipo: 'det', label: `Fee de marketing · ${a.fees.mkt_pct}% de la compra a Entre Dos`, actual: a.fees.mkt, costo: true },
+    { tipo: 'grp', label: `Costo de tarjetas · ${a.tarjetas.pct}% de la venta bruta`, texto: 'Costo de tarjetas', actual: a.tarjetas.monto, costo: true, onEditar: () => abrir('tarjeta') },
     { tipo: 'grp', label: 'Gastos operativos', actual: a.total_gastos, costo: true, sinCargar: sinGastos, onEditar: () => abrir('gastos') },
     ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
       { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
@@ -600,6 +601,19 @@ export default function EerrSection() {
         <ModalShell title={`Fees de la marca · ${ml}`} onClose={() => setOpenModal(null)} onSave={handleSaveFees} saving={saving}>
           <FeesContent compraE2={a.venta_e2 * a.cmv_e2_pct / 100} ventaNeta={a.venta_neta} editFees={editFees} setEditFees={setEditFees} />
         </ModalShell>
+      )}
+
+      {openModal === 'tarjeta' && a && (
+        <EditarTarjeta
+          localId={selLocal} mes={selMes} mesLabel={ml} pct={a.tarjetas.pct}
+          ventaBruta={a.desglose_fiscal.bruto_fiscal + a.desglose_fiscal.bruto_no_fiscal}
+          onClose={() => setOpenModal(null)}
+          onSaved={async () => {
+            const r = await api.get('/red/eerr', { params: { local_id: selLocal, mes: selMes } });
+            setData(r.data.data);
+            setOpenModal(null);
+          }}
+        />
       )}
 
       {openModal === 'impuestos' && a && (

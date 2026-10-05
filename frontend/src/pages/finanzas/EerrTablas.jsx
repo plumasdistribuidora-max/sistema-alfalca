@@ -74,6 +74,7 @@ const FILAS = [
   { key: 'cmv',            label: 'CMV' },
   { key: 'margen_bruto',   label: 'Margen bruto',      fuerte: true },
   { key: 'fees',           label: 'Fees de la marca', opcional: true },
+  { key: 'tarjetas',       label: 'Costo de tarjetas', opcional: true },
   { key: 'gastos',         label: 'Gastos operativos', falta: c => !c.gastos_cargados },
   { key: 'ebitda',         label: 'EBITDA',            fuerte: true, incompleto: c => !c.gastos_cargados },
   { key: 'otros',          label: 'Amortizaciones y otros', opcional: true },
@@ -330,6 +331,56 @@ export function AvisoPlanilla({ fuente }) {
     <div className="bg-stone-100 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-600">
       <strong className="text-stone-800">Mes de planilla:</strong> estos números están tal cual en la planilla de Excel, no se recalculan ni se editan acá.
       {fuente && <span className="block text-xs text-stone-400 mt-0.5">{fuente}</span>}
+    </div>
+  );
+}
+
+// Editar el % del costo de tarjetas de un local en un mes.
+export function EditarTarjeta({ localId, mes, mesLabel, pct, ventaBruta, onClose, onSaved }) {
+  const [valor, setValor] = useState(String(pct));
+  const [guardando, setGuardando] = useState(false);
+  const monto = ventaBruta * (parseFloat(valor) || 0) / 100;
+
+  async function guardar() {
+    setGuardando(true);
+    try {
+      await api.post('/red/eerr/tarjeta', { local_id: localId, mes, tarjeta_pct: parseFloat(valor) || 0 });
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el costo de tarjetas.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+          <h3 className="font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>Costo de tarjetas · {mesLabel}</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-400">✕</button>
+        </div>
+        <div className="px-6 py-4 space-y-3 text-sm">
+          <p className="text-stone-500">Es un % de toda la venta bruta del mes: <strong className="text-stone-800">{fmt$(ventaBruta)}</strong>.</p>
+          <div className="flex items-center justify-between rounded-xl border border-stone-100 px-4 py-3">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number" min="0" max="100" step="0.1" value={valor}
+                onChange={e => setValor(e.target.value)}
+                className="w-20 text-right rounded-lg border border-stone-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+              />
+              <span className="text-stone-400">%</span>
+            </div>
+            <span className="font-bold text-stone-800">{fmt$(monto)}</span>
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-stone-100">
+          <button onClick={guardar} disabled={guardando} className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-50" style={{ background: '#45484c' }}>
+            {guardando ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

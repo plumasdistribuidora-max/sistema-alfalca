@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api';
 import { fmtARS, fmtPct } from '../red/redUtils';
-import { AvisoPlanilla, EstadoResultados, FiscalDesglose, filasHistorico, filasVentaBruta } from './EerrTablas';
+import { AvisoPlanilla, EditarTarjeta, EstadoResultados, FiscalDesglose, filasHistorico, filasVentaBruta } from './EerrTablas';
 
 const MESES_FULL = {
   '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril',
@@ -323,6 +323,7 @@ function filasCafe(d, abrir, abrirGastos) {
       actual: r.costo, costo: true,
     })),
     { tipo: 'sub', label: 'Margen bruto', actual: d.margen_bruto },
+    { tipo: 'grp', label: `Costo de tarjetas · ${d.tarjetas.pct}% de la venta bruta`, actual: d.tarjetas.monto, costo: true, onEditar: () => abrir('tarjeta') },
     { tipo: 'grp', label: 'Gastos operativos', actual: d.total_gastos, costo: true, sinCargar: sinGastos, onEditar: abrirGastos },
     ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
       { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
@@ -440,6 +441,14 @@ export default function EerrCafeteriaSection({ localId, mes }) {
           onClose={() => setOpenModal(null)}
           onSave={handleSaveGastos}
           saving={saving}
+        />
+      )}
+      {openModal === 'tarjeta' && (
+        <EditarTarjeta
+          localId={localId} mes={mes} mesLabel={mesLabel(mes)} pct={data.tarjetas.pct}
+          ventaBruta={data.desglose_fiscal.bruto_fiscal + data.desglose_fiscal.bruto_no_fiscal}
+          onClose={() => setOpenModal(null)}
+          onSaved={reload}
         />
       )}
       {openModal === 'impuestos' && (

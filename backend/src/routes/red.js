@@ -633,8 +633,18 @@ router.get('/comparativo', requireAuth, async (req, res) => {
   try {
     const range = parseRange(req);
     if (!range) return res.status(400).json({ ok: false, error: 'Fechas inválidas (YYYY-MM-DD)' });
-    const [desde, hasta] = range;
+    const desde = range[0];
+    let   hasta = range[1];
     if (desde > hasta) return res.status(400).json({ ok: false, error: 'La fecha de inicio es posterior a la de fin' });
+
+    // El período se corta en el último día con ventas cargadas. Si no, "Mes en
+    // curso" llega hasta hoy sin el import de hoy y compara, por ejemplo, 8 días
+    // de octubre contra 9 de septiembre: todas las variaciones salen para abajo.
+    const ultimaFecha = (await pool.query(
+      `SELECT MAX(fecha)::text AS f FROM ventas_tickets WHERE estado = 'cerrada'`
+    )).rows[0]?.f;
+    const pedidoHasta = hasta;
+    if (ultimaFecha && hasta > ultimaFecha && desde <= ultimaFecha) hasta = ultimaFecha;
 
     const { rows } = await pool.query(`
       WITH p AS (
@@ -792,7 +802,7 @@ router.get('/comparativo', requireAuth, async (req, res) => {
     res.json({
       ok: true,
       data: {
-        periodo:   { desde, hasta, n_dias: nDias },
+        periodo:   { desde, hasta, n_dias: nDias, recortado: hasta !== pedidoHasta },
         mes_ant:   { desde: shift(desde, 'month', 1), hasta: shift(hasta, 'month', 1) },
         anio_ant:  { desde: shift(desde, 'year', 1),  hasta: shift(hasta, 'year', 1)  },
         prom_anio: { anio: Number(desde.slice(0, 4)) },

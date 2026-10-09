@@ -381,8 +381,9 @@ export default function ResumenSection() {
                 Comparativo por tienda
               </h2>
               <p className="text-xs text-stone-400 mt-0.5">
-                {fmtRango(periodo.desde, periodo.hasta)}
+                {fmtRango(comp?.periodo.desde ?? periodo.desde, comp?.periodo.hasta ?? periodo.hasta)}
                 {comp && ` · ${comp.periodo.n_dias} ${comp.periodo.n_dias === 1 ? 'día' : 'días'}`}
+                {comp?.periodo.recortado && ' (hasta la última venta cargada)'}
                 {' · ranking por facturación'}
               </p>
             </div>
@@ -403,7 +404,7 @@ export default function ResumenSection() {
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-0.5">
-                    Total red · {fmtRango(periodo.desde, periodo.hasta)}
+                    Total red · {fmtRango(comp.periodo.desde, comp.periodo.hasta)}
                   </p>
                   <p className="text-3xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
                     {fmtARS(comp.total.actual)}

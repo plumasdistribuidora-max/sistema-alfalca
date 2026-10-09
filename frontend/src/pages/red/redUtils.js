@@ -117,7 +117,10 @@ export function correrFecha(isoStr, unidad, cantidad) {
 
 /** Rangos rápidos para el selector de período. */
 export function rangosRapidos() {
-  const hoy = new Date();
+  // "Hoy" es la fecha de acá, no la UTC: después de las 21 h de Mendoza la UTC
+  // ya es mañana. Se arma al mediodía UTC para que iso() no la corra.
+  const ahora = new Date();
+  const hoy = new Date(Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 12));
   const y = hoy.getUTCFullYear(), m = hoy.getUTCMonth();
   const finMesAnt = new Date(Date.UTC(y, m, 0));
   return [

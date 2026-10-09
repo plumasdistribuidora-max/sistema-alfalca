@@ -57,16 +57,19 @@ function VarBadge({ v }) {
   );
 }
 
-// Variación de tabla. El absoluto contra el que compara va en el title, para
-// que la celda quede legible pero el dato duro esté a un hover.
-function VarCell({ v, referencia }) {
-  if (v === null || v === undefined)
-    return <span className="text-stone-300" title={referencia}>—</span>;
+// Variación de tabla: el % arriba y, debajo, el monto contra el que compara,
+// para que el porcentaje no quede en el aire.
+function VarCell({ v, monto }) {
   const pos = Number(v) >= 0;
   return (
-    <span className={`font-semibold ${pos ? 'text-emerald-600' : 'text-red-500'}`} title={referencia}>
-      {pos ? '▲' : '▼'}{Math.abs(Number(v))}%
-    </span>
+    <div className="leading-tight">
+      {v === null || v === undefined
+        ? <span className="text-stone-300">—</span>
+        : <span className={`font-semibold ${pos ? 'text-emerald-600' : 'text-red-500'}`}>
+            {pos ? '▲' : '▼'}{Math.abs(Number(v))}%
+          </span>}
+      <div className="text-[10.5px] text-stone-500 tabular-nums">{monto}</div>
+    </div>
   );
 }
 
@@ -343,10 +346,22 @@ export default function ResumenSection() {
   }
 
   const mesesConDato = comp?.tiendas?.[0]?.meses_promedio ?? 0;
+  // Las fechas cortas debajo de cada encabezado: el año solo cuando no es el del período.
+  const anioPer = comp?.periodo.desde.slice(0, 4);
+  const corto = (d, h) => {
+    const r = fmtRango(d, h);
+    return d.slice(0, 4) === anioPer && h.slice(0, 4) === anioPer ? r.replace(/ \d{4}$/, '') : r;
+  };
+  const diasPer = comp && comp.periodo.desde.slice(0, 7) === comp.periodo.hasta.slice(0, 7)
+    ? `${Number(comp.periodo.desde.slice(8))}–${Number(comp.periodo.hasta.slice(8))} · `
+    : '';
   const COLS = [
-    { key: 'mes_ant',   varKey: 'var_mes_ant',   head: 'vs mes ant.',  sub: comp && fmtRango(comp.mes_ant.desde, comp.mes_ant.hasta) },
-    { key: 'prom_anio', varKey: 'var_prom_anio', head: 'vs prom. año', sub: comp && `promedio de ${mesesConDato} meses de ${comp.prom_anio.anio}` },
-    { key: 'anio_ant',  varKey: 'var_anio_ant',  head: 'vs año pas.',  sub: comp && fmtRango(comp.anio_ant.desde, comp.anio_ant.hasta) },
+    { key: 'mes_ant',   varKey: 'var_mes_ant',   head: 'vs mes ant.',  sub: comp && fmtRango(comp.mes_ant.desde, comp.mes_ant.hasta),
+      fechas: comp && corto(comp.mes_ant.desde, comp.mes_ant.hasta) },
+    { key: 'prom_anio', varKey: 'var_prom_anio', head: 'vs prom. año', sub: comp && `promedio de ${mesesConDato} meses de ${comp.prom_anio.anio}`,
+      fechas: comp && `${diasPer}${mesesConDato} meses` },
+    { key: 'anio_ant',  varKey: 'var_anio_ant',  head: 'vs año pas.',  sub: comp && fmtRango(comp.anio_ant.desde, comp.anio_ant.hasta),
+      fechas: comp && corto(comp.anio_ant.desde, comp.anio_ant.hasta) },
   ];
 
   return (
@@ -455,15 +470,22 @@ export default function ResumenSection() {
                   <VarBadge v={t.facturacion.var_mes_ant} />
                 </div>
 
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-stone-100">
                       <th className="text-left pb-1.5 text-stone-400 font-medium" />
-                      <th className="text-right pb-1.5 text-stone-700 font-semibold pr-2">Período</th>
+                      <th className="text-right pb-1.5 text-stone-700 font-semibold pr-2 align-bottom">
+                        Período
+                        <div className="text-[10px] font-normal text-stone-400 whitespace-normal leading-tight">
+                          {corto(comp.periodo.desde, comp.periodo.hasta)}
+                        </div>
+                      </th>
                       {COLS.map(c => (
-                        <th key={c.key} className="text-right pb-1.5 text-stone-400 font-medium pr-2 whitespace-nowrap"
+                        <th key={c.key} className="text-right pb-1.5 text-stone-400 font-medium pl-1.5 whitespace-nowrap align-bottom"
                             title={c.sub}>
                           {c.head}
+                          <div className="text-[10px] font-normal text-stone-400 whitespace-normal leading-tight">{c.fechas}</div>
                         </th>
                       ))}
                     </tr>
@@ -471,19 +493,20 @@ export default function ResumenSection() {
                   <tbody>
                     {filasDe(t).map(fila => (
                       <tr key={fila.key} className="border-b border-stone-50 last:border-0">
-                        <td className="py-1.5 text-stone-500 pr-2 whitespace-nowrap">{fila.label}</td>
+                        <td className="py-1.5 text-stone-500 pr-2 leading-tight">{fila.label}</td>
                         <td className="py-1.5 text-right font-semibold text-stone-800 pr-2 whitespace-nowrap">
                           {fila.fmt(fila.m.actual)}
                         </td>
                         {COLS.map(c => (
-                          <td key={c.key} className="py-1.5 text-right pr-2 whitespace-nowrap">
-                            <VarCell v={fila.m[c.varKey]} referencia={`${c.head} · ${fila.fmt(fila.m[c.key])}`} />
+                          <td key={c.key} className="py-1.5 text-right pl-1.5 whitespace-nowrap">
+                            <VarCell v={fila.m[c.varKey]} monto={fila.fmt(fila.m[c.key])} />
                           </td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             ))}
           </div>

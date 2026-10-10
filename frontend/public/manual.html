@@ -481,8 +481,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
     <p class="tit">El día</p>
     <a href="#mi-reporte"><span class="ic">◈</span>Mi reporte de hoy</a>
-    <a href="#reportes"><span class="ic">☰</span>Reportes del día</a>
-    <a href="#cierre"><span class="ic">✓</span>Cerrar el día</a>
+    <a href="#reportes"><span class="ic">☰</span>Reportes de los turnos</a>
+    <a href="#tareas"><span class="ic">✓</span>Tareas</a>
+    <a href="#aprobar"><span class="ic">◆</span>Aprobar y el tablero</a>
+    <a href="#dia"><span class="ic">☀</span>Reporte del día y avisos</a>
     <a href="#proveedores"><span class="ic">⊡</span>Proveedores</a>
 
     <p class="tit">Análisis</p>
@@ -625,13 +627,13 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
           <tbody>
             <tr>
               <td><strong>Dueño</strong></td>
-              <td>Todo, más la parte de configuración</td>
-              <td>Mira los números y ajusta cómo funciona el sistema</td>
+              <td>Todo, más el tablero de tareas y la configuración</td>
+              <td>Mira el reporte del día y aprueba lo que pide cerrar el encargado</td>
             </tr>
             <tr>
               <td><strong>Encargado General</strong></td>
               <td>Todo menos <strong>Finanzas</strong> y la configuración</td>
-              <td>Revisa los reportes que llegan y cierra el día</td>
+              <td>Resuelve las tareas que levanta el sistema y pide el cierre a los dueños</td>
             </tr>
             <tr>
               <td><strong>Empleado de tienda</strong></td>
@@ -716,7 +718,11 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div><b>alfalca</b><em>grupo inversor · mendoza</em></div>
             </div>
             <p class="m-tit">El día</p>
-            <div class="m-it on"><span class="ic">☰</span>Reportes</div>
+            <div class="m-it"><span class="ic">☀</span>Reporte del día</div>
+            <div class="m-it on"><span class="ic">✓</span>Tareas</div>
+            <div class="m-it"><span class="ic">▥</span>Tablero de tareas</div>
+            <div class="m-it"><span class="ic">☰</span>Reportes de los turnos</div>
+            <div class="m-it"><span class="ic">⇄</span>Proveedores</div>
             <p class="m-tit">Análisis</p>
             <div class="m-it"><span class="ic">⊙</span>Tiendas <span style="margin-left:auto;font-size:8px">▾</span></div>
             <div class="m-it m-sub">Entre Dos <span style="margin-left:auto;font-size:8px">▾</span></div>
@@ -741,7 +747,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         </div>
         <div>
           <ul class="simple">
-            <li><strong>El día</strong> — lo que pasa hoy: los reportes de los turnos y el cierre.</li>
+            <li><strong>El día</strong> — el reporte del día, las tareas, el tablero (solo dueños), los reportes de los turnos y proveedores.</li>
             <li><strong>Análisis</strong> — lo que ya pasó: ventas, stock y plata. <em>Finanzas</em> le aparece solo al dueño.
               <em>Tiendas</em> se abre en las marcas del grupo: <strong>Entre Dos</strong> (el alfajor) tiene adentro el Dashboard, Importar Excel e Historial Excel;
               <strong>Kankay</strong> (la sartén) tiene su <strong>estado de resultados</strong>, que el dueño carga a mano mes por mes (ver <a href="#kankay">Kankay</a>);
@@ -863,7 +869,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         Si otra persona ya envió el reporte de ese mismo turno en tu local, el sistema no te
         deja cargar otro: te dice quién lo cargó. Si vos trabajaste el otro turno, cambiá el
         turno arriba; si es un error, avisale al encargado. Así las ventas de un turno no se
-        cuentan dos veces en el cierre del día.
+        cuentan dos veces.
       </p>
 
       <h3>El check de vencimientos, en dos pasos</h3>
@@ -957,7 +963,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <ul class="simple">
         <li><strong>Ya se solucionó</strong> lo saca de la lista: mañana no aparece más, y al encargado le llega como resuelto.</li>
         <li><strong>Sigue igual</strong> lo deja pendiente y le avisa al encargado que hoy también estaba así.</li>
-        <li>Si el encargado ya dijo qué va a hacer, lo ves debajo del ítem, con <em>Encargado:</em> adelante.</li>
+        <li>Cuando el encargado toma la tarea de ese arreglo, ves debajo del ítem qué va a hacer y para cuándo, con <em>Encargado:</em> adelante.</li>
         <li>Para reportar algo nuevo, <strong>+ Agregar algo más</strong> y lo escribís. Un renglón por cosa: no pongas tres problemas en el mismo, porque después se resuelven por separado.</li>
       </ul>
       <div class="aviso tip">
@@ -976,9 +982,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </p>
       <div class="aviso tip">
         <span class="mk">◆</span>
-        <p>Esto es lo que después explica por qué la caja no coincide con la venta. Al
-        encargado le llega junto con el cierre del día, con el total, y a los dueños en el
-        mensaje de WhatsApp.</p>
+        <p>Esto es lo que después explica por qué la caja no coincide con la venta. Aparece
+        en el <a href="#dia">Reporte del día</a>, con el total.</p>
       </div>
 
       <h3>La factura te avisa si no cierra</h3>
@@ -1030,333 +1035,232 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         están marcando.</p>
       </div>
 
-      <h3>Si el encargado te lo devuelve, o te quedó sin enviar</h3>
+      <h3>Si te quedó sin enviar</h3>
       <p>
-        La pantalla siempre abre el reporte de <em>hoy</em>. Pero si tenés algo de otro día
-        por resolver, arriba de todo aparece un cartel amarillo: <strong>Tenés un reporte por
-        resolver</strong>. Hay dos casos:
-      </p>
-      <ul class="simple">
-        <li><strong>Devuelto por el encargado.</strong> Se ve el comentario con qué tenés que
-        corregir y un botón <em>Corregir</em>. Al tocarlo se abre ese reporte (con su fecha y su
-        turno, que no se pueden cambiar), con el comentario del encargado arriba en rojo.
-        Arreglás lo que haga falta y tocás <em>Enviar corregido</em>. Le vuelve a llegar al
-        encargado como Presentado.</li>
-        <li><strong>Quedó empezado y sin enviar.</strong> Empezaste un reporte un día y no lo
-        mandaste. Aparece con un botón <em>Terminar</em>: lo abrís, completás lo que falte y lo
-        enviás.</li>
-      </ul>
-      <p>
-        Mientras estás corrigiendo, la cabecera se pone roja y dice <em>Corrigiendo</em> con la
-        fecha de ese reporte, para que no lo confundas con el de hoy. Con
-        <em>← Volver al reporte de hoy</em> salís sin perder nada: lo que cambiaste ya quedó
-        guardado.
+        La pantalla siempre abre el reporte de <em>hoy</em>. Si empezaste uno otro día y no lo
+        mandaste, arriba aparece un cartel amarillo con el botón <em>Terminar</em>: lo abrís,
+        completás lo que falte y lo enviás. Mientras tanto la cabecera dice la fecha de ese
+        reporte, para que no lo confundas con el de hoy.
       </p>
 
       <div class="aviso ojo">
         <span class="mk">⚠</span>
-        <p>Si ya lo enviaste y te diste cuenta de un error, no lo podés tocar vos: pedile al
-        encargado que te lo devuelva. Cuando lo haga, te va a aparecer el cartel para corregirlo.</p>
+        <p><strong>Una vez enviado, el reporte queda como está.</strong> Nadie lo devuelve ni lo
+        corrige. Si no lo mandaste a tiempo o las ventas no coinciden con el sistema, eso queda
+        registrado aunque lo cargues después.</p>
       </div>
     </section>
 
-    <!-- ══════════ REPORTES DEL DÍA ══════════ -->
+    <!-- ══════════ REPORTES DE LOS TURNOS ══════════ -->
     <section class="seccion" id="reportes">
       <p class="para-quien">Para el Encargado General y el dueño</p>
-      <h2>Reportes del día</h2>
+      <h2>Reportes de los turnos</h2>
       <p>
-        Es la primera pantalla del menú. Muestra, para un día, todos los turnos que
-        <em>deberían</em> haber cargado reporte, hayan cargado o no.
+        Muestra, para un día, todos los turnos que <em>deberían</em> haber cargado reporte,
+        hayan cargado o no. Tocás un renglón y se abre el reporte para leerlo: las respuestas,
+        las facturas y las fotos (tocá una foto y se ve grande).
       </p>
-
-      <figure class="figura">
-        <div class="mock">
-          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · reportes</span></div>
-          <div class="mock-cuerpo">
-            <div class="m-side">
-              <div class="m-marca"><div class="m-iso"><svg viewBox="0 0 100 100" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A23.5 23.5 0 0 1 53 53Z"/></svg></div><div><b>alfalca</b><em>grupo inversor · mendoza</em></div></div>
-              <p class="m-tit">El día</p>
-              <div class="m-it on"><span class="ic">☰</span>Reportes</div>
-              <p class="m-tit">Análisis</p>
-              <div class="m-it"><span class="ic">⊙</span>Tiendas</div>
-              <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
-              <div class="m-it"><span class="ic">⊛</span>Finanzas</div>
-            </div>
-            <div class="m-main">
-              <div class="m-hdr">
-                <div class="m-eye">Alfalca · Reportes</div>
-                <h5>Lunes, 7 de septiembre</h5>
-              </div>
-
-              <div class="m-fila entre">
-                <div class="m-fila" style="gap:6px">
-                  <span class="m-btn sec" style="padding:4px 9px">◀</span>
-                  <span class="m-input" style="font-variant-numeric:tabular-nums">07/09/2026</span>
-                  <span class="m-btn sec" style="padding:4px 9px">▶</span>
-                </div>
-                <div style="font-size:11px;color:#6B6472">
-                  4 de 6 reportes · <b style="color:#92400E">faltan 2</b>
-                  <span class="marca-n" style="margin-left:6px">1</span>
-                </div>
-              </div>
-
-              <div class="m-card acento">
-                <div class="m-fila entre" style="flex-wrap:wrap;gap:10px">
-                  <div>
-                    <div style="font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#9C94A6;font-weight:700">Reporte del Encargado General</div>
-                    <div class="m-tit" style="font-size:14px">Consolidado del día</div>
-                    <div class="m-sub">No se puede cerrar hasta que lleguen los 2 reportes que faltan.</div>
-                  </div>
-                  <div class="m-fila" style="gap:8px">
-                    <span class="m-pill gris">Sin empezar</span>
-                    <span class="m-btn">Abrir <span class="marca-n" style="margin-left:3px">2</span></span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="m-card" style="display:grid;gap:7px">
-                <div class="m-fila entre">
-                  <span class="m-tit">Peatonal Tienda de Alfajores</span>
-                  <span style="font-size:10px;font-weight:700;color:#15803D">2 de 2</span>
-                </div>
-                <div class="m-slot">
-                  <span class="et">Tienda · Mañana</span>
-                  <span class="qn">Sofía <span style="color:#9C94A6">· vendedor</span></span>
-                  <span style="font-size:9.5px;color:#9C94A6">2 fotos · 1 fact.</span>
-                  <span class="m-pill ver">Aprobado</span>
-                </div>
-                <div class="m-slot">
-                  <span class="et">Tienda · Tarde</span>
-                  <span class="qn">Julián <span style="color:#9C94A6">· encargado</span></span>
-                  <span style="font-size:9.5px;color:#9C94A6">1 foto</span>
-                  <span class="m-pill amb">Presentado <span class="marca-n" style="margin-left:2px">3</span></span>
-                </div>
-              </div>
-
-              <div class="m-card" style="display:grid;gap:7px">
-                <div class="m-fila entre">
-                  <span class="m-tit">Café Peatonal</span>
-                  <span style="font-size:10px;font-weight:700;color:#92400E">1 de 2</span>
-                </div>
-                <div class="m-slot">
-                  <span class="et">Café · Mañana</span>
-                  <span class="qn">Camila <span style="color:#9C94A6">· encargado</span></span>
-                  <span class="m-pill roj">Devuelto</span>
-                </div>
-                <div class="m-slot vacio">
-                  <span class="et">Café · Tarde</span>
-                  <span class="qn">nadie lo cargó</span>
-                  <span class="m-pill gris">Sin cargar</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <figcaption>
-          <b>Pantalla de Reportes.</b> Cada renglón es un turno que tendría que haber cargado.
-        </figcaption>
-      </figure>
-
-      <ol class="refs">
-        <li><strong>El contador del día.</strong> Cuántos reportes llegaron sobre cuántos se esperaban. Si faltan, lo dice en ámbar.</li>
-        <li><strong>El consolidado.</strong> El reporte del Encargado. Se abre desde acá — está explicado en la sección siguiente.</li>
-        <li><strong>El estado de cada turno.</strong> Tocás el renglón y se abre el reporte para leerlo.</li>
-      </ol>
-
-      <h3>Los cinco estados</h3>
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p><strong>Los reportes ya no se aprueban ni se devuelven.</strong> Quedan como llegaron.
+        Si algo no está bien —no llegó, las ventas no coinciden con Fudo, hay un vencimiento o
+        algo roto— el sistema lo levanta solo como <a href="#tareas">tarea</a> cuando entra el
+        Fudo de ese día. Llamar al vendedor para que lo cargue tarde no borra nada: queda
+        registrado que no estaba.</p>
+      </div>
       <div class="tabla-caja">
         <table class="manual">
           <thead><tr><th>Estado</th><th>Qué significa</th></tr></thead>
           <tbody>
-            <tr><td><strong>Sin cargar</strong></td><td>Nadie tocó nada todavía.</td></tr>
-            <tr><td><strong>Empezado</strong></td><td>Lo empezaron pero no lo mandaron. Todavía no lo podés revisar. Si quedó así de un día anterior, a la persona le aparece un aviso para terminarlo la próxima vez que entre.</td></tr>
-            <tr><td><strong>Presentado</strong></td><td>Llegó y está esperando que lo revises.</td></tr>
-            <tr><td><strong>Devuelto</strong></td><td>Lo mandaste para atrás con un comentario. La persona lo tiene que corregir.</td></tr>
-            <tr><td><strong>Aprobado</strong></td><td>Listo. Si lo aprobaste por error, lo abrís y lo devolvés con un comentario, como cualquier otro. La única traba es que el día no esté cerrado: si ya lo cerraste, un dueño tiene que reabrirlo primero.</td></tr>
+            <tr><td><strong>Sin cargar</strong></td><td>Nadie lo mandó.</td></tr>
+            <tr><td><strong>Empezado</strong></td><td>Lo empezaron pero no lo mandaron. Para el sistema, todavía no llegó.</td></tr>
+            <tr><td><strong>Enviado</strong></td><td>Llegó. No hay que hacer nada con él.</td></tr>
           </tbody>
         </table>
       </div>
-
-      <h3>Revisar un reporte</h3>
-      <p>
-        Tocás el renglón y se abre una ventana con todo lo que cargó esa persona: las
-        respuestas, las facturas con su detalle y las fotos. <strong>Tocá una foto y se ve
-        grande</strong>, a pantalla completa; con las flechas pasás a la siguiente y con la
-        × volvés. Abajo tenés dos botones.
-      </p>
-      <ul class="simple">
-        <li><strong>Aprobar</strong> — queda cerrado y cuenta para el consolidado.</li>
-        <li><strong>Devolver</strong> — vuelve a la persona para que lo corrija. <strong>Tenés que escribir el comentario</strong>: sin comentario no te deja devolverlo. La próxima vez que esa persona entre al sistema, aunque sea otro día, le aparece el aviso con tu comentario y un botón para corregirlo. Cuando lo reenvía, vuelve a Presentado y lo revisás de nuevo. Si volvés a abrir un reporte devuelto antes de que lo corrijan, arriba se ve el comentario que dejaste.</li>
-      </ul>
     </section>
 
-    <!-- ══════════ CIERRE ══════════ -->
-    <section class="seccion" id="cierre">
+    <!-- ══════════ TAREAS ══════════ -->
+    <section class="seccion" id="tareas">
       <p class="para-quien">Para el Encargado General</p>
-      <h2>Cerrar el día</h2>
+      <h2>Tareas — la bandeja del encargado</h2>
       <p>
-        Es el reporte del Encargado: junta lo de todos los turnos, lo compara contra el
-        Excel del sistema y lo manda a los dueños. Se abre con el botón <em>Abrir</em>
-        del recuadro gris oscuro.
+        <strong>El día termina cuando entra el Fudo</strong>, no cuando alguien lo cierra. Cada
+        vez que se importa el Excel de un local, el sistema cruza lo que mandó cada turno con lo
+        que dice Fudo, y todo lo que no está bien nace como una <strong>alerta</strong>. El
+        encargado la toma, dice qué va a hacer y para cuándo, anota lo que va haciendo y pide el
+        cierre. <strong>La tarea termina cuando un dueño la aprueba.</strong>
       </p>
 
       <figure class="figura">
         <div class="mock">
-          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · consolidado del día</span></div>
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · tareas</span></div>
           <div class="m-main" style="padding:16px">
-            <div class="m-grid m-g4">
-              <div class="m-kpi"><div class="k">Venta del día</div><div class="v">$ 7.257.760</div><div class="s">243 tickets</div></div>
-              <div class="m-kpi"><div class="k">Ticket promedio tiendas</div><div class="v">$ 31.220</div><div class="s">café: $ 18.829</div></div>
-              <div class="m-kpi"><div class="k">Horas</div><div class="v">86,5</div><div class="s">$ 1.038.000 de personal</div></div>
-              <div class="m-kpi buena"><div class="k">Horas / ventas</div><div class="v">9,9%</div><div class="s">meta: menos de 15,6%</div></div>
-            </div>
-
+            <div class="m-hdr"><div class="m-eye">Alfalca · Tareas</div><h5>Bandeja</h5></div>
             <div class="m-card">
-              <div class="m-tit">Ventas y KPI por local <span class="marca-n" style="margin-left:4px">1</span></div>
-              <div class="m-sub" style="margin-bottom:8px">
-                <b>Sistema</b> es el Excel que importaste. <b>Reportado</b> es lo que cargó cada turno mirando la caja.
-              </div>
+              <div class="m-tit">Lo que pasó en cada local <span class="marca-n" style="margin-left:4px">1</span></div>
               <div style="overflow-x:auto">
                 <table class="m-tabla">
-                  <thead><tr><th>Local</th><th class="n">Sistema</th><th class="n">Reportado</th><th class="n">Dif.</th><th class="n">Horas</th><th class="n">Hs / vta</th></tr></thead>
+                  <thead><tr><th>Local</th><th>Vie 9</th><th>Sáb 10</th><th>Dom 11</th></tr></thead>
                   <tbody>
-                    <tr><td>Peatonal<div class="m-sub">2 de 2 turnos</div></td><td class="n">1.503.270</td><td class="n">1.503.270</td><td class="n" style="color:#15803D;font-weight:800">✓</td><td class="n">18,0</td><td class="n" style="color:#15803D;font-weight:700">11,9%</td></tr>
-                    <tr><td>9 de Julio<div class="m-sub">2 de 2 turnos</div></td><td class="n">1.277.930</td><td class="n">1.265.430</td><td class="n" style="color:#B91C1C;font-weight:800">−12.500</td><td class="n">16,0</td><td class="n" style="color:#15803D;font-weight:700">12,5%</td></tr>
-                    <tr><td>Café<div class="m-sub">1 de 2 turnos</div></td><td class="n">3.034.110</td><td class="n">1.610.220</td><td class="n" style="color:#92400E;font-size:9.5px;font-weight:600">faltan turnos</td><td class="n">38,5</td><td class="n" style="color:#B91C1C;font-weight:700">18,2%</td></tr>
+                    <tr><td>Amigorena</td><td><span class="m-pill ver">2/2 · ok</span></td><td><span class="m-pill ver">2/2 · ok</span></td><td><span class="m-pill gris">No abrió según Fudo</span></td></tr>
+                    <tr><td>9 de Julio</td><td><span class="m-pill amb">Ventas no coinciden</span></td><td><span class="m-pill ver">2/2 · ok</span></td><td><span class="m-pill roj">No cargó</span></td></tr>
                   </tbody>
                 </table>
               </div>
-              <div style="margin-top:9px;border-left:2px solid #DC2626;padding-left:10px">
-                <div style="font-size:9.5px;font-weight:700;color:#B91C1C">9 de Julio: el turno reportó $ 1.265.430 y el sistema trae $ 1.277.930 — explicá la diferencia <span class="marca-n" style="margin-left:3px">2</span></div>
-                <div class="m-input" style="margin-top:4px;color:#6B6472">Se anuló un ticket después del cierre de caja de la tarde.</div>
-              </div>
             </div>
-
-            <div class="m-card" style="background:#FEF3C7;border-color:#F0D08A">
-              <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#92400E;margin-bottom:5px">Vencimientos · 2 <span class="marca-n" style="margin-left:3px">3</span></div>
-              <div style="font-size:11px;color:#1F2937"><span style="color:#9C94A6">Peatonal · Mañana</span> — Alfajor de maicena (3 días)</div>
-              <div style="font-size:11px;color:#1F2937"><span style="color:#9C94A6">Café · Mañana</span> — Leche entera (1 día)</div>
+            <div class="m-card" style="display:grid;gap:7px">
+              <div class="m-tit">Alertas sin tomar · 2 <span class="marca-n" style="margin-left:4px">2</span></div>
+              <div class="m-slot"><span class="m-pill roj">No cargó</span><span class="qn">Tienda tarde: no cargó el reporte <span style="color:#9C94A6">· 9 de Julio · dom 11</span></span><span class="m-btn">Tomar</span></div>
+              <div class="m-slot"><span class="m-pill amb">Vencimiento</span><span class="qn">Ron: 22 u. vencen el 19/10 <span style="color:#9C94A6">· Peatonal</span></span><span class="m-btn">Tomar</span></div>
             </div>
-
-            <div class="m-card" style="display:grid;gap:8px">
-              <div class="m-tit">Cierre del día</div>
-              <div style="font-size:11px;color:#1F2937">☑ Control de vencimientos realizado y chequeado</div>
-              <div style="font-size:11px;color:#1F2937">☑ Control de tienda realizado</div>
-              <div class="m-fila" style="gap:9px">
-                <span style="font-size:9.5px;color:#9C94A6">Guardado</span>
-                <div class="m-btn" style="flex:1;text-align:center">Cerrar el día y enviar a los dueños <span class="marca-n" style="margin-left:3px">4</span></div>
-              </div>
+            <div class="m-card" style="display:grid;gap:7px">
+              <div class="m-tit">En curso · 1 <span class="marca-n" style="margin-left:4px">3</span></div>
+              <div class="m-slot"><span class="et">3 días</span><span class="qn">Ventas no coinciden: los turnos dijeron $ 27.200 más que Fudo <span style="color:#9C94A6">· Va a hacer: revisar el arqueo</span></span><span class="m-pill roj">Vencida hace 1 día</span></div>
             </div>
           </div>
         </div>
-        <figcaption><b>El consolidado del día.</b> Los números son un ejemplo, no datos reales.</figcaption>
+        <figcaption><b>La bandeja.</b> Los nombres y montos son de ejemplo.</figcaption>
       </figure>
 
       <ol class="refs">
-        <li><strong>Sistema contra Reportado.</strong> Son dos fuentes distintas: una viene del Excel del punto de venta, la otra la escribió a mano el turno mirando la caja. Cuando coinciden aparece un tilde verde.</li>
-        <li><strong>La explicación.</strong> Si un local no cierra, se abre un recuadro rojo para que escribas por qué. Sin eso el día no se cierra.</li>
-        <li><strong>Lo que reportaron los turnos.</strong> Vencimientos, mantenimiento (con un casillero por ítem para decir cómo lo vas a resolver), faltantes de insumos, faltas y tardanzas, quejas y los gastos de caja del café con su total — todo junto acá, sin tener que abrir reporte por reporte.</li>
-        <li><strong>El botón de cerrar.</strong> Recién cuando está todo, el día se cierra y aparecen el PDF y el mensaje para mandar a los dueños.</li>
+        <li><strong>Lo que pasó en cada local.</strong> Los últimos días que ya tienen Fudo. El lunes son el viernes, el sábado y el domingo. Si Fudo no trae ventas de un local ese día, ese local no abrió y no se espera ningún reporte.</li>
+        <li><strong>Alertas sin tomar.</strong> Se toman acá mismo: tocás <em>Tomar</em>, elegís qué vas a hacer de la lista y para cuándo. Desde que la alerta nace corre el tiempo del encargado.</li>
+        <li><strong>En curso.</strong> Ordenadas por lo que vence primero. El número de la izquierda es cuánto lleva en manos del encargado. Si se pasó de la fecha que él mismo puso, sale en rojo.</li>
       </ol>
 
-      <h3>Mantenimiento — cómo lo vas a resolver</h3>
-      <p>
-        El recuadro rojo de mantenimiento no es una lista de lo que está roto: eso ya lo dijeron
-        los turnos. Muestra, <strong>por local, cada cosa que sigue pendiente</strong>, con quién la
-        reportó, desde cuándo y qué dijeron hoy (<em>Nuevo hoy</em>, <em>Sigue igual · 3 días</em>,
-        <em>Solucionado hoy</em>). Debajo de cada ítem hay un casillero: <strong>cómo lo vas a resolver</strong>.
-        Eso es lo que les llega a los dueños en el mensaje, al lado del problema.
-      </p>
+      <h3>Qué levanta el sistema</h3>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Alerta</th><th>Cuándo nace</th></tr></thead>
+          <tbody>
+            <tr><td><strong>No cargó el reporte</strong></td><td>El local vendió según Fudo y el turno no había mandado el reporte cuando entró el Excel. Si lo manda después, queda anotado en la tarea, pero la alerta no se borra.</td></tr>
+            <tr><td><strong>Ventas no coinciden</strong></td><td>Lo que dijeron los turnos no da igual a lo que dice Fudo (con todos los turnos adentro).</td></tr>
+            <tr><td><strong>Producto por vencer</strong></td><td>Un producto del check vence en 10 días o menos. El mismo lote reportado por la mañana y por la tarde es una sola tarea.</td></tr>
+            <tr><td><strong>Mantenimiento</strong></td><td>Cada cosa rota que reporta un turno. Si un turno dice que se solucionó, queda anotado en la tarea.</td></tr>
+            <tr><td><strong>Faltante, falta o tardanza, queja</strong></td><td>Lo que contaron los turnos, una tarea por local y por día.</td></tr>
+            <tr><td><strong>El café no cierra</strong></td><td>El pesaje de la barista y lo vendido difieren en 1 kg o más.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Dentro de una tarea</h3>
+      <p>Tocando el título se abre la tarea. Arriba están los datos del problema (por ejemplo, lo que dijo cada turno contra Fudo), los dos relojes y los reportes de ese día para abrirlos. Abajo:</p>
       <ul class="simple">
-        <li>El plan queda guardado en el ítem: mañana sigue ahí, no hay que reescribirlo. Si cambia, lo editás.</li>
-        <li>Lo que escribís también lo ve el empleado en su reporte, debajo del pendiente.</li>
-        <li><strong>Sin plan no cierra el día.</strong> Si queda un pendiente sin decir cómo se resuelve, el cierre te frena y te dice cuál.</li>
-        <li>Cuando un turno lo marca como solucionado, aparece tachado con <em>Solucionado hoy</em> y al día siguiente desaparece. Vos no marcás nada como resuelto: lo confirma la gente que está en el local.</li>
+        <li><strong>Seguimiento.</strong> Todo lo que pasó, con fecha, hora y quién. No se puede borrar ni editar.</li>
+        <li><strong>Anotar un avance.</strong> Qué hiciste (de una lista), una nota opcional y una foto si hace falta.</li>
+        <li><strong>Cambiar la fecha.</strong> Se puede, pero hay que elegir el motivo y cada cambio queda contado. Los dueños ven cuántas veces se movió.</li>
+        <li><strong>Cargar un gasto.</strong> Ver abajo.</li>
+        <li><strong>Pedir el cierre.</strong> Elegís <em>qué era</em> de la lista (por ejemplo <em>Error de carga del vendedor</em> o <em>Faltante real de caja</em>). Si corresponde, ponés el monto y <strong>de quién fue</strong>: eso va al historial de esa persona. Podés sumar una nota y una foto de prueba. Desde ahí tu reloj se frena y empieza el de los dueños.</li>
+        <li><strong>Pedir descartarla.</strong> Si de verdad no hay nada que hacer, se elige el motivo. El descarte también lo aprueba un dueño, y queda a la vista en el tablero.</li>
       </ul>
 
-      <h3>El PDF y el mensaje para los dueños</h3>
+      <h3>Gastos para resolver una tarea</h3>
+      <p>Lo que se gasta para resolver una tarea (un plomero, un repuesto) se carga dentro de la tarea y sale de la <strong>caja chica</strong>. No va a Cash Flow.</p>
+      <ul class="simple">
+        <li><strong>Menos de $ 100.000:</strong> queda aprobado solo. Se carga con la foto del presupuesto o del comprobante.</li>
+        <li><strong>Desde $ 100.000:</strong> no se gasta hasta que un dueño lo apruebe. Les llega un aviso con el presupuesto.</li>
+        <li><strong>Sin comprobante de pago no se puede pedir el cierre.</strong> Si cargaste un presupuesto, después subís el comprobante desde la misma tarea.</li>
+      </ul>
+
+      <div class="aviso tip">
+        <span class="mk">◆</span>
+        <p><strong>Dos relojes.</strong> Mientras la tarea está en manos del encargado corre su
+        tiempo. Cuando pide el cierre, su reloj se frena y empieza el de los dueños. Si un dueño
+        pide más o la rechaza, vuelve al reloj del encargado. Lo que tardan los dueños en
+        contestar no se le cuenta a él.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ APROBAR ══════════ -->
+    <section class="seccion" id="aprobar">
+      <p class="para-quien">Para los dueños</p>
+      <h2>Aprobar y el tablero</h2>
       <p>
-        Apenas cerrás el día, abajo aparece <strong>el mensaje ya armado</strong> para el grupo
-        y el botón <strong>Compartir PDF</strong>. El mensaje son cuatro renglones: la venta del
-        día, el ticket promedio de las tiendas y cuánto gastó cada persona atendida en el café.
-        Todo el detalle va en el PDF, que se arma solo con lo que ya está en el sistema:
+        En la bandeja, arriba de todo, los dueños ven <strong>Para aprobar</strong>: las tareas
+        que el encargado pidió cerrar y los gastos de $ 100.000 o más. Abrís cada una y respondés:
       </p>
       <ul class="simple">
-        <li>Arriba, la fecha, quién cerró y los cuatro números (venta, ticket promedio, horas y personal sobre ventas con su semáforo).</li>
-        <li>El cuadro por local: sistema contra reportado, si cierra, tickets, horas y el porcentaje de personal contra la meta de cada uno. Debajo, la explicación de cada local que no cerró.</li>
-        <li><strong>Vencimientos</strong>, como una grilla: los productos en las filas y las tiendas en las columnas. Cada casillero dice cuántas unidades hay y en cuántos días vence lo más próximo de ese producto en esa tienda. Así se ve de una si el mismo alfajor está corriendo en tres locales a la vez, que es lo que decide una promo. Va ordenado por urgencia y abajo queda lo que decidiste hacer.</li>
-        <li><strong>Mantenimiento</strong>, agrupado por local: el nombre del local encabeza sus problemas y cada renglón arranca con <strong>los días que lleva abierto</strong>, en rojo si se arrastra y en ámbar si apareció hoy. Después el rubro, qué pasa, quién lo reportó y <strong>qué hace el encargado</strong>. Lo que todavía no tiene respuesta tuya sale marcado como <em>sin resolución propuesta por el encargado</em>.</li>
-        <li><strong>El café</strong>, en dos barras: el <strong>consumo real</strong> (lo que desapareció de la bolsa) contra el <strong>consumo teórico</strong> (lo que tendría que haber salido según lo vendido), y la diferencia en una pastilla de color — verde hasta 10%, ámbar hasta 25%, rojo de ahí.</li>
-        <li>Y un cuadro por cada tema restante, con local, turno y quién lo reportó: faltas y tardanzas, quejas, faltantes, las facturas cargadas y pagadas ese día, y los gastos de caja. Los temas sin nada ese día no aparecen.</li>
+        <li><strong>Aprobar.</strong> La tarea queda terminada. Si es un mantenimiento, sale de la lista de pendientes que ven los turnos.</li>
+        <li><strong>Pedir foto o dato.</strong> Escribís qué le pedís. Vuelve al encargado y le llega un aviso.</li>
+        <li><strong>No alcanza.</strong> Escribís por qué. Vuelve al encargado como abierta.</li>
       </ul>
+      <p>Cualquiera de los dueños puede responder y queda quién fue. Para los gastos: <em>Aprobar gasto</em>, <em>Pedir otro presupuesto</em> o <em>No</em>.</p>
+
+      <h3>Causas conocidas</h3>
+      <p>
+        Hay diferencias que son normales y se repiten. Por ejemplo, en Sheraton se hacen ventas
+        ficticias para conseguir notas de crédito. Al aprobar una diferencia de ventas se puede
+        tildar <strong>Aprobar como causa conocida</strong>: desde ahí, las próximas de ese local
+        con el mismo resultado <strong>se aprueban solas, pero solo si el monto que declara el
+        encargado coincide con la diferencia</strong>. Si no coincide, les llega como cualquier
+        otra, con el aviso de que el monto no cierra. Así "venta ficticia" no sirve para tapar
+        un faltante.
+      </p>
+
+      <h3>El tablero</h3>
+      <p>En el menú, <strong>Tablero de tareas</strong> (solo dueños):</p>
+      <ul class="simple">
+        <li>Arriba: tareas abiertas, vencidas, el tiempo promedio del encargado y el de los dueños, cuántas pidió cerrar en la fecha que él mismo puso y cuántas se descartaron.</li>
+        <li>Las abiertas de la más vieja a la más nueva, con lo que va a hacer y los cambios de fecha.</li>
+        <li><strong>Lo que se repite</strong>: el mismo problema en el mismo local tres días o más.</li>
+        <li><strong>Causas conocidas</strong>: quién la aprobó, cuántas veces se usó este mes, por cuánto, y si alguna vez no coincidió. Se pueden dar de baja.</li>
+        <li><strong>Gastos de las tareas</strong> del mes, con su aprobación y si tienen comprobante.</li>
+        <li><strong>Reportes por persona</strong> de los últimos 30 días: enviados, cuántas veces no cargó, cuántas lo cargó después de la alerta y cuántas veces cargó mal las ventas.</li>
+        <li><strong>Descartadas</strong>, con su motivo.</li>
+      </ul>
+    </section>
+
+    <!-- ══════════ REPORTE DEL DÍA Y AVISOS ══════════ -->
+    <section class="seccion" id="dia">
+      <p class="para-quien">Para los dueños y el Encargado General</p>
+      <h2>Reporte del día y avisos en el celular</h2>
+      <p>
+        Ya no hay cierre del día ni mensaje para copiar. <strong>Reporte del día</strong> se arma
+        solo con el último día que tiene el Fudo de todos los locales: la venta de cada local,
+        horas sobre ventas contra la meta, cuántos reportes llegaron, lo que levantó el sistema,
+        las tareas vencidas, lo que hizo el encargado ese día y los gastos. Con las flechas de
+        arriba pasás de un día a otro.
+      </p>
+      <p>
+        Como el Fudo se sube a mano los días de semana, <strong>lo del viernes, el sábado y el
+        domingo llega el lunes</strong>, un reporte por día.
+      </p>
+
+      <h3>Los avisos</h3>
+      <div class="tabla-caja">
+        <table class="manual">
+          <thead><tr><th>Aviso</th><th>A quién</th><th>Cuándo</th></tr></thead>
+          <tbody>
+            <tr><td><em>Viernes 9/10 · 4 cosas para mirar</em> — con la venta y los reportes</td><td>Dueños</td><td>Cuando está el Fudo de todos los locales de ese día</td></tr>
+            <tr><td><em>Para aprobar</em> — tarea que pide cierre</td><td>Dueños</td><td>En el momento</td></tr>
+            <tr><td><em>Gasto para aprobar</em> — de $ 100.000 o más</td><td>Dueños</td><td>En el momento</td></tr>
+            <tr><td><em>Alertas nuevas</em></td><td>Encargado</td><td>Cuando entra un Fudo y nace alguna alerta</td></tr>
+            <tr><td><em>Te piden más</em>, <em>No la aprobó</em>, <em>Aprobada</em>, respuesta a un gasto</td><td>Encargado</td><td>En el momento</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Tocás el aviso y se abre el sistema directo en esa pantalla. Para aprobar hay que entrar: el aviso no tiene botones a propósito.</p>
+
+      <h3>Activarlos en el iPhone</h3>
       <ol class="pasos">
-        <li><div>Tocá <strong>Compartir PDF</strong>. En el celular se abre el menú de compartir del teléfono: elegí WhatsApp y el grupo, y va como archivo adjunto. En la computadora se baja el archivo y lo adjuntás vos.</div></li>
-        <li><div>Tocá <strong>Copiar mensaje</strong> y pegalo debajo del PDF, o <strong>Abrir en WhatsApp</strong>.</div></li>
+        <li><div>Abrí el sistema en <strong>Safari</strong> y entrá con tu usuario.</div></li>
+        <li><div>Tocá el botón <strong>Compartir</strong> (el cuadrado con la flecha hacia arriba) y elegí <strong>Agregar a pantalla de inicio</strong> → <strong>Agregar</strong>.</div></li>
+        <li><div>Cerrá Safari y abrí <strong>Alfalca desde el ícono nuevo</strong>.</div></li>
+        <li><div>Entrá a <em>Reporte del día</em> o <em>Tareas</em> y tocá <strong>Activar avisos</strong> → <strong>Permitir</strong>. Te llega un aviso de prueba.</div></li>
       </ol>
-      <div class="aviso tip">
-        <span class="mk">◆</span>
-        <p>El PDF se arma en el momento, cada vez que lo pedís, con los datos de ese día. Si un
-        dueño reabre el día y corregís algo, volvés a tocar <em>Compartir PDF</em> y sale actualizado.</p>
-      </div>
-
-      <h3>Los viernes, el resumen de la semana</h3>
-      <p>
-        Cuando el día es viernes, debajo del diario aparece también el
-        <strong>resumen de la semana</strong> (de sábado a viernes), con su propio botón
-        <strong>Compartir PDF</strong> y su mensaje corto, para mandar junto con el diario.
-        El PDF tiene la venta de la semana contra la anterior y contra la misma semana del año
-        pasado, el personal contra la meta, un cuadro por local (venta, variación, personal,
-        <strong>cuántos días estuvo en meta</strong>, mejor y peor día, y los días que no cerraron),
-        cómo funcionó el circuito (días cerrados, reportes que llegaron tarde o se devolvieron),
-        y después las novedades de toda la semana en los mismos cuadros del diario, con el día
-        al lado de cada una. Solo informa: no marca nada como resuelto.
-      </p>
-      <div class="aviso tip">
-        <span class="mk">◆</span>
-        <p>Ningún cuadro se corta entre dos hojas: si no entra en lo que queda de la hoja, pasa
-        entero a la siguiente. Un cuadro muy largo se parte en tandas, cada una con su título.</p>
-      </div>
-
+      <h3>Activarlos en Android</h3>
+      <ol class="pasos">
+        <li><div>Abrí el sistema en <strong>Chrome</strong> y entrá con tu usuario.</div></li>
+        <li><div>Entrá a <em>Tareas</em> y tocá <strong>Activar avisos</strong> → <strong>Permitir</strong>. Te llega un aviso de prueba.</div></li>
+      </ol>
       <div class="aviso ojo">
         <span class="mk">⚠</span>
-        <p><strong>No se puede cerrar el día hasta que todos los reportes estén aprobados.</strong>
-        Si alguien no cargó, si devolviste uno y todavía no lo corrigieron, o si hay uno que no
-        revisaste, el cierre te frena y te dice cuál. Y una vez cerrado,
-        <strong>solo el dueño lo puede reabrir</strong>.</p>
+        <p>En iPhone hace falta iOS 16.4 o más nuevo, y abrir el sistema siempre desde el ícono.
+        Si borrás el ícono, dejan de llegar. Si la sesión se vence, los avisos siguen llegando:
+        al tocar uno te pide la contraseña y te lleva a esa pantalla. Si tocás <em>Cerrar
+        sesión</em>, ese celular deja de recibirlos.</p>
       </div>
-
-      <h3>Café del día</h3>
-      <p>
-        Con los reportes de barista, antes de las facturas aparece <strong>Café del día</strong>:
-        el pesaje de la mañana (al empezar), el de la tarde (al terminar), el <strong>consumo
-        del día</strong> (uno menos el otro) y cómo da contra el teórico de lo vendido. Si falta
-        uno de los dos pesajes, lo avisa en rojo: sin los dos no hay consumo. Va al PDF de los
-        dueños y, los viernes, el total de la semana.
-      </p>
-
-      <h3>Facturas de proveedores</h3>
-      <p>
-        Antes del cierre aparece un bloque con las facturas: <strong>lo que se pagó ese
-        día</strong> (a quién, por cuánto y con qué), <strong>lo que está vencido</strong> y
-        <strong>lo que vence antes del domingo</strong>. No se escribe: se arma solo con lo que
-        hay cargado en Proveedores, y viaja con el cierre a los dueños.
-      </p>
-      <p>
-        Ojo con la palabra: en esta pantalla <em>Vencimientos</em>, más abajo, son los
-        <strong>productos vencidos en la tienda</strong>. Las facturas van en su propio bloque.
-      </p>
-
-      <h3>Los cuatro números de arriba</h3>
-      <ul class="simple">
-        <li><strong>Venta del día</strong> — lo que vendió toda la red, según el sistema.</li>
-        <li><strong>Ticket promedio</strong> — cuánto gastó en promedio cada cliente. Va <strong>separado</strong>: el de las tiendas grande y el del café abajo, porque un ticket de café y uno de alfajores no se parecen en nada y el promedio mezclado no dice nada.</li>
-        <li><strong>Horas</strong> — las horas que cargaron los turnos, y cuánto costaron en plata.</li>
-        <li><strong>Horas / ventas</strong> — cuánto pesa el costo de las horas sobre lo que se vendió. <strong>Cada local tiene su meta</strong> (12% las tiendas, 22% el café, porque un café necesita mucha más gente por peso vendido); la de la red es el promedio pesado por la venta de cada uno. Verde si está por debajo, rojo si se pasó. Las metas se cambian desde <em>Locales</em>.</li>
-      </ul>
-      <p>
-        Si algún puesto todavía no tiene cargado el valor de la hora, aparece un aviso ámbar:
-        esas horas no entran en el cálculo hasta que lo cargues en <em>Empleados y horas</em>.
-      </p>
     </section>
 
     <!-- ══════════ PROVEEDORES ══════════ -->
@@ -1916,7 +1820,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <div class="aviso tip">
         <span class="mk">◆</span>
-        <p>El <strong>valor hora</strong> es lo que hace que el cierre del día pueda calcular
+        <p>El <strong>valor hora</strong> es lo que hace que el sistema pueda calcular
         cuánto costó el personal. Si un puesto no lo tiene cargado, esas horas quedan afuera
         del número y el sistema te lo avisa en ámbar.</p>
       </div>
@@ -2123,7 +2027,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <div><dt>Días de caja</dt><dd>Cuántos días podés seguir funcionando con la plata que tenés hoy.</dd></div>
         <div><dt>Bulto</dt><dd>La caja en la que viene el producto de fábrica. Cada bulto equivale a una cantidad fija de docenas.</dd></div>
         <div><dt>Quiebre</dt><dd>Quedarte sin producto para vender.</dd></div>
-        <div><dt>Consolidado</dt><dd>El reporte del Encargado que junta todos los turnos del día y cierra la jornada.</dd></div>
+        <div><dt>Tarea</dt><dd>Un problema que levantó el sistema al entrar el Fudo. La resuelve el encargado y la termina un dueño aprobándola.</dd></div>
+        <div><dt>Causa conocida</dt><dd>Una diferencia de ventas que los dueños aprobaron como normal para un local. Se aprueba sola si el monto coincide.</dd></div>
       </dl>
     </section>
 
@@ -2153,19 +2058,15 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             </tr>
             <tr>
               <td><strong>Me equivoqué en un reporte que ya envié</strong></td>
-              <td>Vos no lo podés tocar: pedile al encargado que te lo devuelva. Cuando lo haga, entrás al sistema y arriba te aparece el cartel <em>Tenés un reporte por resolver</em> con el botón <em>Corregir</em>, aunque sea otro día.</td>
+              <td>Ya no se puede cambiar. Avisale al encargado: si el error hace que las ventas no coincidan con Fudo, él lo va a ver como tarea y lo explica ahí.</td>
             </tr>
             <tr>
-              <td><strong>Aprobé un reporte que estaba mal</strong></td>
-              <td>Abrilo de nuevo desde Reportes: abajo sigue estando <em>Devolver</em>. Escribí qué tiene que corregir y devolvelo. Si el día ya estaba cerrado, primero un dueño lo reabre.</td>
-            </tr>
-            <tr>
-              <td><strong>No me deja cerrar el día</strong></td>
-              <td>Falta que llegue algún reporte, hay uno devuelto o sin aprobar, o hay un local cuya diferencia no explicaste. El cartel amarillo dice cuál.</td>
+              <td><strong>No me llegan los avisos</strong></td>
+              <td>En iPhone, el sistema tiene que estar en la pantalla de inicio y abrirse desde ese ícono. Entrá a <em>Tareas</em>: si dice <em>Avisos activados</em>, tocá <em>Mandar uno de prueba</em>. Si dice que están bloqueados, habilitalos en la configuración del celular. Ver <a href="#dia">Avisos</a>.</td>
             </tr>
             <tr>
               <td><strong>El sistema y lo reportado no coinciden</strong></td>
-              <td>Es información, no un error: son dos fuentes distintas. Escribí la explicación en el recuadro rojo.</td>
+              <td>Es información, no un error: son dos fuentes distintas. Cuando entra el Fudo nace una tarea; el encargado averigua qué pasó y pide el cierre con lo que era.</td>
             </tr>
             <tr>
               <td><strong>Importé y las docenas dan cero</strong></td>

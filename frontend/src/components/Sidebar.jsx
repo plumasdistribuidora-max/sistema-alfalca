@@ -8,6 +8,9 @@ import { Logotipo } from './Marca';
 // <svg viewBox="0 0 24 24">. Se dibujan con Icono, que pone el marco común.
 const PATHS = {
   reportes:   'M9 4h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4V3h6v1M9 11h6M9 15h4',
+  tareas:     'M9 11l2 2 4-4M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z',
+  dia:        'M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3L4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  tablero:    'M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3',
   proveedores:'M2 6h12v11H2zM14 10h4l4 4v3h-8M7.5 19a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0M19.5 19a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0',
   tiendas:    'M4 10l1-5h14l1 5M4 10a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0M5 10v10h14V10M10 20v-6h4v6',
   dashboard:  'M4 5a1 1 0 0 1 1-1h5v7H4V5zM14 4h5a1 1 0 0 1 1 1v3h-6V4zM14 12h6v7a1 1 0 0 1-1 1h-5v-8zM4 15h6v5H5a1 1 0 0 1-1-1v-4z',
@@ -170,7 +173,10 @@ export default function Sidebar({ open, onClose }) {
           {esDeRed(user) && (
             <>
               <SectionLabel label="El día" />
-              <NavItem to="/reportes"    icon="reportes"     label="Reportes" />
+              <NavItem to="/dia"         icon="dia"          label="Reporte del día" />
+              <NavItem to="/tareas"      icon="tareas"       label="Tareas" />
+              {esDueno(user) && <NavItem to="/tablero" icon="tablero" label="Tablero de tareas" />}
+              <NavItem to="/reportes"    icon="reportes"     label="Reportes de los turnos" />
               <NavItem to="/proveedores" icon="proveedores" label="Proveedores" />
 
               <SectionLabel label="Análisis" />

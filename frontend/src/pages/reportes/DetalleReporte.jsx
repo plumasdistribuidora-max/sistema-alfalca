@@ -211,10 +211,8 @@ function Respuesta({ campo, valor, equipo, items = [], productos = [], fecha, ch
   );
 }
 
-export default function DetalleReporte({ id, onCerrar, onRevisado }) {
+export default function DetalleReporte({ id, onCerrar }) {
   const [r, setR] = useState(null);
-  const [comentario, setComentario] = useState('');
-  const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [abierta, setAbierta] = useState(null);   // índice de la foto abierta en el visor
   const urls = useFotos(r?.adjuntos || []);
@@ -222,23 +220,6 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
   useEffect(() => {
     api.get(`/reportes/${id}`).then(res => setR(res.data.data)).catch(() => setError('No se pudo abrir el reporte'));
   }, [id]);
-
-  async function revisar(accion) {
-    if (accion === 'observo' && !comentario.trim()) {
-      setError('Escribí qué tiene que corregir');
-      return;
-    }
-    setEnviando(true);
-    try {
-      await api.post(`/reportes/${id}/revisar`, { accion, comentario });
-      onRevisado();
-      onCerrar();
-    } catch (err) {
-      setError(err.response?.data?.error || 'No se pudo guardar');
-    } finally {
-      setEnviando(false);
-    }
-  }
 
   if (!r) {
     return (
@@ -365,28 +346,11 @@ export default function DetalleReporte({ id, onCerrar, onRevisado }) {
           <Visor fotos={fotos} urls={urls} indice={abierta} onCambiar={setAbierta} onCerrar={() => setAbierta(null)} />
         )}
 
-        {/* Un aprobado también se puede devolver (por si se aprobó por error); lo que no tiene sentido es volver a aprobarlo. */}
-        <div className="px-5 py-4 border-t border-ahg-accent/30 space-y-3">
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {r.estado === 'aprobado' && (
-            <p className="text-sm text-ahg-text/60">Ya está aprobado. Si fue por error, escribí qué tiene que corregir y devolvelo.</p>
-          )}
-          <textarea
-            className="input" rows={2} value={comentario}
-            placeholder="Si lo devolvés, escribí qué tiene que corregir"
-            onChange={e => setComentario(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <button onClick={() => revisar('observo')} disabled={enviando}
-                    className="btn-secondary flex-1 !text-red-600 !border-red-300">
-              Devolver
-            </button>
-            {r.estado !== 'aprobado' && (
-              <button onClick={() => revisar('aprobo')} disabled={enviando} className="btn-primary flex-1">
-                Aprobar
-              </button>
-            )}
-          </div>
+        {/* El reporte ya no se aprueba ni se devuelve: queda como llegó. Lo que no está
+            bien lo levanta el sistema como tarea cuando entra el Fudo. */}
+        <div className="px-5 py-3 border-t border-ahg-accent/30 text-xs text-ahg-text/55">
+          {error && <p className="text-sm text-red-600 mb-1">{error}</p>}
+          El reporte queda como llegó. Si algo no está bien, aparece como tarea cuando entra el Fudo.
         </div>
       </div>
     </div>

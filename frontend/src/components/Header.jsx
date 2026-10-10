@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { desactivarAvisos } from '../utils/avisos';
 
 export default function Header({ onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate         = useNavigate();
   const [ddOpen, setDdOpen] = useState(false);
 
-  function handleLogout() {
+  // Cerrar sesión a propósito corta los avisos de este aparato. Que la sesión se
+  // venza sola, no: los avisos siguen llegando.
+  async function handleLogout() {
+    await desactivarAvisos();
     logout();
     navigate('/login');
   }

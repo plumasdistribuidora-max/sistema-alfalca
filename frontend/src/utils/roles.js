@@ -20,7 +20,7 @@ export const ROL_LABEL = {
 
 export const ROL_DESCRIPCION = {
   [ROLES.ADMIN]:             'Ve todo y configura el sistema',
-  [ROLES.ENCARGADO_GENERAL]: 'Recibe los reportes de turno y cierra el consolidado diario',
+  [ROLES.ENCARGADO_GENERAL]: 'Resuelve las tareas que levanta el sistema y pide el cierre a los dueños',
   [ROLES.EMPLEADO_TIENDA]:   'Carga el reporte de su turno en una tienda de alfajores',
   [ROLES.ENCARGADO_CAFE]:    'Carga el reporte del turno del sector café',
   [ROLES.ENCARGADO_COCINA]:  'Carga el reporte del turno de cocina',

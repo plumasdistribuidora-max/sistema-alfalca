@@ -815,6 +815,11 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         tieneFiscales ? null : JSON.stringify({ warnings: ["Sin hoja 'ventas fiscales' en este Excel"] }),
       ]);
 
+      // Con el Fudo adentro, ese día ya terminó: se levantan las alertas. En segundo
+      // plano, para no hacer esperar al import.
+      const { despuesDeImport } = require('../services/alertas');
+      despuesDeImport().catch(err => console.warn('[import] alertas:', err.message));
+
       return res.json({
         ok: true,
         data: {

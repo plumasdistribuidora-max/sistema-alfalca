@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { Isotipo } from '../components/Marca';
@@ -11,6 +11,7 @@ export default function Login() {
   const [loading, setLoading]   = useState(false);
   const { login }               = useAuth();
   const navigate                = useNavigate();
+  const [params]                = useSearchParams();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -19,7 +20,9 @@ export default function Login() {
     try {
       const res = await api.post('/auth/login', { email, password });
       login(res.data.data.token, res.data.data.user);
-      navigate('/', { replace: true });
+      // Si llegó acá desde un aviso con la sesión vencida, vuelve a esa pantalla.
+      const volver = params.get('volver');
+      navigate(volver && volver.startsWith('/') && !volver.startsWith('//') ? volver : '/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Error al iniciar sesión');
     } finally {

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout           from './components/Layout';
 import Login            from './pages/Login';
@@ -27,16 +27,23 @@ import FormulariosPage        from './pages/admin/FormulariosPage';
 import ProveedoresPage        from './pages/proveedores/ProveedoresPage';
 import MarcaProximamente      from './pages/MarcaProximamente';
 import KankayPage             from './pages/marcas/KankayPage';
+import Bandeja               from './pages/tareas/Bandeja';
+import DetalleTarea          from './pages/tareas/DetalleTarea';
+import Tablero               from './pages/tareas/Tablero';
+import ReporteDia            from './pages/tareas/ReporteDia';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return (
     <div className="flex items-center justify-center h-screen">
       <div className="w-8 h-8 border-4 border-ahg-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
-  return user ? children : <Navigate to="/login" replace />;
+  // Sin sesión, al login; después vuelve a la pantalla que se quería abrir (un aviso).
+  const aca = location.pathname + location.search;
+  return user ? children : <Navigate to={aca !== '/' ? `/login?volver=${encodeURIComponent(aca)}` : '/login'} replace />;
 }
 
 // Quien no tiene el rol vuelve a su inicio en vez de ver una pantalla que no le corresponde.
@@ -65,6 +72,10 @@ export default function App() {
             <Route path="locales"              element={soloDueno(<Locales />)} />
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Reportes />)} />
+            <Route path="tareas"               element={soloRed(<Bandeja />)} />
+            <Route path="tareas/:id"           element={soloRed(<DetalleTarea />)} />
+            <Route path="dia"                  element={soloRed(<ReporteDia />)} />
+            <Route path="tablero"              element={soloDueno(<Tablero />)} />
             <Route path="proveedores"          element={soloRed(<ProveedoresPage />)} />
             <Route path="formularios"          element={soloRed(<FormulariosPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />

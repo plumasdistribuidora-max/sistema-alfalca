@@ -922,17 +922,12 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
       };
     });
 
-    const consolidado = (await pool.query(
-      'SELECT fecha::text, estado, cerrado_at, vencimientos_ok, control_tienda_ok FROM consolidados WHERE fecha = $1',
-      [fecha]
-    )).rows[0] || null;
-
     const totales = filas.reduce((t, l) => ({
       esperados: t.esperados + l.esperados,
       recibidos: t.recibidos + l.recibidos,
     }), { esperados: 0, recibidos: 0 });
 
-    res.json({ ok: true, data: { fecha, locales: filas, totales, consolidado } });
+    res.json({ ok: true, data: { fecha, locales: filas, totales } });
   } catch (err) {
     console.error('[reportes/dia]', err);
     res.status(500).json({ ok: false, error: 'Error al armar el día' });
@@ -982,48 +977,6 @@ router.get('/:id', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[reportes GET :id]', err);
     res.status(500).json({ ok: false, error: 'Error al obtener el reporte' });
-  }
-});
-
-// ── POST /:id/revisar ─────────────────────────────────────────────────────────
-
-router.post('/:id/revisar', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
-  try {
-    const { accion, comentario } = req.body;
-    if (!['observo', 'aprobo'].includes(accion)) {
-      return res.status(400).json({ ok: false, error: 'Acción inválida' });
-    }
-    if (accion === 'observo' && !comentario?.trim()) {
-      return res.status(400).json({ ok: false, error: 'Escribí qué tiene que corregir' });
-    }
-
-    const { rows } = await pool.query('SELECT estado, fecha::text AS fecha FROM reportes WHERE id = $1', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ ok: false, error: 'Reporte no encontrado' });
-    if (rows[0].estado === 'borrador') {
-      return res.status(409).json({ ok: false, error: 'Todavía no lo enviaron' });
-    }
-    // Un aprobado se puede devolver (aprobaron por error), salvo que el día ya
-    // esté cerrado: el consolidado se armó con ese reporte adentro, así que
-    // primero hay que reabrir el día.
-    if (rows[0].estado === 'aprobado') {
-      if (accion === 'aprobo') return res.json({ ok: true, data: { estado: 'aprobado' } });
-      const dia = await pool.query('SELECT estado FROM consolidados WHERE fecha = $1', [rows[0].fecha]);
-      if (dia.rows[0]?.estado === 'cerrado') {
-        return res.status(409).json({ ok: false, error: 'El día ya está cerrado. Para devolver este reporte, un dueño tiene que reabrir el día primero.' });
-      }
-    }
-
-    const nuevo = accion === 'aprobo' ? 'aprobado' : 'observado';
-    await pool.query('UPDATE reportes SET estado = $1, updated_at = NOW() WHERE id = $2', [nuevo, req.params.id]);
-    await pool.query(
-      'INSERT INTO reporte_revisiones (reporte_id, usuario_id, accion, comentario) VALUES ($1,$2,$3,$4)',
-      [req.params.id, req.user.id, accion, comentario?.trim() || null]
-    );
-
-    res.json({ ok: true, data: { estado: nuevo } });
-  } catch (err) {
-    console.error('[reportes/revisar]', err);
-    res.status(500).json({ ok: false, error: 'Error al revisar el reporte' });
   }
 });
 

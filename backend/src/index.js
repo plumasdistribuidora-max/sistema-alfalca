@@ -36,6 +36,10 @@ app.use('/api/reportes',  require('./routes/reportes'));
 // endpoint por endpoint adentro del router.
 app.use('/api/proveedores', require('./routes/proveedores'));
 app.use('/api/consolidado', soloRed, require('./routes/consolidado'));
+// Las tareas reemplazan al cierre del día. Las ven el encargado y los dueños.
+app.use('/api/tareas',   soloRed, require('./routes/tareas'));
+// Los avisos en el celular: cualquiera con usuario puede activarlos en su aparato.
+app.use('/api/avisos',   require('./routes/avisos'));
 app.use('/api/calendario', soloRed, require('./routes/calendario'));
 app.use('/api/ventas',    soloRed, require('./routes/ventas'));
 app.use('/api/productos', soloRed, require('./routes/productos'));

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../api';
 import DetalleReporte from './DetalleReporte';
-import CierreDelDia from './CierreDelDia';
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -19,9 +19,10 @@ function correrDia(fecha, delta) {
 const ESTADO = {
   sin_cargar: { txt: 'Sin cargar',  clase: 'bg-stone-100 text-stone-500 border-stone-200' },
   borrador:   { txt: 'Empezado',    clase: 'bg-stone-100 text-stone-600 border-stone-300' },
-  enviado:    { txt: 'Presentado',  clase: 'bg-amber-100 text-amber-800 border-amber-300' },
+  enviado:    { txt: 'Enviado',     clase: 'bg-green-100 text-green-700 border-green-300' },
   observado:  { txt: 'Devuelto',    clase: 'bg-red-100 text-red-700 border-red-300' },
-  aprobado:   { txt: 'Aprobado',    clase: 'bg-green-100 text-green-700 border-green-300' },
+  // Los aprobados son de antes del cambio: para quien mira, llegaron igual que un enviado.
+  aprobado:   { txt: 'Enviado',     clase: 'bg-green-100 text-green-700 border-green-300' },
 };
 
 function Slot({ slot, onAbrir }) {
@@ -73,7 +74,6 @@ export default function Reportes() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [abierto, setAbierto] = useState(null);
-  const [cierreAbierto, setCierreAbierto] = useState(false);
 
   function cargar() {
     setCargando(true);
@@ -85,10 +85,7 @@ export default function Reportes() {
 
   useEffect(cargar, [fecha]);
 
-  const cerrado = d?.consolidado?.estado === 'cerrado';
   const faltan = d ? d.totales.esperados - d.totales.recibidos : 0;
-  // Recibidos pero todavía no aprobados: devueltos o sin revisar. También frenan el cierre.
-  const sinAprobar = d ? d.locales.flatMap(l => l.slots).filter(s => ['enviado', 'observado'].includes(s.estado)).length : 0;
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -122,45 +119,10 @@ export default function Reportes() {
         <p className="text-sm text-ahg-text/50">Cargando…</p>
       ) : !d ? null : (
         <>
-          {/* El reporte del Encargado, arriba de todo */}
-          <div className={`card p-5 border-2 ${cerrado ? 'border-green-300' : 'border-ahg-primary'}`}>
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">
-                  Reporte del Encargado General
-                </p>
-                <h2 className="font-bold text-lg" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                  Consolidado del día
-                </h2>
-                <p className="text-sm text-ahg-text/60 mt-0.5">
-                  {cerrado
-                    ? 'Cerrado y enviado a los dueños.'
-                    : faltan > 0
-                      ? `No se puede cerrar hasta que lleguen los ${faltan} reportes que faltan.`
-                      : sinAprobar > 0
-                        ? `Están todos. Falta${sinAprobar === 1 ? '' : 'n'} ${sinAprobar} por revisar y aprobar antes de cerrar.`
-                        : 'Todos aprobados. Listo para verificar y cerrar.'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
-                  cerrado ? 'bg-green-100 text-green-700 border-green-300'
-                  : d.consolidado ? 'bg-amber-100 text-amber-800 border-amber-300'
-                  : 'bg-stone-100 text-stone-500 border-stone-200'}`}>
-                  {cerrado ? 'Cerrado' : d.consolidado ? 'Empezado' : 'Sin empezar'}
-                </span>
-                <button onClick={() => setCierreAbierto(a => !a)} className="btn-primary !py-1.5">
-                  {cierreAbierto ? 'Cerrar' : 'Abrir'}
-                </button>
-              </div>
-            </div>
-
-            {cierreAbierto && (
-              <div className="mt-5 pt-5 border-t border-ahg-accent/30">
-                <CierreDelDia fecha={fecha} onCambio={cargar} />
-              </div>
-            )}
-          </div>
+          <p className="text-sm text-ahg-text/60">
+            Los reportes ya no se aprueban ni se devuelven: quedan como llegaron. Lo que no está bien aparece en{' '}
+            <Link to="/tareas" className="underline">Tareas</Link> cuando entra el Fudo de ese día.
+          </p>
 
           {/* Local por local, con los slots que deberían estar */}
           {d.locales.map(l => (
@@ -196,7 +158,7 @@ export default function Reportes() {
       )}
 
       {abierto && (
-        <DetalleReporte id={abierto} onCerrar={() => setAbierto(null)} onRevisado={cargar} />
+        <DetalleReporte id={abierto} onCerrar={() => setAbierto(null)} />
       )}
     </div>
   );

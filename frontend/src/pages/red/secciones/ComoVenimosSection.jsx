@@ -277,10 +277,12 @@ export default function ComoVenimosSection({ selId = null }) {
   const tAct = suma(tiendas, l => l.act);
   const tMes = p.mes_ant ? suma(tiendas, l => l.mes_ant) : null;
   const tCmp = comparable(tiendas);
+  const tTotAnt = suma(tiendas, l => l.anio_ant_total);
   const chipsT = (k, oscuro, fmt) => (
     <>
       {tMes && <Fila label={lblMes} a={tAct[k]} b={tMes[k]} fmt={fmt} oscuro={oscuro} />}
-      {tCmp ? <Fila label={lblAnio} a={tCmp.act[k]} b={tCmp.ant[k]} fmt={fmt} oscuro={oscuro} parcial={tCmp.parcial} nota={tCmp.nota} />
+      {tCmp?.parcial && <Fila label={`Total vendido, ${lblAnio.toLowerCase()}`} a={tAct[k]} b={tTotAnt[k]} fmt={fmt} oscuro={oscuro} parcial />}
+      {tCmp ? <Fila label={tCmp.parcial ? `Lo comparable, ${lblAnio.toLowerCase()}` : lblAnio} a={tCmp.act[k]} b={tCmp.ant[k]} fmt={fmt} oscuro={oscuro} parcial={tCmp.parcial} nota={tCmp.nota} />
             : <FilaGris oscuro={oscuro}>No abría el año pasado</FilaGris>}
     </>
   );
@@ -296,6 +298,7 @@ export default function ComoVenimosSection({ selId = null }) {
   const rAct = suma(ordenados, l => l.act);
   const rMes = p.mes_ant ? suma(ordenados, l => l.mes_ant) : null;
   const rCmp = comparable(ordenados);
+  const rTotAnt = suma(ordenados, l => l.anio_ant_total);
 
   // Locales que no se comparan enteros contra el año pasado, para la nota
   const notas = (sel ? [sel] : ordenados).map(l => {
@@ -434,14 +437,15 @@ export default function ComoVenimosSection({ selId = null }) {
                      abajo={estimado(fmtARS(proy(c.act.f)))}
                      explica="La medida principal del Café: no vende por docena.">
               {c.mes_ant && <Fila label={lblMes} a={c.act.f} b={c.mes_ant.f} fmt={fmtARS} oscuro />}
-              {cCmp ? <Fila label={lblAnio} a={cCmp.act.f} b={cCmp.ant.f} fmt={fmtARS} oscuro parcial={cParcial} nota={cNota} /> : <FilaGris oscuro>Sin año pasado</FilaGris>}
+              {cParcial && <Fila label={`Total vendido, ${lblAnio.toLowerCase()}`} a={c.act.f} b={c.anio_ant_total.f} fmt={fmtARS} oscuro parcial />}
+              {cCmp ? <Fila label={cParcial ? `Lo comparable, ${lblAnio.toLowerCase()}` : lblAnio} a={cCmp.act.f} b={cCmp.ant.f} fmt={fmtARS} oscuro parcial={cParcial} nota={cNota} /> : <FilaGris oscuro>Sin año pasado</FilaGris>}
               {cCmp && <SinPrecios a={cCmp.act.f} b={cCmp.ant.f} parcial={cParcial} inflacion={inf} suba={suba.cafe?.pct} oscuro />}
             </Tarjeta>
             <Tarjeta titulo="Personas" valor={c.act.p ? fmtNum(c.act.p) : 'sin dato'}
                      abajo={c.act.p && c.act.tk ? `${fmtNum(c.act.tk)} mesas · ${fmtDoc(c.act.p / c.act.tk)} personas por mesa` : ''}
                      explica="Cuánta gente atendió el Café, según los comensales que cargan los mozos en Fudo.">
               {c.mes_ant?.p > 0 && <Fila label={lblMes} a={c.act.p} b={c.mes_ant.p} fmt={fmtNum} />}
-              {personasAnt ? <Fila label={lblAnio} a={cCmp.act.p} b={cCmp.ant.p} fmt={fmtNum} parcial={cParcial} nota={cNota} /> : <FilaGris>Sin personas cargadas del año pasado</FilaGris>}
+              {personasAnt ? <Fila label={cParcial ? `Lo comparable, ${lblAnio.toLowerCase()}` : lblAnio} a={cCmp.act.p} b={cCmp.ant.p} fmt={fmtNum} parcial={cParcial} nota={cNota} /> : <FilaGris>Sin personas cargadas del año pasado</FilaGris>}
             </Tarjeta>
             <Tarjeta titulo="Gasto por persona" valor={c.act.p ? fmtARS(c.act.f / c.act.p) : 'sin dato'}
                      explica="Cuánto deja cada persona que se sienta.">
@@ -465,13 +469,15 @@ export default function ComoVenimosSection({ selId = null }) {
                      abajo={estimado(fmtARS(proy(rAct.f)))}
                      explica="Tiendas y Café juntos.">
               {rMes && <Fila label={lblMes} a={rAct.f} b={rMes.f} fmt={fmtARS} oscuro />}
-              {rCmp && <Fila label={lblAnio} a={rCmp.act.f} b={rCmp.ant.f} fmt={fmtARS} oscuro parcial={rCmp.parcial} nota={rCmp.nota} />}
+              {rCmp?.parcial && <Fila label={`Total vendido, ${lblAnio.toLowerCase()}`} a={rAct.f} b={rTotAnt.f} fmt={fmtARS} oscuro parcial />}
+              {rCmp && <Fila label={rCmp.parcial ? `Lo comparable, ${lblAnio.toLowerCase()}` : lblAnio} a={rCmp.act.f} b={rCmp.ant.f} fmt={fmtARS} oscuro parcial={rCmp.parcial} nota={rCmp.nota} />}
               {rCmp && <SinPrecios a={rCmp.act.f} b={rCmp.ant.f} parcial={rCmp.parcial} inflacion={inf} suba={suba.red?.pct} oscuro />}
             </Tarjeta>
             <Tarjeta titulo="Tickets" valor={fmtNum(rAct.tk)} abajo={rAct.tk ? `Ticket promedio ${fmtARS(rAct.f / rAct.tk)}` : ''}
                      explica="Compras en las tiendas más mesas del Café.">
               {rMes && <Fila label={lblMes} a={rAct.tk} b={rMes.tk} fmt={fmtNum} />}
-              {rCmp && <Fila label={lblAnio} a={rCmp.act.tk} b={rCmp.ant.tk} fmt={fmtNum} parcial={rCmp.parcial} nota={rCmp.nota} />}
+              {rCmp?.parcial && <Fila label={`Total vendido, ${lblAnio.toLowerCase()}`} a={rAct.tk} b={rTotAnt.tk} fmt={fmtNum} parcial />}
+              {rCmp && <Fila label={rCmp.parcial ? `Lo comparable, ${lblAnio.toLowerCase()}` : lblAnio} a={rCmp.act.tk} b={rCmp.ant.tk} fmt={fmtNum} parcial={rCmp.parcial} nota={rCmp.nota} />}
             </Tarjeta>
           </div>
         </Bloque>

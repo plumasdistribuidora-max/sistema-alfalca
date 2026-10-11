@@ -273,6 +273,9 @@ async function comoVenimos(modo) {
         mes_ant: p.mes_ant ? sumar(dias, id, p.mes_ant.desde, p.mes_ant.hasta) : null,
         mes_completo_ant: p.mes_completo_ant ? sumar(dias, id, p.mes_completo_ant.desde, p.mes_completo_ant.hasta) : null,
         anio_ant: cmp,
+        // Todo lo vendido en los mismos días del año pasado, sin sacar nada (aunque el local
+        // tuviera esos días a medias o no existiera): es lo que realmente se vendió.
+        anio_ant_total: sumar(dias, id, p.anio_ant.desde, p.anio_ant.hasta),
         docenas_por_mes: serie,
       };
     }),

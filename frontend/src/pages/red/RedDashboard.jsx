@@ -3,6 +3,8 @@ import { Isotipo } from '../../components/Marca';
 import api from '../../api';
 import ComoVenimosSection from './secciones/ComoVenimosSection';
 import MesAMesSection from './secciones/MesAMesSection';
+import ProductosSection from './secciones/ProductosSection';
+import VendedoresSection from './secciones/VendedoresSection';
 import { colorDeTienda, shortName, ordenarTiendas } from './redUtils';
 import ResumenSection  from './secciones/ResumenSection';
 import TiendasSection  from './secciones/TiendasSection';
@@ -11,6 +13,8 @@ import AnalisisSection from './secciones/AnalisisSection';
 const TABS = [
   { id: 'como',     label: 'Cómo venimos' },
   { id: 'mes',      label: 'Mes a mes' },
+  { id: 'productos', label: 'Productos' },
+  { id: 'vendedores', label: 'Vendedores' },
   { id: 'resumen',  label: 'Resumen'  },
   { id: 'tiendas', label: 'Tiendas'  },
   { id: 'analisis',label: 'Análisis' },
@@ -110,12 +114,12 @@ export default function RedDashboard() {
         </p>
 
         {/* Tabs */}
-        <div className="flex px-4 gap-1">
+        <div className="flex px-4 gap-1 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3 sm:px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-colors ${
+              className={`px-3 sm:px-4 py-2.5 text-sm font-semibold rounded-t-xl whitespace-nowrap flex-shrink-0 transition-colors ${
                 activeTab === tab.id
                   ? 'bg-white text-violet-900'
                   : 'text-white/55 hover:text-white hover:bg-white/10'
@@ -147,6 +151,8 @@ export default function RedDashboard() {
       )}
       {activeTab === 'como'     && <ComoVenimosSection selId={selId} />}
       {activeTab === 'mes'      && <MesAMesSection selId={selId} />}
+      {activeTab === 'productos' && <ProductosSection />}
+      {activeTab === 'vendedores' && <VendedoresSection selId={selId} locales={locales} />}
       {activeTab === 'resumen'  && <ResumenSection />}
       {activeTab === 'tiendas' && <TiendasSection />}
       {activeTab === 'analisis' && <AnalisisSection />}

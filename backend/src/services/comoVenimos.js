@@ -123,6 +123,7 @@ async function subaPrecios(modo, p, primeraPorGrupo) {
   const { rows: ventas } = await pool.query(`
     SELECT (l.tipo = 'cafeteria') AS es_cafe,
            LOWER(TRIM(COALESCE(pc.nombre_display, vi.producto_nombre_raw))) AS prod,
+           MIN(TRIM(COALESCE(pc.nombre_display, vi.producto_nombre_raw))) AS nombre,
            SUM(vi.precio_total) AS venta
     FROM ventas_items vi
     JOIN ventas_tickets vt ON vt.id = vi.ticket_id AND vt.estado = 'cerrada'
@@ -164,13 +165,15 @@ async function subaPrecios(modo, p, primeraPorGrupo) {
   });
 
   const grupo = esCafe => {
-    const lista = ventas.filter(v => v.es_cafe === esCafe).map(v => ({ prod: v.prod, venta: n(v.venta) }))
+    const lista = ventas.filter(v => v.es_cafe === esCafe).map(v => ({ prod: v.prod, nombre: v.nombre, venta: n(v.venta) }))
       .sort((a, b) => b.venta - a.venta);
     const total = lista.reduce((s, v) => s + v.venta, 0);
     const top = [];
     let acc = 0;
     for (const v of lista) { top.push(v); acc += v.venta; if (acc >= total * 0.8) break; }
-    return top.map(v => ({ ...v, hoy: hoy.get(`${esCafe}|${v.prod}`), antes: antes.get(`${esCafe}|${v.prod}`) }));
+    const out = top.map(v => ({ ...v, hoy: hoy.get(`${esCafe}|${v.prod}`) ?? null, antes: antes.get(`${esCafe}|${v.prod}`) ?? null }));
+    out.total = total; out.productos = lista.length;
+    return out;
   };
   const indice = lista => {
     let w = 0, s = 0, usados = 0;
@@ -181,7 +184,13 @@ async function subaPrecios(modo, p, primeraPorGrupo) {
     return w > 0 ? { pct: Math.round((s / w - 1) * 1000) / 10, productos: usados, de: lista.length } : null;
   };
   const tiendas = grupo(false), cafe = grupo(true);
-  return { tiendas: indice(tiendas), cafe: indice(cafe), red: indice([...tiendas, ...cafe]) };
+  const res = { tiendas: indice(tiendas), cafe: indice(cafe), red: indice([...tiendas, ...cafe]) };
+  // El detalle (los productos del 80 % con sus precios) lo usa la solapa Productos
+  Object.defineProperty(res, 'detalle', { enumerable: false, value: {
+    tiendas: { total: tiendas.total, productos: tiendas.productos, top: tiendas.map(({ prod, ...v }) => v) },
+    cafe:    { total: cafe.total,    productos: cafe.productos,    top: cafe.map(({ prod, ...v }) => v) },
+  } });
+  return res;
 }
 
 // ── Docenas por mes del año, para la curvita de cada tienda ──────────────────
@@ -272,4 +281,27 @@ async function comoVenimos(modo) {
   return { ...data, inflacion: await parametrosIpc() };
 }
 
-module.exports = { comoVenimos, parametrosIpc, _periodos: periodos, _atras: atras };
+// Los productos que hacen el 80 % de la venta del año, tiendas y Café, con su precio
+// de estos días del mes contra los mismos días del año pasado.
+async function productos80() {
+  const hoy = (await pool.query(`SELECT MAX(fecha)::text AS f FROM ventas_tickets WHERE estado = 'cerrada'`)).rows[0]?.f;
+  if (!hoy) return null;
+  const p = periodos('mes', hoy);
+  const { rows: locales } = await pool.query(`
+    SELECT (l.tipo = 'cafeteria') AS es_cafe,
+           (SELECT MIN(vt.fecha)::text FROM ventas_tickets vt WHERE vt.local_id = l.id AND vt.estado = 'cerrada') AS primera_venta
+    FROM locales l WHERE l.activo = true`);
+  const primera = esCafe => locales.filter(l => l.es_cafe === esCafe && l.primera_venta)
+    .reduce((a, l) => (!a || l.primera_venta < a ? l.primera_venta : a), null);
+  const suba = await subaPrecios('mes', p, { false: primera(false), true: primera(true) });
+  return {
+    desde: `${hoy.slice(0, 4)}-01-01`,
+    hasta: hoy,
+    precios: { desde: p.desde, hasta: p.hasta, anio_ant: p.anio_ant },
+    suba: { tiendas: suba.tiendas, cafe: suba.cafe, red: suba.red },
+    ...suba.detalle,
+    inflacion: await parametrosIpc(),
+  };
+}
+
+module.exports = { comoVenimos, productos80, parametrosIpc, _periodos: periodos, _atras: atras };

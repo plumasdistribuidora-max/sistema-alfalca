@@ -4,7 +4,8 @@ const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { generarConclusiones } = require('../utils/conclusiones');
-const { comoVenimos, parametrosIpc } = require('../services/comoVenimos');
+const { comoVenimos, productos80, parametrosIpc } = require('../services/comoVenimos');
+const { vendedores } = require('../services/vendedores');
 const { mesAMes } = require('../services/mesAMes');
 
 const router = express.Router();
@@ -2669,6 +2670,29 @@ router.get('/mes-a-mes', requireAuth, async (req, res) => {
     res.json({ ok: true, data: await mesAMes() });
   } catch (err) {
     console.error('[red/mes-a-mes]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Productos: los que hacen el 80 % de la venta y cuánto subieron ──────────
+router.get('/productos-80', requireAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, data: await productos80() });
+  } catch (err) {
+    console.error('[red/productos-80]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Vendedores de un local, por mes y turno ─────────────────────────────────
+router.get('/vendedores', requireAuth, async (req, res) => {
+  try {
+    const localId = parseInt(req.query.local_id, 10);
+    const range = parseRange(req);
+    if (!localId || !range) return res.status(400).json({ ok: false, error: 'Elegí un local y fechas válidas' });
+    res.json({ ok: true, data: await vendedores(localId, range[0], range[1]) });
+  } catch (err) {
+    console.error('[red/vendedores]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

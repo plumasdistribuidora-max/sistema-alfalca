@@ -406,14 +406,17 @@ function Documento({ r }) {
     h(Page, { size: 'A4', style: S.pagina },
       h(Bloque, { titulo: 'Deuda con proveedores', sub: `al ${ddmm(r.fecha)} · sin vencimientos: se mira cuánto hace que está sin pagar` },
         h(Mini, { items: [{ v: $(pl.deuda.total), s: `${pl.deuda.facturas} facturas sin pagar` }, ...pl.deuda.tramos.map(t => ({ v: $(t.monto), s: `${t.label} · ${t.facturas} fact.`, color: t.label.startsWith('Más') && t.monto ? C.rojo : C.tinta }))] })),
-      // Cada proveedor con su total y todas sus facturas (variante B, 11/10/2026). Un
-      // cuadro por proveedor, para que ninguno quede partido entre dos hojas.
+      // Cada proveedor con su total y sus 3 facturas más viejas, como la tarjeta de la
+      // pantalla (Martín, 11/10/2026: con todas el PDF pasaba a 6 hojas). Un cuadro por
+      // proveedor, para que ninguno quede partido entre dos hojas.
       ...pl.deuda.por_proveedor.map((p, i) => h(Cuadro, {
         key: i,
         titulo: `${p.proveedor} · ${$(p.deuda)}`,
         sub: `${p.facturas} factura${p.facturas === 1 ? '' : 's'} · la más vieja ${p.mas_vieja} días${p.medio ? ` · ${MEDIO_PAGO[p.medio] || p.medio}` : ''}${p.dias_pago?.length ? `, cobra ${p.dias_pago.map(d => DIA_CORTO_PDF[d]).join(', ')}` : ''}`,
         cols: [{ t: 'Días', w: 0.7, num: true }, { t: 'Fecha', w: 0.9 }, { t: 'Factura', w: 2.4 }, { t: 'Local', w: 1.6 }, { t: 'Saldo', w: 1.4, num: true }],
-        filas: p.lista.map(f => ({ c: [
+        nota: p.lista.length > 3 ? h(View, { style: S.nota },
+          h(Text, { style: { color: C.gris } }, `y ${p.lista.length - 3} factura${p.lista.length - 3 === 1 ? '' : 's'} más, por ${$(p.lista.slice(3).reduce((s, f) => s + f.saldo, 0))} · el detalle completo, en Proveedores`)) : null,
+        filas: p.lista.slice(0, 3).map(f => ({ c: [
           { t: String(f.dias), color: f.dias > 30 ? C.rojo : f.dias > 15 ? C.ambar : C.tinta, bold: true },
           ddmm(f.fecha), f.numero || 'sin número', f.local, num(f.saldo),
         ]})),

@@ -305,80 +305,229 @@ async function ultimoDiaCompleto() {
   return T.fechaStr(d);
 }
 
+// ── El reporte del día ───────────────────────────────────────────────────────
+// Se arma una sola vez y lo usan la pantalla y el PDF: lo mismo, en el mismo orden,
+// solo cambia dónde se ve (Martín, 11/10/2026). Estructura aprobada en la maqueta:
+// para decidir, cuatro números con su comparación, cada local, lo que salió mal, el
+// encargado; después mantenimiento, vencimientos, café y plata; la deuda aparte.
+
+const DIA_NOMBRE = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MES_NOMBRE = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const fechaLargaDe = f => { const d = new Date(`${f}T12:00:00`); return `${DIA_NOMBRE[d.getDay()]} ${d.getDate()} de ${MES_NOMBRE[d.getMonth()]}`; };
+const correrFecha = (f, dias) => { const d = new Date(`${f}T12:00:00`); d.setDate(d.getDate() + dias); return T.fechaStr(d); };
+
+// Venta, tickets y docenas por local en un rango de fechas.
+async function ventasEntre(desde, hasta) {
+  const { rows } = await pool.query(`
+    SELECT t.local_id, COALESCE(SUM(t.total), 0) AS total, COUNT(*)::int AS tickets,
+           COALESCE((SELECT SUM(i.docenas_equivalentes) FROM ventas_items i
+                     JOIN ventas_tickets t2 ON t2.id = i.ticket_id
+                     WHERE t2.local_id = t.local_id AND t2.fecha BETWEEN $1 AND $2
+                       AND t2.estado = 'cerrada' AND NOT i.cancelada), 0) AS docenas
+    FROM ventas_tickets t
+    WHERE t.fecha BETWEEN $1 AND $2 AND t.estado = 'cerrada'
+    GROUP BY t.local_id
+  `, [desde, hasta]);
+  return Object.fromEntries(rows.map(r => [r.local_id, { total: n(r.total), tickets: r.tickets, docenas: n(r.docenas) }]));
+}
+const sumaVentas = (m, campo, filtro = () => true) =>
+  Object.entries(m).filter(([id]) => filtro(Number(id))).reduce((s, [, v]) => s + v[campo], 0);
+const variacionPct = (hoy, antes) => (antes > 0 ? (hoy / antes - 1) * 100 : null);
+
+// La grilla de vencimientos: producto en filas, tienda en columnas. Si un local lo
+// reportó dos veces, se suman las unidades y queda el vencimiento más corto.
+function grillaDe(items) {
+  const lista = items.filter(it => it.producto && it.vence);
+  const tiendas = [...new Set(lista.map(it => corto(it.local)))];
+  const porProducto = new Map();
+  for (const it of lista) {
+    if (!porProducto.has(it.producto)) porProducto.set(it.producto, {});
+    const fila = porProducto.get(it.producto);
+    const loc = corto(it.local);
+    const antes = fila[loc];
+    fila[loc] = {
+      cantidad: (antes?.cantidad || 0) + (Number(it.cantidad) || 0),
+      dias: antes ? Math.min(antes.dias, Number(it.dias)) : Number(it.dias),
+    };
+  }
+  const filas = [...porProducto.entries()].map(([producto, celdas]) => ({
+    producto, celdas,
+    urgencia: Math.min(...Object.values(celdas).map(c => c.dias)),
+    unidades: Object.values(celdas).reduce((s, c) => s + c.cantidad, 0),
+  })).sort((a, b) => a.urgencia - b.urgencia || a.producto.localeCompare(b.producto));
+  return { tiendas, filas, mas_proximo: filas.length ? filas[0].urgencia : null };
+}
+
+async function armarReporte(fecha) {
+  const activos = n((await pool.query('SELECT COUNT(*) FROM locales WHERE activo = true')).rows[0].count);
+  const cubiertos = await alertas.localesCubiertos(fecha);
+  const dia = await armarDia(fecha);
+  const abiertos = new Set(dia.locales.filter(l => cubiertos.has(l.local_id) && l.tickets_sistema > 0).map(l => l.local_id));
+  const slots = await alertas.slotsDelDia(fecha, abiertos);
+
+  // Comparaciones: el mismo día de la semana anterior, y el mes contra el mismo tramo
+  // del mes pasado. Siempre se dice contra qué fecha y cuánto fue.
+  const ref = correrFecha(fecha, -7);
+  const d = new Date(`${fecha}T12:00:00`);
+  const mesDesde = `${fecha.slice(0, 7)}-01`;
+  const finMesPasado = new Date(d.getFullYear(), d.getMonth(), 0);
+  const mesPasadoDesde = `${T.fechaStr(finMesPasado).slice(0, 7)}-01`;
+  const mesPasadoHasta = T.fechaStr(new Date(d.getFullYear(), d.getMonth() - 1, Math.min(d.getDate(), finMesPasado.getDate())));
+  const [vHoy, vRef, vMes, vMesPasado] = await Promise.all([
+    ventasEntre(fecha, fecha), ventasEntre(ref, ref),
+    ventasEntre(mesDesde, fecha), ventasEntre(mesPasadoDesde, mesPasadoHasta),
+  ]);
+  const esTienda = id => dia.locales.find(l => l.local_id === id)?.tipo !== 'cafeteria';
+
+  // Tareas.
+  const todas = await enriquecer((await pool.query(`${SELECT_TAREA} WHERE t.estado <> 'terminada' OR t.fecha = $1 ORDER BY t.created_at`, [fecha])).rows);
+  const abiertas = todas.filter(t => t.estado !== 'terminada');
+  const delDia = todas.filter(t => t.fecha === fecha && (t.tipo !== 'mantenimiento' || t.detalle?.desde === fecha));
+  const gastosPend = (await pool.query(`
+    SELECT g.id, g.tarea_id, g.concepto, g.monto, g.created_at, t.titulo, l.nombre AS local_nombre
+    FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id
+    WHERE g.estado = 'pendiente' ORDER BY g.created_at
+  `)).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
+  const tareaCorta = t => ({
+    id: t.id, tipo: t.tipo, tipo_label: t.tipo_label, local: t.local_corto, local_nombre: t.local_nombre,
+    titulo: t.titulo, estado: t.estado, accion: t.accion, plazo: t.plazo, resultado: t.resultado,
+    resultado_monto: t.resultado_monto, cierre_tipo: t.cierre_tipo, dias_vencida: t.dias_vencida,
+    aprobada_sola: t.estado === 'terminada' && t.causa_id && !t.terminada_por,
+    esperando_ms: t.relojes.duenos_ms, desde: t.detalle?.desde || t.fecha,
+  });
+
+  // Cada local.
+  const locales = dia.locales.map(l => {
+    const hoy = vHoy[l.local_id] || { total: 0, tickets: 0, docenas: 0 };
+    const antes = vRef[l.local_id] || { total: 0, tickets: 0, docenas: 0 };
+    const tareaVentas = todas.find(t => t.tipo === 'ventas' && t.local_id === l.local_id && t.fecha === fecha);
+    const esp = slots.filter(s => s.local_id === l.local_id);
+    return {
+      local_id: l.local_id, nombre: corto(l.nombre), nombre_completo: l.nombre, tipo: l.tipo,
+      fudo: cubiertos.has(l.local_id), abrio: abiertos.has(l.local_id),
+      venta: hoy.total, venta_ref: antes.total, var_venta: variacionPct(hoy.total, antes.total),
+      docenas: l.tipo === 'cafeteria' ? null : hoy.docenas, docenas_ref: l.tipo === 'cafeteria' ? null : antes.docenas,
+      ticket: l.tipo === 'cafeteria'
+        ? (l.personas_reportadas ? hoy.total / l.personas_reportadas : (hoy.tickets ? hoy.total / hoy.tickets : null))
+        : (hoy.tickets ? hoy.total / hoy.tickets : null),
+      ticket_es: l.tipo === 'cafeteria' && l.personas_reportadas ? 'por persona' : 'por ticket',
+      personas: l.tipo === 'cafeteria' ? l.personas_reportadas : null,
+      personal: l.horas_sobre_ventas, objetivo: l.objetivo, personal_sin_dato: l.horas_incompletas,
+      reportes: { esperados: esp.length, recibidos: esp.filter(s => s.reporte).length },
+      diferencia: l.diferencia, completo: l.completo,
+      tarea_ventas: tareaVentas ? tareaCorta(tareaVentas) : null,
+    };
+  });
+
+  const tot = {
+    venta: sumaVentas(vHoy, 'total'), venta_ref: sumaVentas(vRef, 'total'),
+    docenas: sumaVentas(vHoy, 'docenas', esTienda), docenas_ref: sumaVentas(vRef, 'docenas', esTienda),
+    mes: sumaVentas(vMes, 'total'), mes_pasado: sumaVentas(vMesPasado, 'total'),
+    tickets_tiendas: sumaVentas(vHoy, 'tickets', esTienda), venta_tiendas: sumaVentas(vHoy, 'total', esTienda),
+  };
+
+  // Mantenimiento abierto: lo dicen las tareas, con los días desde que nació.
+  const mant = abiertas.filter(t => t.tipo === 'mantenimiento').map(t => ({
+    ...tareaCorta(t), rubro: t.detalle?.rubro || '', texto: t.detalle?.texto || t.titulo,
+    dias: T.diasEntre(t.detalle?.desde || t.fecha, fecha),
+  })).sort((a, b) => b.dias - a.dias);
+
+  // Café en grano.
+  const c = dia.cafe || {};
+  const cafe = c.turnos?.length ? {
+    manana: c.turnos.find(x => x.turno === 'Mañana') ? { usuario: c.turnos.find(x => x.turno === 'Mañana').usuario, kg: c.manana } : null,
+    tarde: c.turnos.find(x => x.turno === 'Tarde') ? { usuario: c.turnos.find(x => x.turno === 'Tarde').usuario, kg: c.tarde } : null,
+    consumo: c.consumo, teorico: c.control?.teorico ?? null, queda: c.queda,
+    sin_definir: c.control?.sin_definir || 0,
+  } : null;
+
+  // Plata: lo que entró y salió ese día, y la deuda con proveedores (sin vencimientos:
+  // se mira cuánto hace que está sin pagar cada factura).
+  const p = dia.proveedores || {};
+  const gastosTareas = (await pool.query(`
+    SELECT g.concepto, g.monto, g.estado, t.titulo, l.nombre AS local_nombre,
+           EXISTS (SELECT 1 FROM tarea_adjuntos a WHERE a.gasto_id = g.id AND a.rol = 'comprobante') AS con_comprobante
+    FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id
+    WHERE (g.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date = $1 ORDER BY g.id
+  `, [fecha])).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
+  const facturasAbiertas = (await pool.query(`
+    SELECT f.id, f.numero, f.fecha::text AS fecha, COALESCE(pr.nombre, f.proveedor) AS proveedor, l.nombre AS local_nombre,
+           f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) AS saldo
+    FROM facturas f LEFT JOIN proveedores pr ON pr.id = f.proveedor_id LEFT JOIN locales l ON l.id = f.local_id
+    WHERE f.fecha <= $1
+      AND f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) > 0
+    ORDER BY f.fecha, f.id
+  `, [fecha])).rows.map(f => ({ ...f, saldo: n(f.saldo), dias: T.diasEntre(f.fecha, fecha), local: corto(f.local_nombre) }));
+  const tramo = (a, b) => {
+    const fs = facturasAbiertas.filter(f => f.dias >= a && f.dias <= b);
+    return { monto: fs.reduce((s, f) => s + f.saldo, 0), facturas: fs.length };
+  };
+  const porProv = {};
+  for (const f of facturasAbiertas) {
+    const x = (porProv[f.proveedor] ||= { proveedor: f.proveedor, deuda: 0, facturas: 0, mas_vieja: f.dias });
+    x.deuda += f.saldo; x.facturas++; x.mas_vieja = Math.max(x.mas_vieja, f.dias);
+  }
+
+  const vencidas = abiertas.filter(t => t.dias_vencida > 0);
+  return {
+    fecha, fecha_larga: fechaLargaDe(fecha),
+    ref: { fecha: ref, larga: fechaLargaDe(ref) },
+    mes: { desde: mesDesde, hasta: fecha, pasado_desde: mesPasadoDesde, pasado_hasta: mesPasadoHasta },
+    completo: cubiertos.size >= activos,
+    sin_fudo: dia.locales.filter(l => !cubiertos.has(l.local_id)).map(l => corto(l.nombre)),
+    reportes: { esperados: slots.length, recibidos: slots.filter(s => s.reporte).length },
+    para_decidir: {
+      tareas: abiertas.filter(t => t.estado === 'por_aprobar').map(tareaCorta),
+      gastos: gastosPend,
+    },
+    kpis: {
+      venta: tot.venta, venta_ref: tot.venta_ref, var_venta: variacionPct(tot.venta, tot.venta_ref),
+      docenas: tot.docenas, docenas_ref: tot.docenas_ref, var_docenas: variacionPct(tot.docenas, tot.docenas_ref),
+      mes: tot.mes, mes_pasado: tot.mes_pasado, var_mes: variacionPct(tot.mes, tot.mes_pasado),
+      personal: dia.totales.horas_sobre_ventas, objetivo: dia.totales.objetivo,
+      locales_con_kpi: dia.totales.locales_con_kpi, locales_con_venta: dia.totales.locales_con_venta,
+      ticket_tiendas: tot.tickets_tiendas ? tot.venta_tiendas / tot.tickets_tiendas : null,
+    },
+    locales,
+    salio_mal: delDia.map(tareaCorta).sort((a, b) => ({ nueva: 0, en_curso: 1, por_aprobar: 2, terminada: 3 })[a.estado] - ({ nueva: 0, en_curso: 1, por_aprobar: 2, terminada: 3 })[b.estado]),
+    encargado: {
+      abiertas: abiertas.length,
+      sin_tomar: abiertas.filter(t => t.estado === 'nueva').length,
+      vencidas: vencidas.length, mas_vieja_vencida: Math.max(0, ...vencidas.map(t => t.dias_vencida)),
+      arreglos: mant.length, arreglo_mas_viejo: mant[0]?.dias || 0,
+    },
+    mantenimiento: mant,
+    vencimientos: grillaDe(dia.novedades.vencimientos),
+    cafe,
+    plata: {
+      facturas_hoy: { monto: p.total_cargadas || 0, cantidad: (p.cargadas || []).length },
+      pagado_hoy: { monto: p.pagado_hoy || 0, cantidad: (p.pagos || []).length },
+      gastos_caja: { monto: dia.novedades.total_gastos || 0, items: dia.novedades.gastos.map(g => ({ local: corto(g.local), detalle: g.detalle || g.tipo, monto: g.monto })) },
+      gastos_tareas: gastosTareas,
+      deuda: {
+        total: facturasAbiertas.reduce((s, f) => s + f.saldo, 0),
+        facturas: facturasAbiertas.length,
+        mas_vieja: facturasAbiertas[0] ? { proveedor: facturasAbiertas[0].proveedor, dias: facturasAbiertas[0].dias, fecha: facturasAbiertas[0].fecha } : null,
+        tramos: [
+          { label: 'Hasta 7 días', ...tramo(0, 7) },
+          { label: '8 a 15 días', ...tramo(8, 15) },
+          { label: '16 a 30 días', ...tramo(16, 30) },
+          { label: 'Más de 30 días', ...tramo(31, 100000) },
+        ],
+        por_proveedor: Object.values(porProv).sort((a, b) => b.deuda - a.deuda),
+        mas_viejas: facturasAbiertas.slice(0, 10),
+      },
+    },
+  };
+}
+
 // ── GET /dia (el reporte del día) ────────────────────────────────────────────
-// Lo mismo que les llega en el aviso, con el detalle. Sin fecha, el último día que
-// tiene el Fudo de todos los locales.
+// Sin fecha, el último día que tiene el Fudo de todos los locales.
 router.get('/dia', requireAuth, soloEncargado, async (req, res) => {
   try {
     const fecha = req.query.fecha || await ultimoDiaCompleto();
-    const activos = n((await pool.query('SELECT COUNT(*) FROM locales WHERE activo = true')).rows[0].count);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fail(res, 400, 'Fecha inválida');
-
-    const cubiertos = await alertas.localesCubiertos(fecha);
-    const dia = await armarDia(fecha);
-    const abiertos = new Set(dia.locales.filter(l => cubiertos.has(l.local_id) && l.tickets_sistema > 0).map(l => l.local_id));
-    const slots = await alertas.slotsDelDia(fecha, abiertos);
-
-    const delDia = await enriquecer((await pool.query(
-      `${SELECT_TAREA} WHERE t.fecha = $1 ORDER BY t.local_id, t.id`, [fecha]
-    )).rows);
-    const abiertas = await enriquecer((await pool.query(
-      `${SELECT_TAREA} WHERE t.estado <> 'terminada' ORDER BY t.created_at`
-    )).rows);
-
-    const avances = (await pool.query(`
-      SELECT e.tipo, e.texto, e.created_at, e.tarea_id, u.nombre AS usuario, t.titulo, l.nombre AS local_nombre
-      FROM tarea_eventos e JOIN tareas t ON t.id = e.tarea_id
-      LEFT JOIN usuarios u ON u.id = e.usuario_id LEFT JOIN locales l ON l.id = t.local_id
-      WHERE (e.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date = $1
-        AND e.tipo IN ('tomada', 'avance', 'plazo', 'gasto', 'comprobante', 'pidio_cierre', 'aprobada')
-      ORDER BY e.created_at
-    `, [fecha])).rows.map(a => ({ ...a, local_corto: corto(a.local_nombre) }));
-
-    const gastosTareas = (await pool.query(`
-      SELECT g.concepto, g.monto, g.estado, t.titulo, l.nombre AS local_nombre,
-             EXISTS (SELECT 1 FROM tarea_adjuntos a WHERE a.gasto_id = g.id AND a.rol = 'comprobante') AS con_comprobante
-      FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id
-      WHERE (g.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date = $1
-    `, [fecha])).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
-
-    const gastosPendientes = n((await pool.query(`SELECT COUNT(*) FROM tarea_gastos WHERE estado = 'pendiente'`)).rows[0].count);
-
-    res.json({
-      ok: true,
-      data: {
-        fecha,
-        completo: cubiertos.size >= activos,
-        locales: dia.locales.map(l => ({
-          local_id: l.local_id, nombre: corto(l.nombre), nombre_completo: l.nombre, tipo: l.tipo,
-          fudo: cubiertos.has(l.local_id), abrio: abiertos.has(l.local_id),
-          ventas: l.ventas_sistema, tickets: l.tickets_sistema,
-          horas_sobre_ventas: l.horas_sobre_ventas, objetivo: l.objetivo, horas_incompletas: l.horas_incompletas,
-        })),
-        totales: {
-          ventas: dia.totales.ventas_sistema,
-          horas_sobre_ventas: dia.totales.horas_sobre_ventas,
-          objetivo: dia.totales.objetivo,
-          locales_con_kpi: dia.totales.locales_con_kpi,
-          locales_con_venta: dia.totales.locales_con_venta,
-        },
-        reportes: {
-          esperados: slots.length,
-          recibidos: slots.filter(s => s.reporte).length,
-          faltan: slots.filter(s => !s.reporte).map(s => ({
-            local: corto(dia.locales.find(l => l.local_id === s.local_id)?.nombre), plantilla: s.plantilla_nombre, turno: s.turno,
-          })),
-        },
-        tareas_del_dia: delDia,
-        abiertas: abiertas.length,
-        vencidas: abiertas.filter(t => t.dias_vencida > 0),
-        por_aprobar: abiertas.filter(t => t.estado === 'por_aprobar').length + gastosPendientes,
-        avances,
-        gastos_tareas: gastosTareas,
-        gastos_caja: dia.novedades.gastos.map(g => ({ ...g, local: corto(g.local) })),
-        total_gastos_caja: dia.novedades.total_gastos || 0,
-      },
-    });
+    res.json({ ok: true, data: await armarReporte(fecha) });
   } catch (err) {
     console.error('[tareas/dia]', err);
     fail(res, 500, 'No se pudo armar el reporte del día');
@@ -386,34 +535,13 @@ router.get('/dia', requireAuth, soloEncargado, async (req, res) => {
 });
 
 // ── GET /dia/pdf ─────────────────────────────────────────────────────────────
-// El reporte del día en PDF: el mismo papel de antes, armado solo. Se genera en el
-// momento con los datos de ese día, así nunca queda viejo.
+// El mismo reporte, en papel. Se arma en el momento: nunca queda viejo.
 router.get('/dia/pdf', requireAuth, soloEncargado, async (req, res) => {
   try {
     const fecha = req.query.fecha || await ultimoDiaCompleto();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fail(res, 400, 'Fecha inválida');
-    const activos = n((await pool.query('SELECT COUNT(*) FROM locales WHERE activo = true')).rows[0].count);
-    const cubiertos = await alertas.localesCubiertos(fecha);
-    const dia = await armarDia(fecha);
-    const abiertos = new Set(dia.locales.filter(l => cubiertos.has(l.local_id) && l.tickets_sistema > 0).map(l => l.local_id));
-    const slots = await alertas.slotsDelDia(fecha, abiertos);
-    const delDia = await enriquecer((await pool.query(`${SELECT_TAREA} WHERE t.fecha = $1 ORDER BY t.id`, [fecha])).rows);
-    const abiertas = await enriquecer((await pool.query(`${SELECT_TAREA} WHERE t.estado <> 'terminada' ORDER BY t.created_at`)).rows);
-    const gastos = (await pool.query(`
-      SELECT g.concepto, g.monto, g.estado, t.titulo, l.nombre AS local_nombre,
-             EXISTS (SELECT 1 FROM tarea_adjuntos a WHERE a.gasto_id = g.id AND a.rol = 'comprobante') AS con_comprobante
-      FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id
-      WHERE (g.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date = $1 ORDER BY g.id
-    `, [fecha])).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
-    const gastosPendientes = n((await pool.query(`SELECT COUNT(*) FROM tarea_gastos WHERE estado = 'pendiente'`)).rows[0].count);
-
     const { pdfDia } = require('../services/pdfDia');
-    const buffer = await pdfDia(dia, {
-      delDia, abiertas, gastos,
-      completo: cubiertos.size >= activos,
-      reportes: { esperados: slots.length, recibidos: slots.filter(s => s.reporte).length },
-      porAprobar: abiertas.filter(t => t.estado === 'por_aprobar').length + gastosPendientes,
-    });
+    const buffer = await pdfDia(await armarReporte(fecha));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="Reporte del dia ${fecha}.pdf"`);
     res.send(buffer);

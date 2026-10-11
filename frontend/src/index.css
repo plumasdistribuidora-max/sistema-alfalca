@@ -22,8 +22,10 @@
   .label {
     @apply block text-sm font-medium text-ahg-text mb-1;
   }
+  /* min-w-0: dentro de una grilla o un flex, una tarjeta con una tabla ancha no estira la
+     pantalla más que el celular; la tabla scrollea adentro de la tarjeta. */
   .card {
-    @apply bg-white rounded-xl border border-ahg-accent/30 shadow-sm;
+    @apply bg-white rounded-xl border border-ahg-accent/30 shadow-sm min-w-0;
   }
   .table-th {
     @apply px-4 py-3 text-left text-xs font-semibold text-ahg-text/60 uppercase tracking-wider;

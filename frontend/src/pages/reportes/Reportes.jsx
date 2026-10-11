@@ -40,7 +40,7 @@ function Slot({ slot, onAbrir }) {
         ${abrible ? 'bg-white border-ahg-accent/40 hover:border-ahg-primary cursor-pointer'
                   : 'bg-ahg-bg border-dashed border-ahg-accent/40 cursor-default'}`}
     >
-      <span className="text-xs font-semibold text-ahg-text/50 w-32 flex-shrink-0">
+      <span className="text-xs font-semibold text-ahg-text/50 w-24 sm:w-32 flex-shrink-0">
         {etiqueta} · {slot.turno}
       </span>
       <span className="flex-1 min-w-0 text-sm truncate">

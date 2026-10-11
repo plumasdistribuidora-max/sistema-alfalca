@@ -237,24 +237,24 @@ export default function StockInteligente() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="rounded-2xl p-5 text-white" style={{ background: '#45484c' }}>
           <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-1">Demanda proyectada</p>
-          <p className="text-3xl font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+          <p className="text-2xl sm:text-3xl font-bold whitespace-nowrap" style={{ fontFamily: 'Nunito, sans-serif' }}>
             {loadingProy ? '…' : fmtDoc(proyeccion?.demanda_total_doc ?? 0)}
           </p>
           <p className="text-xs opacity-60 mt-1">docenas del grupo</p>
         </div>
         <div className="card p-5 border border-stone-100">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Stock contado</p>
-          <p className="text-3xl font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
+          <p className="text-2xl sm:text-3xl font-bold whitespace-nowrap text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
             {fmtDoc(stockTotalDoc)}
           </p>
           <p className="text-xs text-stone-400 mt-1">docenas en las tiendas</p>
         </div>
         <div className="card p-5 border border-stone-100">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">A pedir</p>
-          <p className="text-3xl font-bold text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
+          <p className="text-2xl sm:text-3xl font-bold whitespace-nowrap text-stone-900" style={{ fontFamily: 'Nunito, sans-serif' }}>
             {fmtDoc(aPedirTotalDoc)}
           </p>
           <p className="text-xs text-stone-400 mt-1">

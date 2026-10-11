@@ -99,7 +99,8 @@ export default function VentasComparativo() {
               <div className="px-4 py-3 border-b border-stone-100">
                 <h2 className="font-semibold text-stone-800">Resumen del período</h2>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto">
+                <table className="w-full">
                 <thead className="bg-stone-50">
                   <tr>
                     <th className="table-th">Local</th>
@@ -145,6 +146,7 @@ export default function VentasComparativo() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

@@ -56,12 +56,12 @@ export default function RedDashboard() {
       {/* ── Header violeta ─────────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#45484c' }}>
         {/* Título + badge */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-3">
-          <div className="flex items-center gap-4">
-            <Isotipo className="w-10 h-10 text-white flex-shrink-0" />
-            <div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-3">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <Isotipo className="w-9 h-9 sm:w-10 sm:h-10 text-white flex-shrink-0" />
+            <div className="min-w-0">
               <h1
-                className="text-xl font-bold text-white leading-tight"
+                className="text-lg sm:text-xl font-bold text-white leading-tight"
                 style={{ fontFamily: 'Nunito, sans-serif' }}
               >
                 Alfalca · Red de tiendas
@@ -76,8 +76,8 @@ export default function RedDashboard() {
           </div>
 
           {badgeTexto ? (
-            <span className="flex items-center gap-1.5 bg-white text-ahg-text text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+            <span className="flex items-center gap-1.5 bg-white text-ahg-text text-xs font-semibold px-3 py-1.5 rounded-full max-w-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse flex-shrink-0" />
               {badgeTexto}
             </span>
           ) : (
@@ -87,7 +87,7 @@ export default function RedDashboard() {
           )}
         </div>
 
-        <p className="px-6 pb-3 text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
+        <p className="px-4 sm:px-6 pb-3 text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
           {rangoTexto(ultimoImport)} · 4 tiendas alfajoreras + 1 cafetería
         </p>
 
@@ -97,7 +97,7 @@ export default function RedDashboard() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-colors ${
+              className={`px-3 sm:px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-colors ${
                 activeTab === tab.id
                   ? 'bg-white text-violet-900'
                   : 'text-white/55 hover:text-white hover:bg-white/10'

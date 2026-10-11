@@ -106,7 +106,8 @@ export default function Locales() {
         {loading ? (
           <div className="p-8 text-center text-stone-400">Cargando...</div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full">
             <thead className="bg-stone-50">
               <tr>
                 <th className="table-th">Nombre</th>
@@ -149,6 +150,7 @@ export default function Locales() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

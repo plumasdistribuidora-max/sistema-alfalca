@@ -122,7 +122,7 @@ export function Tile({ titulo, valor, detalle, tono = 'normal' }) {
   return (
     <div className={`card p-3.5 border-l-4 ${borde}`}>
       <p className="text-[10px] font-semibold uppercase tracking-widest text-ahg-text/40">{titulo}</p>
-      <p className={`text-2xl font-bold tabular-nums mt-1 ${color}`} style={{ fontFamily: 'Nunito, sans-serif' }}>
+      <p className={`text-xl sm:text-2xl font-bold tabular-nums whitespace-nowrap mt-1 ${color}`} style={{ fontFamily: 'Nunito, sans-serif' }}>
         {valor}
       </p>
       {detalle && <p className="text-xs text-ahg-text/50 mt-0.5">{detalle}</p>}

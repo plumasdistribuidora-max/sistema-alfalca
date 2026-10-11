@@ -145,14 +145,14 @@ function ControlDocenas({ version }) {
             Lo vendido cada día por local, pasado a docenas con este maestro. Tocá un número para ver qué se vendió y cuánto suma cada producto.
           </p>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
           {[['7 días', -6], ['14 días', -13], ['30 días', -29]].map(([l, d]) => (
             <button key={l} onClick={() => { setDesde(hoyStr(d)); setHasta(hoyStr()); }}
                     className="text-xs px-2.5 py-1.5 rounded border border-stone-200 text-stone-600 hover:border-violet-400">{l}</button>
           ))}
-          <input type="date" className="input text-sm w-40" value={desde} onChange={e => setDesde(e.target.value)} />
+          <input type="date" className="input text-sm w-36 sm:w-40" value={desde} onChange={e => setDesde(e.target.value)} />
           <span className="text-stone-400 text-sm">a</span>
-          <input type="date" className="input text-sm w-40" value={hasta} onChange={e => setHasta(e.target.value)} />
+          <input type="date" className="input text-sm w-36 sm:w-40" value={hasta} onChange={e => setHasta(e.target.value)} />
         </div>
       </div>
 
@@ -446,7 +446,7 @@ export default function MaestroDocenasPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex rounded-lg border border-stone-200 overflow-hidden text-sm">
+        <div className="flex max-w-full overflow-x-auto rounded-lg border border-stone-200 text-sm">
           {[
             ['pendientes', `Pendientes${pendientes ? ` (${pendientes})` : ''}`],
             ['suman',      'Suman docenas'],
@@ -457,7 +457,7 @@ export default function MaestroDocenasPage() {
             <button
               key={val}
               onClick={() => setSearchParams(prev => { prev.set('estado', val); return prev; })}
-              className={`px-4 py-2 transition-colors ${
+              className={`px-3 sm:px-4 py-2 whitespace-nowrap transition-colors ${
                 filtro === val ? 'bg-violet-600 text-white font-semibold' : 'bg-white text-stone-600 hover:bg-stone-50'
               }`}
             >

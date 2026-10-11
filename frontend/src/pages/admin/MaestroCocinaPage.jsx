@@ -117,7 +117,7 @@ export default function MaestroCocinaPage() {
           <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-ahg-accent/30">
             <span className="font-bold text-sm uppercase tracking-wide">{g.nombre}</span>
             <span className="text-xs text-ahg-text/40">{g.items.length} productos</span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <span className="text-xs text-ahg-text/50">Todo el proveedor:</span>
               <button type="button" onClick={() => diasDe(g.nombre, TODOS)}
                       className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-ahg-accent hover:bg-ahg-accent/20">

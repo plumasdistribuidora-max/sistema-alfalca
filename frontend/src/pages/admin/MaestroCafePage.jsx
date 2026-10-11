@@ -149,14 +149,14 @@ function Control({ pendientes, version }) {
             Tocá el teórico de un día para ver qué se vendió y cuántos gramos lleva cada cosa.
           </p>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
           {[['7 días', -6], ['14 días', -13], ['30 días', -29]].map(([l, d]) => (
             <button key={l} onClick={() => { setDesde(hoyStr(d)); setHasta(hoyStr()); }}
                     className="text-xs px-2.5 py-1.5 rounded border border-stone-200 text-stone-600 hover:border-violet-400">{l}</button>
           ))}
-          <input type="date" className="input text-sm w-40" value={desde} onChange={e => setDesde(e.target.value)} />
+          <input type="date" className="input text-sm w-36 sm:w-40" value={desde} onChange={e => setDesde(e.target.value)} />
           <span className="text-stone-400 text-sm">a</span>
-          <input type="date" className="input text-sm w-40" value={hasta} onChange={e => setHasta(e.target.value)} />
+          <input type="date" className="input text-sm w-36 sm:w-40" value={hasta} onChange={e => setHasta(e.target.value)} />
         </div>
       </div>
 

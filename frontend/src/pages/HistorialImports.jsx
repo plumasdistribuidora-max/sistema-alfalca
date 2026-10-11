@@ -210,9 +210,9 @@ export default function HistorialImports() {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-stone-900">Historial de imports</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
-            className="input text-sm w-52"
+            className="input text-sm w-full sm:w-52"
             value={localFiltro}
             onChange={e => setLocalFiltro(e.target.value)}
           >

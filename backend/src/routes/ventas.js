@@ -563,7 +563,10 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
           ? docenasMap[productoId]
           : getDocenasPorProducto(nombreRaw);
         const cantidad    = parseFloat(row['cantidad'] ?? 1) || 1;
-        const precioUnit  = parseFloat(row['precio'] ?? 0) || 0;
+        // "Precio" en Adiciones es el total del renglón, no el unitario: 300 cajas x 2
+        // vienen con precio 1.590.000 (la hoja Productos da el mismo total). Multiplicarlo
+        // por la cantidad inflaba la venta por producto (migración 067).
+        const precioLinea = parseFloat(row['precio'] ?? 0) || 0;
         const docenasEq   = cantidad * (docenasProd ?? 0);
         const cancelada   = parseFiscal(row['cancelada']);
         if (cancelada) itemsCancelados++;
@@ -595,8 +598,8 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
             nombreRaw.toString().trim(),
             row['categoria'] || null,
             cantidad,
-            precioUnit,
-            cantidad * precioUnit,           // precio_total calculado (no hay col aparte)
+            precioLinea,                     // precio_unit guarda lo mismo que el Excel
+            precioLinea,                     // precio_total = total del renglón
             parseFloat(row['costo base'] ?? 0) || 0,
             parseFloat(row['costo modificadores'] ?? 0) || 0,
             parseFloat(row['costo total'] ?? 0) || 0,

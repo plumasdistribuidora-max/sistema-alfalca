@@ -104,11 +104,11 @@ async function leer(key) {
       const productoId = prod?.id ?? null;
       const docenas = productoId ? (prod.docenas_por_unidad === null ? 0 : Number(prod.docenas_por_unidad)) : (getDocenasPorProducto(nombreRaw) ?? 0);
       const cantidad   = parseFloat(row['cantidad'] ?? 1) || 1;
-      const precioUnit = parseFloat(row['precio'] ?? 0) || 0;
+      const precioLinea = parseFloat(row['precio'] ?? 0) || 0;   // total del renglón (ver migración 067)
 
       pendientes.push([
         im.local_id, tickets[posTicketId] ?? null, posTicketId, productoId, nombre,
-        row['categoria'] || null, cantidad, precioUnit, cantidad * precioUnit,
+        row['categoria'] || null, cantidad, precioLinea, precioLinea,
         parseFloat(row['costo base'] ?? 0) || 0, parseFloat(row['costo modificadores'] ?? 0) || 0, parseFloat(row['costo total'] ?? 0) || 0,
         row['creada por'] || null, fechaCreacion, row['cocina'] || null,
         parseFiscal(row['cancelada']), row['cancelada por'] || null, row['comentario'] || null, row['comentario de cancelacion'] || null,

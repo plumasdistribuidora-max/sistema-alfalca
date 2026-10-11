@@ -259,6 +259,9 @@ function BarraCafe({ etiqueta, valor, max, color }) {
     h(Text, { style: { width: 50, fontFamily: 'Nunito', fontWeight: 800, fontSize: 10, textAlign: 'right' } }, kg(valor)));
 }
 
+const MEDIO_PAGO = { santander: 'Santander', mercadopago: 'Mercado Pago', galicia: 'Galicia', efectivo: 'Efectivo', cheque: 'Cheque' };
+const DIA_CORTO_PDF = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
 function Documento({ r }) {
   const k = r.kpis;
   const enMeta = k.personal != null && k.objetivo != null && k.personal <= k.objetivo;
@@ -403,22 +406,18 @@ function Documento({ r }) {
     h(Page, { size: 'A4', style: S.pagina },
       h(Bloque, { titulo: 'Deuda con proveedores', sub: `al ${ddmm(r.fecha)} · sin vencimientos: se mira cuánto hace que está sin pagar` },
         h(Mini, { items: [{ v: $(pl.deuda.total), s: `${pl.deuda.facturas} facturas sin pagar` }, ...pl.deuda.tramos.map(t => ({ v: $(t.monto), s: `${t.label} · ${t.facturas} fact.`, color: t.label.startsWith('Más') && t.monto ? C.rojo : C.tinta }))] })),
-      h(Cuadro, {
-        titulo: 'Por proveedor',
-        cols: [{ t: 'Proveedor', w: 3 }, { t: 'Deuda', w: 1.6, num: true }, { t: 'Facturas', w: 1, num: true }, { t: 'La más vieja', w: 1.4, num: true }],
-        filas: [
-          ...pl.deuda.por_proveedor.map(p => ({ c: [p.proveedor, num(p.deuda), String(p.facturas), { t: `${p.mas_vieja} días`, color: p.mas_vieja > 30 ? C.rojo : C.tinta, bold: p.mas_vieja > 30 }] })),
-          { fondo: C.fondo, c: [{ t: 'Total', bold: true }, { t: num(pl.deuda.total), bold: true }, { t: String(pl.deuda.facturas), bold: true }, null] },
-        ],
-      }),
-      h(Cuadro, {
-        titulo: 'Las facturas más viejas',
-        cols: [{ t: 'Días', w: 0.7, num: true }, { t: 'Proveedor', w: 2 }, { t: 'Local', w: 1.4 }, { t: 'Factura', w: 2 }, { t: 'Fecha', w: 0.9, num: true }, { t: 'Saldo', w: 1.3, num: true }],
-        filas: pl.deuda.mas_viejas.map(f => ({ c: [
+      // Cada proveedor con su total y todas sus facturas (variante B, 11/10/2026). Un
+      // cuadro por proveedor, para que ninguno quede partido entre dos hojas.
+      ...pl.deuda.por_proveedor.map((p, i) => h(Cuadro, {
+        key: i,
+        titulo: `${p.proveedor} · ${$(p.deuda)}`,
+        sub: `${p.facturas} factura${p.facturas === 1 ? '' : 's'} · la más vieja ${p.mas_vieja} días${p.medio ? ` · ${MEDIO_PAGO[p.medio] || p.medio}` : ''}${p.dias_pago?.length ? `, cobra ${p.dias_pago.map(d => DIA_CORTO_PDF[d]).join(', ')}` : ''}`,
+        cols: [{ t: 'Días', w: 0.7, num: true }, { t: 'Fecha', w: 0.9 }, { t: 'Factura', w: 2.4 }, { t: 'Local', w: 1.6 }, { t: 'Saldo', w: 1.4, num: true }],
+        filas: p.lista.map(f => ({ c: [
           { t: String(f.dias), color: f.dias > 30 ? C.rojo : f.dias > 15 ? C.ambar : C.tinta, bold: true },
-          f.proveedor, f.local, f.numero || 'sin número', ddmm(f.fecha), num(f.saldo),
+          ddmm(f.fecha), f.numero || 'sin número', f.local, num(f.saldo),
         ]})),
-      }),
+      })),
       h(Pie, { texto: pie }),
     ),
   );

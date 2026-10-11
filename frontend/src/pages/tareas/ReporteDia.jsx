@@ -105,67 +105,82 @@ function FudoCelda({ l }) {
   return <Chip tono={t?.estado === 'terminada' ? 'verde' : 'rojo'}>{l.diferencia > 0 ? '+' : '−'}{n0(Math.abs(l.diferencia))}{t?.estado === 'terminada' ? ' · aprobada' : ''}</Chip>;
 }
 
-// La deuda con proveedores, aparte: se abre desde Plata. Sin vencimientos: se mira
-// cuánto hace que está sin pagar cada factura.
+// La deuda con proveedores, aparte: se abre desde Plata. Una tarjeta por proveedor
+// (variante B, elegida por Martín el 11/10/2026) con su total y sus facturas. Sin
+// vencimientos: se mira cuánto hace que está sin pagar cada una.
+const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MEDIO = { santander: 'Santander', mercadopago: 'Mercado Pago', galicia: 'Galicia', efectivo: 'Efectivo', cheque: 'Cheque' };
+const colorDias = d => (d > 30 ? 'text-red-700' : d > 15 ? 'text-amber-700' : 'text-ahg-text');
+
+function TarjetaProveedor({ p }) {
+  const [todas, setTodas] = useState(false);
+  const facturas = todas ? p.lista : p.lista.slice(0, 3);
+  const resto = p.deuda - p.mas_15 - p.mas_30;
+  return (
+    <div className="bg-white border border-ahg-accent/40 rounded-xl p-3 grid gap-2 content-start">
+      <div className="flex items-start justify-between gap-2">
+        <span className="font-bold" style={{ fontFamily: 'Nunito, sans-serif', fontSize: 15 }}>{p.proveedor}</span>
+        <Chip tono={p.mas_vieja > 30 ? 'rojo' : p.mas_vieja > 15 ? 'ambar' : 'gris'}>{p.mas_vieja} días</Chip>
+      </div>
+      <p className="font-bold tabular-nums leading-none" style={{ fontFamily: 'Nunito, sans-serif', fontSize: 22 }}>{pesos(p.deuda)}</p>
+      <p className="text-[11.5px] text-ahg-text/60">
+        {p.facturas} factura{p.facturas === 1 ? '' : 's'} · la más vieja {p.mas_vieja} días
+        {p.medio ? ` · ${MEDIO[p.medio] || p.medio}` : ''}{p.dias_pago?.length ? ` · cobra ${p.dias_pago.map(d => DIA_CORTO[d]).join(', ')}` : ''}
+      </p>
+      <span className="flex h-1.5 rounded-full overflow-hidden bg-ahg-bg" title="Gris: hasta 15 días · ámbar: 16 a 30 · rojo: más de 30">
+        <i style={{ width: `${resto / p.deuda * 100}%`, background: '#9a9c9e' }} />
+        <i style={{ width: `${p.mas_15 / p.deuda * 100}%`, background: '#a45a09' }} />
+        <i style={{ width: `${p.mas_30 / p.deuda * 100}%`, background: '#b3261e' }} />
+      </span>
+      <table className="w-full text-xs">
+        <tbody>
+          {facturas.map(f => (
+            <tr key={f.id} className="border-t border-ahg-accent/25">
+              <td className="py-1"><b className={colorDias(f.dias)}>{f.dias} d</b> · {ddmm(f.fecha)} · {f.numero || 'sin número'}{f.local && f.local !== 'Café Peatonal' ? <span className="text-ahg-text/45"> · {f.local}</span> : null}</td>
+              <td className="py-1 text-right tabular-nums">{n0(f.saldo)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {p.lista.length > 3 && (
+        <button onClick={() => setTodas(x => !x)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-ahg-accent/60 hover:bg-ahg-bg justify-self-start">
+          {todas ? 'Ver solo las 3 más viejas' : `Ver las ${p.lista.length} facturas`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PanelDeuda({ deuda, fecha, onCerrar }) {
-  const [tab, setTab] = useState('prov');
   const max = Math.max(1, ...deuda.tramos.map(t => t.monto));
   return (
     <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-3" onClick={e => e.target === e.currentTarget && onCerrar()}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[88vh] overflow-auto p-4 sm:p-5" role="dialog" aria-modal="true">
+      <div className="bg-ahg-bg rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-auto p-4 sm:p-5" role="dialog" aria-modal="true">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-bold text-lg" style={{ fontFamily: 'Nunito, sans-serif' }}>Deuda con proveedores</h2>
             <p className="text-xs text-ahg-text/55">Al {ddmm(fecha)} · las facturas no tienen vencimiento: se mira cuánto hace que están sin pagar.</p>
           </div>
-          <button onClick={onCerrar} className="w-8 h-8 rounded-full bg-ahg-bg flex-shrink-0" aria-label="Cerrar">✕</button>
+          <button onClick={onCerrar} className="w-8 h-8 rounded-full bg-white flex-shrink-0" aria-label="Cerrar">✕</button>
         </div>
-        <div className="bg-ahg-bg rounded-xl p-3 mt-3">
-          <p className="text-[10px] uppercase tracking-wider font-semibold text-ahg-text/55">Deuda total</p>
-          <p className="font-bold text-2xl tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{pesos(deuda.total)}</p>
-          <p className="text-xs text-ahg-text/55">{deuda.facturas} facturas sin pagar</p>
+        <div className="grid sm:grid-cols-[auto_1fr] gap-3 mt-3 bg-white rounded-xl p-3 items-center">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-ahg-text/55">Deuda total</p>
+            <p className="font-bold text-2xl tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{pesos(deuda.total)}</p>
+            <p className="text-xs text-ahg-text/55">{deuda.facturas} facturas · {deuda.por_proveedor.length} proveedores</p>
+          </div>
+          <div className="grid gap-1">
+            {deuda.tramos.map((t, i) => (
+              <div key={t.label} className="grid grid-cols-[92px_1fr_auto] gap-2 items-center text-xs">
+                <span>{t.label}</span>
+                <span className="h-2 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${t.monto / max * 100}%`, background: i === 3 ? '#b3261e' : i === 2 ? '#a45a09' : '#9a9c9e' }} /></span>
+                <span className="tabular-nums font-semibold text-right">{pesos(t.monto)} <span className="text-ahg-text/45 font-normal">· {t.facturas}</span></span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid gap-1.5 mt-3">
-          {deuda.tramos.map((t, i) => (
-            <div key={t.label} className="grid grid-cols-[96px_1fr_auto] gap-2 items-center text-xs">
-              <span>{t.label}</span>
-              <span className="h-2.5 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${t.monto / max * 100}%`, background: i === 3 ? '#b3261e' : i === 2 ? '#a45a09' : '#9a9c9e' }} /></span>
-              <span className="tabular-nums font-semibold text-right">{pesos(t.monto)} <span className="text-ahg-text/45 font-normal">· {t.facturas}</span></span>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-1.5 mt-4">
-          {[['prov', 'Por proveedor'], ['viejas', 'Las más viejas']].map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} className={`text-xs px-3 py-1.5 rounded-full border ${tab === k ? 'bg-ahg-primary text-white border-ahg-primary' : 'bg-white border-ahg-accent/50'}`}>{l}</button>
-          ))}
-        </div>
-        <div className="overflow-x-auto mt-2">
-          {tab === 'prov' ? (
-            <table className="w-full text-sm">
-              <thead><tr className="text-[10px] uppercase tracking-wider text-ahg-text/55"><th className="text-left py-1.5">Proveedor</th><th className="text-right">Deuda</th><th className="text-right">Fact.</th><th className="text-right">Más vieja</th></tr></thead>
-              <tbody>
-                {deuda.por_proveedor.map(p => (
-                  <tr key={p.proveedor} className="border-t border-ahg-accent/30">
-                    <td className="py-1.5">{p.proveedor}</td><td className="text-right tabular-nums">{n0(p.deuda)}</td><td className="text-right tabular-nums">{p.facturas}</td>
-                    <td className={`text-right tabular-nums whitespace-nowrap ${p.mas_vieja > 30 ? 'text-red-700 font-semibold' : ''}`}>{p.mas_vieja} d</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <table className="w-full text-sm min-w-[420px]">
-              <thead><tr className="text-[10px] uppercase tracking-wider text-ahg-text/55"><th className="text-left py-1.5">Días</th><th className="text-left">Proveedor</th><th className="text-left">Factura</th><th className="text-right">Fecha</th><th className="text-right">Saldo</th></tr></thead>
-              <tbody>
-                {deuda.mas_viejas.map(f => (
-                  <tr key={f.id} className="border-t border-ahg-accent/30">
-                    <td className={`py-1.5 font-semibold ${f.dias > 30 ? 'text-red-700' : f.dias > 15 ? 'text-amber-700' : ''}`}>{f.dias}</td>
-                    <td>{f.proveedor}<span className="text-ahg-text/45"> · {f.local}</span></td><td className="text-ahg-text/70">{f.numero || 'sin número'}</td>
-                    <td className="text-right">{ddmm(f.fecha)}</td><td className="text-right tabular-nums">{n0(f.saldo)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <div className="grid gap-2.5 mt-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
+          {deuda.por_proveedor.map(p => <TarjetaProveedor key={p.proveedor} p={p} />)}
         </div>
         <Link to="/proveedores" className="inline-block mt-3 text-sm underline text-ahg-text/70">Ir a Proveedores para pagar →</Link>
       </div>

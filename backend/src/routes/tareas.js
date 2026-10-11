@@ -452,6 +452,7 @@ async function armarReporte(fecha) {
   `, [fecha])).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
   const facturasAbiertas = (await pool.query(`
     SELECT f.id, f.numero, f.fecha::text AS fecha, COALESCE(pr.nombre, f.proveedor) AS proveedor, l.nombre AS local_nombre,
+           pr.medio_pago, pr.dias_pago,
            f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) AS saldo
     FROM facturas f LEFT JOIN proveedores pr ON pr.id = f.proveedor_id LEFT JOIN locales l ON l.id = f.local_id
     WHERE f.fecha <= $1
@@ -462,10 +463,18 @@ async function armarReporte(fecha) {
     const fs = facturasAbiertas.filter(f => f.dias >= a && f.dias <= b);
     return { monto: fs.reduce((s, f) => s + f.saldo, 0), facturas: fs.length };
   };
+  // Una tarjeta por proveedor (variante B, elegida por Martín el 11/10/2026): su total,
+  // cuánto de eso tiene más de 15 y de 30 días, y todas sus facturas de la más vieja a la
+  // más nueva.
   const porProv = {};
   for (const f of facturasAbiertas) {
-    const x = (porProv[f.proveedor] ||= { proveedor: f.proveedor, deuda: 0, facturas: 0, mas_vieja: f.dias });
+    const x = (porProv[f.proveedor] ||= {
+      proveedor: f.proveedor, medio: f.medio_pago, dias_pago: f.dias_pago || [],
+      deuda: 0, facturas: 0, mas_vieja: f.dias, mas_15: 0, mas_30: 0, lista: [],
+    });
     x.deuda += f.saldo; x.facturas++; x.mas_vieja = Math.max(x.mas_vieja, f.dias);
+    if (f.dias > 30) x.mas_30 += f.saldo; else if (f.dias > 15) x.mas_15 += f.saldo;
+    x.lista.push({ id: f.id, numero: f.numero, fecha: f.fecha, local: f.local, saldo: f.saldo, dias: f.dias });
   }
 
   const vencidas = abiertas.filter(t => t.dias_vencida > 0);

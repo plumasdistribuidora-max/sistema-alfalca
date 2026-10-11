@@ -177,13 +177,12 @@ function Inflacion({ inflacion, puedeEditar, onGuardado }) {
 
 // ── Pantalla ─────────────────────────────────────────────────────────────────
 
-export default function ComoVenimosSection() {
+export default function ComoVenimosSection({ selId = null }) {
   const { user } = useAuth();
   const [modo, setModo]       = useState('mes');
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
-  const [selId, setSelId]     = useState(null);   // local elegido; null = todos
   const [abiertas, setAbiertas] = useState(new Set());
 
   useEffect(() => {
@@ -289,21 +288,6 @@ export default function ComoVenimosSection() {
 
   return (
     <div className="space-y-4" style={{ opacity: loading ? 0.6 : 1 }}>
-      {/* Selector de local */}
-      <div className="flex flex-wrap items-center gap-2 px-1">
-        <span className="text-xs text-stone-500">Ver:</span>
-        <div className="flex flex-wrap rounded-lg border border-stone-200 overflow-hidden">
-          <button className={seg(!selId)} aria-pressed={!selId} onClick={() => setSelId(null)}>Todos</button>
-          {ordenados.map(l => (
-            <button key={l.local_id} className={`${seg(selId === l.local_id)} inline-flex items-center gap-1.5`} aria-pressed={selId === l.local_id}
-                    onClick={() => setSelId(l.local_id)}>
-              <span className="w-2 h-2 rounded-full" style={{ background: colorDeTienda(l.nombre) }} />
-              {shortName(l.nombre)}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {cabecera}
 
       {/* ── Tiendas ── */}

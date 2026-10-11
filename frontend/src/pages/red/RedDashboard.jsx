@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { Isotipo } from '../../components/Marca';
 import api from '../../api';
 import ComoVenimosSection from './secciones/ComoVenimosSection';
+import MesAMesSection from './secciones/MesAMesSection';
+import { colorDeTienda, shortName, ordenarTiendas } from './redUtils';
 import ResumenSection  from './secciones/ResumenSection';
 import TiendasSection  from './secciones/TiendasSection';
 import AnalisisSection from './secciones/AnalisisSection';
 
 const TABS = [
   { id: 'como',     label: 'Cómo venimos' },
+  { id: 'mes',      label: 'Mes a mes' },
   { id: 'resumen',  label: 'Resumen'  },
   { id: 'tiendas', label: 'Tiendas'  },
   { id: 'analisis',label: 'Análisis' },
@@ -40,6 +43,19 @@ function rangoTexto(u) {
 export default function RedDashboard() {
   const [activeTab, setActiveTab]     = useState('como');
   const [ultimoImport, setUltimoImport] = useState(undefined); // undefined = cargando, null = sin datos
+
+  // Las solapas nuevas se filtran por local desde acá: elegís uno y todas lo muestran solo a él.
+  const [locales, setLocales] = useState([]);
+  const [selId, setSelId]     = useState(null);
+  const conSelector = ['como', 'mes'].includes(activeTab);
+
+  useEffect(() => {
+    api.get('/locales').then(r => {
+      const activos = r.data.data.filter(l => l.activo);
+      const orden = ordenarTiendas(activos.map(l => l.nombre));
+      setLocales(activos.sort((a, b) => orden.indexOf(a.nombre) - orden.indexOf(b.nombre)));
+    }).catch(() => setLocales([]));
+  }, []);
 
   useEffect(() => {
     api.get('/imports/ultimo')
@@ -112,7 +128,25 @@ export default function RedDashboard() {
       </div>
 
       {/* ── Contenido del tab activo ────────────────────────────────────────── */}
-      {activeTab === 'como'     && <ComoVenimosSection />}
+      {conSelector && locales.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-1 mb-4">
+          <span className="text-xs text-stone-500">Ver:</span>
+          <div className="flex flex-wrap rounded-lg border border-stone-200 overflow-hidden">
+            {[{ id: null, nombre: 'Todos' }, ...locales].map(l => {
+              const activo = selId === l.id;
+              return (
+                <button key={l.id ?? 'todos'} aria-pressed={activo} onClick={() => setSelId(l.id)}
+                        className={`px-3 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${activo ? 'bg-ahg-primary text-white' : 'bg-white text-stone-500 hover:bg-stone-50'}`}>
+                  {l.id && <span className="w-2 h-2 rounded-full" style={{ background: colorDeTienda(l.nombre) }} />}
+                  {l.id ? shortName(l.nombre) : l.nombre}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {activeTab === 'como'     && <ComoVenimosSection selId={selId} />}
+      {activeTab === 'mes'      && <MesAMesSection selId={selId} />}
       {activeTab === 'resumen'  && <ResumenSection />}
       {activeTab === 'tiendas' && <TiendasSection />}
       {activeTab === 'analisis' && <AnalisisSection />}

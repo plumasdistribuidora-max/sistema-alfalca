@@ -5,6 +5,7 @@ const pool    = require('../config/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { generarConclusiones } = require('../utils/conclusiones');
 const { comoVenimos, parametrosIpc } = require('../services/comoVenimos');
+const { mesAMes } = require('../services/mesAMes');
 
 const router = express.Router();
 const TZ = 'America/Argentina/Mendoza';
@@ -2658,6 +2659,16 @@ router.get('/como-venimos', requireAuth, async (req, res) => {
     res.json({ ok: true, data });
   } catch (err) {
     console.error('[red/como-venimos]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Mes a mes: cada mes del año, por local ──────────────────────────────────
+router.get('/mes-a-mes', requireAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, data: await mesAMes() });
+  } catch (err) {
+    console.error('[red/mes-a-mes]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -45,7 +45,7 @@ function ChipGris({ children, oscuro }) {
 }
 
 // Un renglón de comparación, siempre real contra real: contra qué, cuánto fue y el %.
-function Fila({ label, a, b, fmt, oscuro, sub }) {
+function Fila({ label, a, b, fmt, oscuro, sub, parcial, nota }) {
   if (!b) return null;
   const v = (a / b - 1) * 100;
   const color = Math.abs(v) < 2 ? (oscuro ? 'text-white' : 'text-stone-600') : v > 0 ? (oscuro ? 'text-emerald-200' : 'text-emerald-700') : (oscuro ? 'text-red-200' : 'text-red-700');
@@ -53,7 +53,10 @@ function Fila({ label, a, b, fmt, oscuro, sub }) {
     <div className={`flex items-start justify-between gap-2 text-[12px] ${sub ? 'pl-3' : ''}`}>
       <span className="min-w-0">
         <span className={`block ${oscuro ? 'text-white/70' : 'text-stone-500'}`}>{label}</span>
-        <span className={`block tabular-nums text-[11.5px] ${oscuro ? 'text-white/85' : 'text-stone-700'}`}>{fmt(b)}</span>
+        <span className={`block tabular-nums text-[11.5px] ${oscuro ? 'text-white/85' : 'text-stone-700'}`}>
+          {parcial ? <>{fmt(a)} <span className={oscuro ? 'text-white/55' : 'text-stone-400'}>contra</span> {fmt(b)}</> : fmt(b)}
+        </span>
+        {nota && <span className={`block text-[11px] ${oscuro ? 'text-white/55' : 'text-stone-400'}`}>{nota}</span>}
       </span>
       <b className={`tabular-nums whitespace-nowrap ${color}`}>{v >= 0 ? '▲' : '▼'} {pct1(v)} %</b>
     </div>
@@ -66,7 +69,7 @@ function FilaGris({ children, oscuro }) {
 
 // Las dos lecturas sin precios, en pesos: lo del año pasado llevado a precios de hoy
 // con la inflación del país y con nuestra propia suba.
-function SinPrecios({ a, b, label, inflacion, suba, fmt = fmtARS, oscuro }) {
+function SinPrecios({ a, b, inflacion, suba, fmt = fmtARS, oscuro, parcial }) {
   if (!b) return null;
   return (
     <>
@@ -132,7 +135,13 @@ function suma(lista, sel) {
 function comparable(lista) {
   const con = lista.filter(l => l.anio_ant);
   if (!con.length) return null;
-  return { act: suma(con, l => l.anio_ant.act), ant: suma(con, l => l.anio_ant.ant), parcial: con.length < lista.length || con.some(l => !l.anio_ant.completo) };
+  const afuera = lista.map(l => (!l.anio_ant ? `sin ${shortName(l.nombre)}`
+    : !l.anio_ant.completo ? `${shortName(l.nombre)} desde el ${diaMes(l.anio_ant.desde)}` : null)).filter(Boolean);
+  return {
+    act: suma(con, l => l.anio_ant.act), ant: suma(con, l => l.anio_ant.ant),
+    parcial: afuera.length > 0,
+    nota: afuera.length ? `Solo lo que se puede comparar: ${afuera.join(' · ')}` : null,
+  };
 }
 
 // ── Inflación: el dato y, para el dueño, cómo cambiarlo ──────────────────────
@@ -262,19 +271,16 @@ export default function ComoVenimosSection({ selId = null }) {
   // Contra qué se compara cada renglón (siempre lo vendido de verdad en esos días)
   const lblMes = p.mes_ant ? `${partes(p.mes_ant.desde).d}–${partes(p.mes_ant.hasta).d} ${MES_CORTO[partes(p.mes_ant.desde).m - 1]}` : null;
   const lblAnio = anio ? `Mismos días ${anioAnt}` : `${partes(p.anio_ant.desde).d}–${partes(p.anio_ant.hasta).d} ${MES_CORTO[partes(p.anio_ant.desde).m - 1]} ${anioAnt}`;
-  // Para los renglones "+ inflación" y "+ nuestra suba", que ya son largos
-  const lblAnioCorto = anio ? `${anioAnt}` : `${MES_CORTO[partes(p.anio_ant.desde).m - 1]} ${anioAnt}`;
   const estimado = v => `Estimado: a este ritmo cierra ${anio ? 'el año' : 'el mes'} en ${v}`;
 
   // ── Tiendas ──
   const tAct = suma(tiendas, l => l.act);
   const tMes = p.mes_ant ? suma(tiendas, l => l.mes_ant) : null;
   const tCmp = comparable(tiendas);
-  const ast = tCmp?.parcial ? '*' : '';
   const chipsT = (k, oscuro, fmt) => (
     <>
       {tMes && <Fila label={lblMes} a={tAct[k]} b={tMes[k]} fmt={fmt} oscuro={oscuro} />}
-      {tCmp ? <Fila label={lblAnio + ast} a={tCmp.act[k]} b={tCmp.ant[k]} fmt={fmt} oscuro={oscuro} />
+      {tCmp ? <Fila label={lblAnio} a={tCmp.act[k]} b={tCmp.ant[k]} fmt={fmt} oscuro={oscuro} parcial={tCmp.parcial} nota={tCmp.nota} />
             : <FilaGris oscuro={oscuro}>No abría el año pasado</FilaGris>}
     </>
   );
@@ -282,7 +288,8 @@ export default function ComoVenimosSection({ selId = null }) {
   // ── Café ──
   const c = cafeLocal;
   const cCmp = c?.anio_ant || null;
-  const cAstTxt = cCmp && !cCmp.completo ? `*` : '';
+  const cParcial = !!cCmp && !cCmp.completo;
+  const cNota = cParcial ? `Solo lo que se puede comparar: desde el ${diaMes(cCmp.desde)}` : null;
   const personasAnt = cCmp && cCmp.ant.p > 0;
 
   // ── Red ──
@@ -318,7 +325,7 @@ export default function ComoVenimosSection({ selId = null }) {
                      abajo={estimado(fmtARS(proy(tAct.f)))}
                      explica={'Cada renglón compara lo vendido de verdad en esos días, con el monto de entonces al lado. "+ inflación" lleva lo del año pasado a precios de hoy con la inflación del país; "+ nuestra suba", con lo que subimos nosotros: si igual da para abajo, vendimos menos cantidad.'}>
               {chipsT('f', false, fmtARS)}
-              {tCmp && <SinPrecios a={tCmp.act.f} b={tCmp.ant.f} label={lblAnioCorto + ast} inflacion={inf} suba={suba.tiendas?.pct} />}
+              {tCmp && <SinPrecios a={tCmp.act.f} b={tCmp.ant.f} parcial={tCmp.parcial} inflacion={inf} suba={suba.tiendas?.pct} />}
             </Tarjeta>
             <Tarjeta titulo="Clientes" valor={fmtNum(tAct.tk)}
                      abajo={tAct.tk ? `${fmtDoc(tAct.d / tAct.tk)} docenas por compra` : ''}
@@ -427,22 +434,22 @@ export default function ComoVenimosSection({ selId = null }) {
                      abajo={estimado(fmtARS(proy(c.act.f)))}
                      explica="La medida principal del Café: no vende por docena.">
               {c.mes_ant && <Fila label={lblMes} a={c.act.f} b={c.mes_ant.f} fmt={fmtARS} oscuro />}
-              {cCmp ? <Fila label={lblAnio + cAstTxt} a={cCmp.act.f} b={cCmp.ant.f} fmt={fmtARS} oscuro /> : <FilaGris oscuro>Sin año pasado</FilaGris>}
-              {cCmp && <SinPrecios a={cCmp.act.f} b={cCmp.ant.f} label={lblAnioCorto + cAstTxt} inflacion={inf} suba={suba.cafe?.pct} oscuro />}
+              {cCmp ? <Fila label={lblAnio} a={cCmp.act.f} b={cCmp.ant.f} fmt={fmtARS} oscuro parcial={cParcial} nota={cNota} /> : <FilaGris oscuro>Sin año pasado</FilaGris>}
+              {cCmp && <SinPrecios a={cCmp.act.f} b={cCmp.ant.f} parcial={cParcial} inflacion={inf} suba={suba.cafe?.pct} oscuro />}
             </Tarjeta>
             <Tarjeta titulo="Personas" valor={c.act.p ? fmtNum(c.act.p) : 'sin dato'}
                      abajo={c.act.p && c.act.tk ? `${fmtNum(c.act.tk)} mesas · ${fmtDoc(c.act.p / c.act.tk)} personas por mesa` : ''}
                      explica="Cuánta gente atendió el Café, según los comensales que cargan los mozos en Fudo.">
               {c.mes_ant?.p > 0 && <Fila label={lblMes} a={c.act.p} b={c.mes_ant.p} fmt={fmtNum} />}
-              {personasAnt ? <Fila label={lblAnio + cAstTxt} a={cCmp.act.p} b={cCmp.ant.p} fmt={fmtNum} /> : <FilaGris>Sin personas cargadas del año pasado</FilaGris>}
+              {personasAnt ? <Fila label={lblAnio} a={cCmp.act.p} b={cCmp.ant.p} fmt={fmtNum} parcial={cParcial} nota={cNota} /> : <FilaGris>Sin personas cargadas del año pasado</FilaGris>}
             </Tarjeta>
             <Tarjeta titulo="Gasto por persona" valor={c.act.p ? fmtARS(c.act.f / c.act.p) : 'sin dato'}
                      explica="Cuánto deja cada persona que se sienta.">
               {c.mes_ant?.p > 0 && c.act.p > 0 && <Fila label={lblMes} a={c.act.f / c.act.p} b={c.mes_ant.f / c.mes_ant.p} fmt={fmtARS} />}
               {personasAnt && cCmp.act.p > 0 && (
                 <>
-                  <Fila label={lblAnio + cAstTxt} a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} fmt={fmtARS} />
-                  <SinPrecios a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} label={lblAnioCorto + cAstTxt} inflacion={inf} suba={suba.cafe?.pct} />
+                  <Fila label={lblAnio} a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} fmt={fmtARS} parcial={cParcial} nota={cNota} />
+                  <SinPrecios a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} parcial={cParcial} inflacion={inf} suba={suba.cafe?.pct} />
                 </>
               )}
             </Tarjeta>
@@ -458,20 +465,20 @@ export default function ComoVenimosSection({ selId = null }) {
                      abajo={estimado(fmtARS(proy(rAct.f)))}
                      explica="Tiendas y Café juntos.">
               {rMes && <Fila label={lblMes} a={rAct.f} b={rMes.f} fmt={fmtARS} oscuro />}
-              {rCmp && <Fila label={lblAnio + (rCmp.parcial ? '*' : '')} a={rCmp.act.f} b={rCmp.ant.f} fmt={fmtARS} oscuro />}
-              {rCmp && <SinPrecios a={rCmp.act.f} b={rCmp.ant.f} label={lblAnioCorto + (rCmp.parcial ? '*' : '')} inflacion={inf} suba={suba.red?.pct} oscuro />}
+              {rCmp && <Fila label={lblAnio} a={rCmp.act.f} b={rCmp.ant.f} fmt={fmtARS} oscuro parcial={rCmp.parcial} nota={rCmp.nota} />}
+              {rCmp && <SinPrecios a={rCmp.act.f} b={rCmp.ant.f} parcial={rCmp.parcial} inflacion={inf} suba={suba.red?.pct} oscuro />}
             </Tarjeta>
             <Tarjeta titulo="Tickets" valor={fmtNum(rAct.tk)} abajo={rAct.tk ? `Ticket promedio ${fmtARS(rAct.f / rAct.tk)}` : ''}
                      explica="Compras en las tiendas más mesas del Café.">
               {rMes && <Fila label={lblMes} a={rAct.tk} b={rMes.tk} fmt={fmtNum} />}
-              {rCmp && <Fila label={lblAnio + (rCmp.parcial ? '*' : '')} a={rCmp.act.tk} b={rCmp.ant.tk} fmt={fmtNum} />}
+              {rCmp && <Fila label={lblAnio} a={rCmp.act.tk} b={rCmp.ant.tk} fmt={fmtNum} parcial={rCmp.parcial} nota={rCmp.nota} />}
             </Tarjeta>
           </div>
         </Bloque>
       )}
 
       <div className="text-xs text-stone-500 px-1 space-y-1">
-        {notas.length > 0 && <p>* Contra {anioAnt} cada local se compara en los mismos días: {notas.join('; ')}.</p>}
+        {notas.length > 0 && <p>Contra {anioAnt} cada local se compara en los mismos días: {notas.join('; ')}.</p>}
         <p>
           <Inflacion inflacion={data.inflacion} puedeEditar={esDueno(user)}
                      onGuardado={inflacion => setData(d => ({ ...d, inflacion }))} />

@@ -223,6 +223,33 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
     const debugColumns = { _log: debugLog };
 
+    // ── ¿Es de otro local? ────────────────────────────────────────────────
+    // Ya pasó dos veces (23/9 y 7/10) que se subió el Excel de una tienda con otra elegida.
+    // Los números de venta se repiten entre tiendas, así que se compara número y hora de
+    // apertura: si la mayoría de las ventas ya están cargadas en otro local, no se importa.
+    const idsExcel = [], aperturasExcel = [];
+    for (const row of rowsVentas) {
+      const posId    = parseInt(getCol(row, 'id', 'id venta', 'nro', 'nro ticket', 'numero', 'numero ticket', 'ticket', 'comprobante', 'n'));
+      const creacion = parseExcelDate(getCol(row, 'creacion', 'apertura'));
+      if (posId && creacion) { idsExcel.push(posId); aperturasExcel.push(creacion); }
+    }
+    if (idsExcel.length) {
+      const otro = (await pool.query(`
+        SELECT l.nombre, COUNT(*)::int AS n
+        FROM unnest($1::int[], $2::timestamptz[]) AS x(pos_id, creacion)
+        JOIN ventas_tickets t ON t.pos_id = x.pos_id AND t.creacion = x.creacion AND t.local_id <> $3
+        JOIN locales l ON l.id = t.local_id
+        GROUP BY l.nombre ORDER BY n DESC LIMIT 1
+      `, [idsExcel, aperturasExcel, local_id])).rows[0];
+      if (otro && otro.n * 2 > idsExcel.length) {
+        const error = `Este Excel parece ser de ${otro.nombre}, no de ${local.nombre}: ` +
+          `${otro.n} de sus ${idsExcel.length} ventas ya están cargadas en ${otro.nombre}. No se importó nada.`;
+        await pool.query("UPDATE imports_log SET status='error', error_detail=$1 WHERE id=$2",
+          [JSON.stringify({ error }), importId]);
+        return res.status(400).json({ ok: false, error });
+      }
+    }
+
     // Upload a R2 antes de la transacción (no bloquea DB)
     const fechaStr     = new Date().toISOString().split('T')[0];
     const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');

@@ -14,12 +14,22 @@ function sumarDias(f, n) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Cada alerta del cuadro dice en qué está: el color del tipo mientras nadie la tomó,
+// azul cuando el encargado la está resolviendo, ámbar cuando espera a los dueños y
+// verde con tilde cuando ya está aprobada.
+function ChipCuadro({ t }) {
+  if (t.estado === 'terminada') return <Chip tono="verde">✓ {t.label}</Chip>;
+  if (t.estado === 'por_aprobar') return <Chip tono="ambar">{t.label} · por aprobar</Chip>;
+  if (t.estado === 'en_curso') return <Chip tono="azul">{t.label} · en curso</Chip>;
+  return <ChipTipo tipo={t.tipo} label={`${t.label} · sin tomar`} />;
+}
+
 // "Desde el viernes": qué pasó en cada local los últimos días que ya tienen Fudo.
 function CuadroDias({ dias }) {
   if (!dias?.length) return null;
   const locales = dias[0].locales;
   return (
-    <Seccion titulo="Lo que pasó en cada local" sub="Los últimos días con el Fudo cargado. Tocá una alerta para abrirla.">
+    <Seccion titulo="Lo que pasó en cada local" sub="Los últimos días con el Fudo cargado. Cada alerta dice en qué está: sin tomar, en curso (azul), por aprobar (ámbar) o aprobada (verde). Tocala para abrirla.">
       <div className="overflow-x-auto -mx-1">
         <table className="w-full min-w-[560px] text-sm">
           <thead>
@@ -41,13 +51,14 @@ function CuadroDias({ dias }) {
                       <div className="flex flex-wrap gap-1">
                         {c.estado === 'sin_fudo' && <Chip>Fudo sin cargar</Chip>}
                         {c.estado === 'no_abrio' && <Chip>No abrió según Fudo</Chip>}
-                        {c.estado === 'abrio' && c.esperados > 0 && (
-                          <Chip tono={c.recibidos >= c.esperados && !c.tareas.length ? 'verde' : 'gris'}>
-                            {c.recibidos}/{c.esperados} reportes{c.recibidos >= c.esperados && !c.tareas.length ? ' · ok' : ''}
-                          </Chip>
-                        )}
+                        {c.estado === 'abrio' && c.esperados > 0 && (() => {
+                          // El local queda en verde cuando llegaron todos los reportes y
+                          // todo lo que se levantó ese día ya está aprobado.
+                          const ok = c.recibidos >= c.esperados && c.tareas.every(t => t.estado === 'terminada');
+                          return <Chip tono={ok ? 'verde' : 'gris'}>{c.recibidos}/{c.esperados} reportes{ok ? ' · ok' : ''}</Chip>;
+                        })()}
                         {c.tareas.map(t => (
-                          <Link key={t.id} to={`/tareas/${t.id}`}><ChipTipo tipo={t.tipo} label={t.label} /></Link>
+                          <Link key={t.id} to={`/tareas/${t.id}`}><ChipCuadro t={t} /></Link>
                         ))}
                       </div>
                     </td>

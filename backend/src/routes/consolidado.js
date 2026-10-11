@@ -102,6 +102,22 @@ async function armarDia(fecha) {
     ventas.map(v => [v.local_id, { total: n(v.total), tickets: v.tickets }])
   );
 
+  // Venta neta, la misma del estado de resultados: lo no facturado entero y lo
+  // facturado sin IVA (÷ 1,21). Contra esto se mide el personal (Martín, 11/10/2026).
+  const netas = (await pool.query(`
+    WITH t AS (
+      SELECT vt.local_id, vt.total,
+             (vt.fiscal OR EXISTS (SELECT 1 FROM ventas_fiscales vf
+                                   WHERE vf.local_id = vt.local_id AND vf.pos_ticket_id = vt.pos_id)) AS facturado
+      FROM ventas_tickets vt
+      WHERE vt.fecha = $1 AND vt.estado = 'cerrada'
+    )
+    SELECT local_id,
+           COALESCE(SUM(total) FILTER (WHERE NOT facturado), 0) + COALESCE(SUM(total) FILTER (WHERE facturado), 0) / 1.21 AS neta
+    FROM t GROUP BY local_id
+  `, [fecha])).rows;
+  const netaPorLocal = Object.fromEntries(netas.map(v => [v.local_id, n(v.neta)]));
+
   // Reportes de turno del día.
   // Si dos personas enviaron el mismo turno, cuenta uno solo (la misma regla que la
   // grilla del día): si no, las ventas de ese turno se suman dos veces.
@@ -134,6 +150,7 @@ async function armarDia(fecha) {
     porLocal[l.id] = {
       local_id: l.id, nombre: l.nombre, tipo: l.tipo,
       ventas_sistema: ventasPorLocal[l.id]?.total ?? 0,
+      ventas_neta: netaPorLocal[l.id] ?? 0,
       tickets_sistema: ventasPorLocal[l.id]?.tickets ?? 0,
       objetivo: n(l.objetivo_horas_ventas),
       personas_reportadas: 0,
@@ -308,9 +325,12 @@ async function armarDia(fecha) {
       turnos_reportados: conVentas,
       completo,
       diferencia: completo ? l.ventas_reportadas - l.ventas_sistema : null,
-      horas_sobre_ventas: (l.ventas_sistema > 0 && l.gasto_personal > 0)
-        ? (l.gasto_personal / l.ventas_sistema) * 100
+      // Personal sobre venta neta. Solo con las horas de todos los turnos: si falta un
+      // reporte faltan sus horas, y el porcentaje saldría más bajo de lo que es.
+      horas_sobre_ventas: (completo && l.ventas_neta > 0 && l.gasto_personal > 0)
+        ? (l.gasto_personal / l.ventas_neta) * 100
         : null,
+      horas_incompletas: l.ventas_sistema > 0 && esperados > 0 && !completo,
       ticket_promedio: l.tickets_sistema > 0 ? l.ventas_sistema / l.tickets_sistema : null,
     };
   });
@@ -328,15 +348,19 @@ async function armarDia(fecha) {
     horas: 0, gasto_personal: 0, horas_sin_valor: 0,
   });
 
-  // Objetivo de la red: el de cada local pesado por su venta. Un café con objetivo 22 y
-  // tiendas con 12 no se pueden comparar contra un número fijo.
-  totales.objetivo = totales.ventas_sistema > 0
-    ? filas.reduce((s, l) => s + (l.objetivo || 0) * l.ventas_sistema, 0) / totales.ventas_sistema
+  // La red se mide solo con los locales que tienen todas sus horas: mezclar las horas
+  // de cuatro locales con la venta de cinco daría cualquier cosa. El objetivo es el de
+  // cada uno de esos locales pesado por su venta neta (café 25, tiendas 10).
+  const conKpi = filas.filter(l => l.horas_sobre_ventas != null);
+  const netaKpi = conKpi.reduce((s, l) => s + l.ventas_neta, 0);
+  const gastoKpi = conKpi.reduce((s, l) => s + l.gasto_personal, 0);
+  totales.ventas_neta = filas.reduce((s, l) => s + l.ventas_neta, 0);
+  totales.locales_con_kpi = conKpi.length;
+  totales.locales_con_venta = filas.filter(l => l.ventas_sistema > 0).length;
+  totales.objetivo = netaKpi > 0
+    ? conKpi.reduce((s, l) => s + (l.objetivo || 0) * l.ventas_neta, 0) / netaKpi
     : null;
-
-  totales.horas_sobre_ventas = (totales.ventas_sistema > 0 && totales.gasto_personal > 0)
-    ? (totales.gasto_personal / totales.ventas_sistema) * 100
-    : null;
+  totales.horas_sobre_ventas = netaKpi > 0 && gastoKpi > 0 ? (gastoKpi / netaKpi) * 100 : null;
   totales.ticket_promedio = totales.tickets > 0 ? totales.ventas_sistema / totales.tickets : null;
 
   // Un ticket de café y uno de tienda no se parecen en nada: el promedio mezclado

@@ -106,7 +106,9 @@ export default function ReporteDia() {
         </div>
       )}
 
-      <Seccion titulo={`Venta ${pesos(d.totales.ventas)}`} sub={`Horas sobre ventas ${pct(d.totales.horas_sobre_ventas)} (meta ${pct(d.totales.objetivo)})`}>
+      <Seccion titulo={`Venta ${pesos(d.totales.ventas)}`} sub={d.totales.horas_sobre_ventas == null
+        ? 'Personal sobre venta neta: sin dato, faltan horas de turnos'
+        : `Personal sobre venta neta ${pct(d.totales.horas_sobre_ventas)} (meta ${pct(d.totales.objetivo)}) · ${d.totales.locales_con_kpi} de ${d.totales.locales_con_venta} locales`}>
         <div className="divide-y divide-ahg-accent/30">
           {d.locales.map(l => (
             <div key={l.local_id} className="flex items-center gap-2 py-2 text-sm">
@@ -115,7 +117,7 @@ export default function ReporteDia() {
               {!l.fudo ? <span className="text-ahg-text/45">Fudo sin cargar</span>
                 : !l.abrio ? <span className="text-ahg-text/45">No abrió</span>
                 : <>
-                    <span className={`text-xs ${l.horas_sobre_ventas != null && l.horas_sobre_ventas > l.objetivo ? 'text-red-700' : 'text-ahg-text/50'}`}>{pct(l.horas_sobre_ventas)}</span>
+                    <span className={`text-xs ${l.horas_sobre_ventas != null && l.horas_sobre_ventas > l.objetivo ? 'text-red-700' : 'text-ahg-text/50'}`}>{l.horas_sobre_ventas == null && l.horas_incompletas ? 'sin dato' : pct(l.horas_sobre_ventas)}</span>
                     <span className="tabular-nums font-medium w-28 text-right">{pesos(l.ventas)}</span>
                   </>}
             </div>

@@ -288,13 +288,15 @@ function Documento({ d, x }) {
           h(Text, { style: S.kpiV }, `${hs(t.horas)} h`),
           h(Text, { style: S.kpiS }, t.gasto_personal ? `${$(t.gasto_personal)} de costo${t.horas_sin_valor ? ` · ${hs(t.horas_sin_valor)} h sin valor hora` : ''}` : 'sin valor hora cargado')),
         h(View, { style: [S.kpi, tonoKpi] },
-          h(Text, { style: [S.kpiK, { color: colorKpi }] }, 'Personal / ventas'),
+          h(Text, { style: [S.kpiK, { color: colorKpi }] }, 'Personal / venta neta'),
           h(Text, { style: [S.kpiV, { color: colorKpi }] }, pct(t.horas_sobre_ventas)),
-          h(Text, { style: [S.kpiS, { color: colorKpi }] }, t.objetivo != null ? `meta de la red ${pct(t.objetivo)} · ${enMeta ? 'en meta' : 'pasado'}` : 'sin meta'))),
+          h(Text, { style: [S.kpiS, { color: colorKpi }] }, t.horas_sobre_ventas == null
+            ? 'sin dato: faltan horas de turnos'
+            : `meta ${pct(t.objetivo)} · ${enMeta ? 'en meta' : 'pasado'} · ${t.locales_con_kpi} de ${t.locales_con_venta} locales`))),
 
       h(Cuadro, {
         titulo: 'Ventas y personal por local',
-        sub: 'Sistema = Fudo · Reportado = lo que cargó cada turno',
+        sub: 'Sistema = Fudo · Reportado = lo que cargó cada turno · Personal sobre venta neta sin IVA',
         cols: [
           { t: 'Local', w: 3.2 }, { t: 'Sistema', w: 1.6, num: true }, { t: 'Reportado', w: 1.6, num: true },
           { t: 'Cierra', w: 1.2, num: true }, { t: 'Tickets', w: 1, num: true }, { t: 'Horas', w: 1, num: true },
@@ -312,7 +314,7 @@ function Documento({ d, x }) {
               { t: `${corto(l.nombre)} · ${l.turnos_reportados} de ${l.turnos_esperados} turnos` },
               num(l.ventas_sistema), l.ventas_reportadas ? num(l.ventas_reportadas) : '—', cierra,
               num(l.tickets_sistema), l.horas ? hs(l.horas) : '—',
-              { t: k == null ? '—' : `${pct(k)}${l.objetivo != null ? ` / ${Math.round(l.objetivo)}` : ''}`, color: colorK, bold: true },
+              { t: k == null ? (l.horas_incompletas ? 'sin dato' : '—') : `${pct(k)}${l.objetivo != null ? ` / ${Math.round(l.objetivo)}` : ''}`, color: colorK, bold: true },
             ]};
           }),
           { fondo: C.fondo, c: [

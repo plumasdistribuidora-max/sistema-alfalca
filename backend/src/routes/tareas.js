@@ -353,12 +353,14 @@ router.get('/dia', requireAuth, soloEncargado, async (req, res) => {
           local_id: l.local_id, nombre: corto(l.nombre), nombre_completo: l.nombre, tipo: l.tipo,
           fudo: cubiertos.has(l.local_id), abrio: abiertos.has(l.local_id),
           ventas: l.ventas_sistema, tickets: l.tickets_sistema,
-          horas_sobre_ventas: l.horas_sobre_ventas, objetivo: l.objetivo,
+          horas_sobre_ventas: l.horas_sobre_ventas, objetivo: l.objetivo, horas_incompletas: l.horas_incompletas,
         })),
         totales: {
           ventas: dia.totales.ventas_sistema,
           horas_sobre_ventas: dia.totales.horas_sobre_ventas,
           objetivo: dia.totales.objetivo,
+          locales_con_kpi: dia.totales.locales_con_kpi,
+          locales_con_venta: dia.totales.locales_con_venta,
         },
         reportes: {
           esperados: slots.length,

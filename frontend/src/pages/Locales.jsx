@@ -54,12 +54,12 @@ function Modal({ local, onClose, onSaved }) {
             <input className="input" value={form.direccion || ''} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Objetivo de horas sobre ventas (%)</label>
+            <label className="label">Objetivo de personal sobre venta neta (%)</label>
             <input className="input" type="number" min="1" max="99" step="0.5"
                    value={form.objetivo_horas_ventas ?? ''}
                    onChange={e => setForm(f => ({ ...f, objetivo_horas_ventas: e.target.value }))} />
             <p className="text-xs text-ahg-text/50 mt-1">
-              Cuánto puede pesar el costo de las horas sobre la venta del día. Referencia: 12% en una tienda, 22% en el café.
+              Cuánto puede pesar el costo de las horas (sin cargas sociales) sobre la venta neta sin IVA del día. Hoy: 10 % en las tiendas, 25 % en el café.
             </p>
           </div>
           <div className="flex gap-3 pt-2">
@@ -113,7 +113,7 @@ export default function Locales() {
                 <th className="table-th">Código</th>
                 <th className="table-th">Tipo</th>
                 <th className="table-th">Dirección</th>
-                <th className="table-th text-right">Meta hs/vta</th>
+                <th className="table-th text-right">Meta personal / venta neta</th>
                 <th className="table-th">Estado</th>
                 {isAdmin && <th className="table-th">Acciones</th>}
               </tr>

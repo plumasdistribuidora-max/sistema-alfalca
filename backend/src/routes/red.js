@@ -450,7 +450,7 @@ router.get('/inicio', requireAuth, async (req, res) => {
       : null;
     const parcial = !diaImport || diaImport <= fecha;
 
-    const [locRes, docRes] = await Promise.all([
+    const [locRes, docRes, mesRes, anioRes] = await Promise.all([
       pool.query(`
         SELECT l.id, l.nombre, l.es_alfajorera,
           COALESCE(SUM(vt.total)  FILTER (WHERE vt.fecha = $1::date),     0) AS facturacion,
@@ -474,6 +474,26 @@ router.get('/inicio', requireAuth, async (req, res) => {
           AND (vi.fecha_creacion AT TIME ZONE 'UTC')::date BETWEEN $1::date - 1 AND $1::date
         GROUP BY vi.local_id
       `, [fecha]),
+      // El mes hasta el último día cargado, contra los mismos días del año pasado.
+      pool.query(`
+        SELECT
+          COALESCE(SUM(total) FILTER (WHERE fecha >= date_trunc('month', $1::date)), 0) AS facturacion,
+          COALESCE(SUM(total) FILTER (WHERE fecha < date_trunc('month', $1::date)), 0)  AS facturacion_aa
+        FROM ventas_tickets
+        WHERE estado = 'cerrada'
+          AND (fecha BETWEEN date_trunc('month', $1::date) AND $1::date
+            OR fecha BETWEEN date_trunc('month', $1::date - INTERVAL '1 year') AND ($1::date - INTERVAL '1 year'))
+      `, [fecha]),
+      // Mes a mes de este año y del anterior: la portada de los dueños arma el año del grupo.
+      pool.query(`
+        SELECT EXTRACT(YEAR FROM fecha)::int AS anio, EXTRACT(MONTH FROM fecha)::int AS mes,
+          SUM(total) AS facturacion,
+          SUM(total) FILTER (WHERE EXTRACT(DAY FROM fecha) <= EXTRACT(DAY FROM $1::date)) AS hasta_dia
+        FROM ventas_tickets
+        WHERE estado = 'cerrada'
+          AND fecha >= date_trunc('year', $1::date) - INTERVAL '1 year' AND fecha <= $1::date
+        GROUP BY 1, 2 ORDER BY 1, 2
+      `, [fecha]),
     ]);
 
     const docPorLocal = Object.fromEntries(docRes.rows.map(r => [r.local_id, r]));
@@ -494,7 +514,9 @@ router.get('/inicio', requireAuth, async (req, res) => {
       docenas: Math.round(sum('docenas') * 100) / 100, docenas_ant: Math.round(sum('docenas_ant') * 100) / 100,
       tickets: sum('tickets'),
     };
-    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total } });
+    const mes = { facturacion: n(mesRes.rows[0].facturacion), facturacion_aa: n(mesRes.rows[0].facturacion_aa) };
+    const anio = anioRes.rows.map(r => ({ anio: r.anio, mes: r.mes, facturacion: n(r.facturacion), hasta_dia: n(r.hasta_dia) }));
+    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total, mes, anio } });
   } catch (err) {
     console.error('[red/inicio]', err);
     res.status(500).json({ ok: false, error: 'Error al armar la portada' });

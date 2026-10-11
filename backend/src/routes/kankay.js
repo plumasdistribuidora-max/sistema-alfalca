@@ -26,6 +26,15 @@ router.get('/datos', async (_req, res) => {
   }
 });
 
+router.get('/resumen', async (_req, res) => {
+  try {
+    res.json({ ok: true, data: await kankay.resumenInicio() });
+  } catch (err) {
+    console.error('[kankay/resumen]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo armar el resumen de Kankay' });
+  }
+});
+
 router.post('/import', upload.single('archivo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, error: 'Falta el archivo' });
   const archivo = req.file.originalname;

@@ -286,4 +286,42 @@ async function resultadoMes(periodo, D) {
   return { mb, ro, res, pe, estimado: !cargado };
 }
 
-module.exports = { leerExcel, importar, datos, eerrManual, guardarEerr, terminarEerr, comisionPct, resultadoMes, ultimoDia, GASTOS_BASE };
+
+// ---------------------------------------------------------------- Portada
+
+// Lo que la portada del grupo muestra de Kankay: ayer, hoy, el mes hasta el último día
+// cargado contra los mismos días del mes anterior, y qué falta (EERR del mes pasado, Excel viejo).
+async function resumenInicio() {
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Mendoza' });
+  const { rows: [r] } = await pool.query(`
+    WITH u AS (SELECT MAX(fecha) AS hasta FROM kankay_ventas)
+    SELECT to_char(u.hasta,'YYYY-MM-DD') AS hasta,
+      COALESCE(SUM(v.total) FILTER (WHERE v.fecha = $1::date - 1), 0)::float AS ayer,
+      COALESCE(SUM(v.total) FILTER (WHERE v.fecha = $1::date), 0)::float     AS hoy,
+      COALESCE(SUM(v.total) FILTER (WHERE v.fecha >= date_trunc('month', u.hasta)), 0)::float AS mes,
+      COUNT(DISTINCT v.ticket) FILTER (WHERE v.fecha >= date_trunc('month', u.hasta) AND v.total > 0)::int AS ventas_mes,
+      COALESCE(SUM(v.total) FILTER (WHERE v.fecha >= date_trunc('month', u.hasta) - INTERVAL '1 month'
+                                     AND v.fecha <= u.hasta - INTERVAL '1 month'), 0)::float AS mes_ant,
+      bool_or(v.fecha < date_trunc('month', u.hasta) AND v.fecha >= date_trunc('month', u.hasta) - INTERVAL '1 month') AS hay_mes_ant
+    FROM kankay_ventas v, u GROUP BY u.hasta
+  `, [hoy]);
+  if (!r) return null;
+  // El EERR que debería estar cerrado: el del mes anterior al de hoy, si ese mes tuvo ventas.
+  const d = new Date(`${hoy}T12:00:00`); d.setDate(1); d.setMonth(d.getMonth() - 1);
+  const periodo = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  const { rows: [e] } = await pool.query(`
+    SELECT EXISTS (SELECT 1 FROM kankay_ventas WHERE to_char(fecha,'YYYY-MM') = $1) AS vendio,
+           (SELECT terminado_en FROM kankay_eerr WHERE periodo = $1) AS terminado_en
+  `, [periodo]);
+  const { rows: meses } = await pool.query(`
+    SELECT to_char(fecha,'YYYY-MM') AS periodo, SUM(total)::float AS total FROM kankay_ventas GROUP BY 1 ORDER BY 1
+  `);
+  return {
+    meses,
+    hoy_fecha: hoy, hasta: r.hasta, ayer: r.ayer, hoy: r.hoy, mes: r.mes, ventas_mes: r.ventas_mes,
+    mes_ant: r.hay_mes_ant ? r.mes_ant : null,
+    eerr_pendiente: e.vendio && !e.terminado_en ? periodo : null,
+  };
+}
+
+module.exports = { resumenInicio, leerExcel, importar, datos, eerrManual, guardarEerr, terminarEerr, comisionPct, resultadoMes, ultimoDia, GASTOS_BASE };

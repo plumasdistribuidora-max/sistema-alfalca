@@ -259,14 +259,11 @@ async function avisarDia(r) {
     'INSERT INTO dias_avisados (fecha) VALUES ($1) ON CONFLICT DO NOTHING RETURNING fecha', [r.fecha]
   );
   if (!marcado.rowCount) return;
-  const { rows } = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM tareas WHERE fecha = $1 AND (tipo <> 'mantenimiento' OR detalle->>'desde' = $1::text)`, [r.fecha]
-  );
-  const n = rows[0].n;
+  // El texto lo eligió Martín (11/10/2026): qué día es, cuánto se vendió, y que hay que entrar.
   const venta = r.dia.totales.ventas_sistema;
   await avisos.aDuenos({
-    titulo: `${diaLargo(r.fecha)} · ${n ? `${n} cosa${n === 1 ? '' : 's'} para mirar` : 'todo en orden'}`,
-    texto: `Venta ${$(venta)} · Reportes ${r.reportes.recibidos} de ${r.reportes.esperados} · tocá para ver el PDF`,
+    titulo: `Reporte del día ${diaLargo(r.fecha).toLowerCase()} creado`,
+    texto: `Ventas del día ${$(venta)}. Hacé click para revisarlo.`,
     url: `/dia?fecha=${r.fecha}`,
     etiqueta: `dia-${r.fecha}`,
   });

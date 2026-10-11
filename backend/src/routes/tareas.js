@@ -17,6 +17,16 @@ const { armarDia } = require('./consolidado');
 const router = express.Router();
 const soloEncargado = requireRol(ROLES.ENCARGADO_GENERAL);   // el dueño pasa siempre
 
+// Resolver la tarea es trabajo del encargado y de nadie más: los dueños aprueban,
+// piden o comentan, pero no la toman ni cargan avances (Martín, 11/10/2026). Acá el
+// dueño NO pasa.
+function encargadoNada(req, res, next) {
+  if (req.user?.rol !== ROLES.ENCARGADO_GENERAL) {
+    return res.status(403).json({ ok: false, error: 'Esto lo hace el encargado. Ustedes pueden aprobar, pedir algo o comentar.' });
+  }
+  next();
+}
+
 // Fotos del celular (el frontend las achica) y presupuestos en PDF.
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -36,6 +46,10 @@ const corto = alertas.corto;
 const ddmm = f => (f ? String(f).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '');
 
 function fail(res, status, error) { return res.status(status).json({ ok: false, error }); }
+
+// Todo lo que decide el encargado lo escribe él: las listas de utils/tareas.js son
+// solo ideas en la pantalla (Martín, 11/10/2026). Acá solo se pide que no venga vacío.
+const escrito = (v, max = 300) => String(v || '').trim().slice(0, max);
 
 // El turno ve, debajo de cada pendiente de mantenimiento, qué va a hacer el encargado.
 // Sale de la tarea: no se escribe dos veces.
@@ -509,7 +523,7 @@ async function cargarParaEditar(req, res, estados) {
 }
 
 // POST /:id/tomar  { accion, plazo }
-router.post('/:id/tomar', requireAuth, soloEncargado, async (req, res) => {
+router.post('/:id/tomar', requireAuth, encargadoNada, async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['nueva']); if (!t) return;
     // Lo escribe el encargado: no todo se resuelve igual (Martín, 11/10/2026). La lista
@@ -533,11 +547,11 @@ router.post('/:id/tomar', requireAuth, soloEncargado, async (req, res) => {
 });
 
 // POST /:id/descartar  { motivo } — también la aprueba un dueño.
-router.post('/:id/descartar', requireAuth, soloEncargado, async (req, res) => {
+router.post('/:id/descartar', requireAuth, encargadoNada, async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['nueva', 'en_curso']); if (!t) return;
-    const { motivo } = req.body;
-    if (!T.MOTIVOS_DESCARTE.includes(motivo)) return fail(res, 400, 'Elegí el motivo de la lista');
+    const motivo = escrito(req.body.motivo);
+    if (motivo.length < 3) return fail(res, 400, 'Escribí por qué no hay nada que hacer');
     await pool.query(`
       UPDATE tareas SET estado = 'por_aprobar', cierre_tipo = 'descarte', resultado = $2, resultado_monto = NULL,
              pedido_cierre_at = NOW(), tomada_por = COALESCE(tomada_por, $3), updated_at = NOW()
@@ -557,13 +571,12 @@ router.post('/:id/descartar', requireAuth, soloEncargado, async (req, res) => {
 });
 
 // POST /:id/avance  multipart { tipo, nota, foto? }
-router.post('/:id/avance', requireAuth, soloEncargado, upload.single('foto'), async (req, res) => {
+router.post('/:id/avance', requireAuth, encargadoNada, upload.single('foto'), async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['en_curso']); if (!t) return;
-    const { tipo, nota } = req.body;
-    if (!T.AVANCES.includes(tipo)) return fail(res, 400, 'Elegí qué hiciste de la lista');
-    const texto = [tipo, (nota || '').trim()].filter(Boolean).join(': ');
-    const evId = await evento(t.id, req.user.id, 'avance', texto, { tipo });
+    const texto = escrito(req.body.texto || [req.body.tipo, req.body.nota].filter(Boolean).join(': '), 1000);
+    if (texto.length < 3) return fail(res, 400, 'Escribí qué hiciste');
+    const evId = await evento(t.id, req.user.id, 'avance', texto);
     if (req.file) await subirAdjunto(req.file, t.id, req.user.id, { eventoId: evId });
     await pool.query('UPDATE tareas SET updated_at = NOW() WHERE id = $1', [t.id]);
     res.json({ ok: true });
@@ -574,14 +587,15 @@ router.post('/:id/avance', requireAuth, soloEncargado, upload.single('foto'), as
 });
 
 // POST /:id/plazo  { plazo, motivo }
-router.post('/:id/plazo', requireAuth, soloEncargado, async (req, res) => {
+router.post('/:id/plazo', requireAuth, encargadoNada, async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['en_curso']); if (!t) return;
-    const { plazo, motivo } = req.body;
+    const { plazo } = req.body;
+    const motivo = escrito(req.body.motivo);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(plazo || '')) return fail(res, 400, 'Poné la fecha nueva');
     if (plazo < T.hoyMendoza()) return fail(res, 400, 'La fecha no puede ser anterior a hoy');
     if (plazo === t.plazo) return fail(res, 400, 'Es la misma fecha que ya tenía');
-    if (!T.MOTIVOS_PLAZO.includes(motivo)) return fail(res, 400, 'Elegí el motivo de la lista');
+    if (motivo.length < 3) return fail(res, 400, 'Escribí por qué cambia la fecha');
     await pool.query('UPDATE tareas SET plazo = $2, updated_at = NOW() WHERE id = $1', [t.id, plazo]);
     await planParaElTurno(t, t.accion, plazo, req.user.id);
     await evento(t.id, req.user.id, 'plazo', `Cambió la fecha: ${ddmm(t.plazo)} → ${ddmm(plazo)}. Motivo: ${motivo}.`, { antes: t.plazo, despues: plazo, motivo });
@@ -593,7 +607,7 @@ router.post('/:id/plazo', requireAuth, soloEncargado, async (req, res) => {
 });
 
 // POST /:id/gastos  multipart { concepto, monto, rol: presupuesto|comprobante, foto }
-router.post('/:id/gastos', requireAuth, soloEncargado, upload.single('foto'), async (req, res) => {
+router.post('/:id/gastos', requireAuth, encargadoNada, upload.single('foto'), async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['en_curso']); if (!t) return;
     const concepto = (req.body.concepto || '').trim();
@@ -627,7 +641,7 @@ router.post('/:id/gastos', requireAuth, soloEncargado, upload.single('foto'), as
 });
 
 // POST /gastos/:gid/comprobante  multipart { foto }
-router.post('/gastos/:gid/comprobante', requireAuth, soloEncargado, upload.single('foto'), async (req, res) => {
+router.post('/gastos/:gid/comprobante', requireAuth, encargadoNada, upload.single('foto'), async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT g.*, t.estado AS tarea_estado FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id WHERE g.id = $1', [req.params.gid]
@@ -646,15 +660,17 @@ router.post('/gastos/:gid/comprobante', requireAuth, soloEncargado, upload.singl
 });
 
 // POST /:id/pedir-cierre  multipart { resultado, monto?, afectado_usuario_id?, nota?, foto? }
-router.post('/:id/pedir-cierre', requireAuth, soloEncargado, upload.single('foto'), async (req, res) => {
+router.post('/:id/pedir-cierre', requireAuth, encargadoNada, upload.single('foto'), async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['en_curso']); if (!t) return;
     const tipo = T.TIPOS[t.tipo];
-    const { resultado } = req.body;
-    if (!tipo?.resultados.includes(resultado)) return fail(res, 400, 'Elegí qué era de la lista');
-    const conMonto = (tipo.con_monto || []).includes(resultado);
-    const monto = conMonto ? Math.round(n(req.body.monto)) : null;
-    if (conMonto && !(monto > 0)) return fail(res, 400, 'Poné el monto');
+    const resultado = escrito(req.body.resultado);
+    if (resultado.length < 3) return fail(res, 400, 'Escribí qué era');
+    // Si eligió una idea que habla de plata (venta ficticia, faltante), el monto es
+    // obligatorio: es lo que se compara contra la diferencia. Si no, es opcional.
+    const conMonto = (tipo?.con_monto || []).includes(resultado);
+    const monto = n(req.body.monto) > 0 ? Math.round(n(req.body.monto)) : null;
+    if (conMonto && !monto) return fail(res, 400, 'Poné el monto');
     const afectado = req.body.afectado_usuario_id ? Number(req.body.afectado_usuario_id) : null;
 
     // Sin comprobante no se cierra: lo que se gastó tiene que quedar registrado.
@@ -715,6 +731,32 @@ router.post('/:id/pedir-cierre', requireAuth, soloEncargado, upload.single('foto
   } catch (err) {
     console.error('[tareas/pedir-cierre]', err);
     fail(res, 500, err.message || 'No se pudo pedir el cierre');
+  }
+});
+
+// ── Comentarios ──────────────────────────────────────────────────────────────
+// Cualquier dueño y el encargado pueden escribir en una tarea cuando quieran, aunque
+// ya esté terminada. Queda en el seguimiento como todo lo demás.
+router.post('/:id/comentar', requireAuth, soloEncargado, async (req, res) => {
+  try {
+    const t = await tareaPorId(req.params.id);
+    if (!t) return fail(res, 404, 'No existe esa tarea');
+    const texto = String(req.body.texto || '').trim().slice(0, 1000);
+    if (!texto) return fail(res, 400, 'Escribí el comentario');
+    await evento(t.id, req.user.id, 'comentario', texto);
+    await pool.query('UPDATE tareas SET updated_at = NOW() WHERE id = $1', [t.id]);
+    const payload = {
+      titulo: `${req.user.nombre} comentó`,
+      texto: `${corto(t.local_nombre) || 'Red'}: ${t.titulo} · "${texto.slice(0, 140)}"`,
+      url: `/tareas/${t.id}`, etiqueta: `comentario-${t.id}`,
+    };
+    // A todos los dueños siempre; al encargado, si el que escribió es un dueño.
+    avisos.enSegundoPlano(avisos.aDuenos(payload), 'comentario');
+    if (req.user.rol !== ROLES.ENCARGADO_GENERAL) avisarEncargado(t, payload);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[tareas/comentar]', err);
+    fail(res, 500, 'No se pudo guardar el comentario');
   }
 });
 

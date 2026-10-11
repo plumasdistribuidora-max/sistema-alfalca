@@ -120,15 +120,14 @@ export function Adjunto({ a }) {
   );
 }
 
-// "¿Qué vas a hacer?": lo escribe el encargado con sus palabras. Las acciones de la
-// lista aparecen abajo como ideas que se tocan para arrancar, no como única opción.
-export function QueVasAHacer({ id, valor, onChange, ideas = [] }) {
+// Todo lo que decide el encargado lo escribe con sus palabras. Las listas aparecen
+// abajo como ideas que se tocan para arrancar, nunca como única opción.
+export function TextoConIdeas({ id, label, valor, onChange, ideas = [], placeholder, rows = 2, max = 300 }) {
   return (
     <div className="grid gap-1.5 w-full">
-      <label htmlFor={id} className="text-xs text-ahg-text/60">¿Qué vas a hacer?</label>
-      <textarea id={id} className="input" rows={2} maxLength={300} value={valor}
-                onChange={e => onChange(e.target.value)}
-                placeholder="Escribilo como lo vas a resolver. Ej.: llamo a la vendedora y reviso el arqueo con ella mañana a la mañana" />
+      <label htmlFor={id} className="text-xs text-ahg-text/60">{label}</label>
+      <textarea id={id} className="input" rows={rows} maxLength={max} value={valor}
+                onChange={e => onChange(e.target.value)} placeholder={placeholder} />
       {ideas.length > 0 && (
         <div className="flex flex-wrap gap-1.5 items-center">
           <span className="text-[11px] text-ahg-text/45">Ideas:</span>
@@ -141,6 +140,13 @@ export function QueVasAHacer({ id, valor, onChange, ideas = [] }) {
         </div>
       )}
     </div>
+  );
+}
+
+export function QueVasAHacer({ id, valor, onChange, ideas }) {
+  return (
+    <TextoConIdeas id={id} label="¿Qué vas a hacer?" valor={valor} onChange={onChange} ideas={ideas}
+                   placeholder="Escribilo como lo vas a resolver. Ej.: llamo a la vendedora y reviso el arqueo con ella mañana a la mañana" />
   );
 }
 

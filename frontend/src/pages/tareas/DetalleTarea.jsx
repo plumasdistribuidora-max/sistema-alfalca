@@ -7,7 +7,7 @@ import { comprimir } from '../../utils/fotos';
 import DetalleReporte from '../reportes/DetalleReporte';
 import {
   pesos, ddmm, diaCorto, diaLargo, cuando, duracion, hoyStr, PuntoLocal, ChipTipo, Chip, EstadoTarea,
-  useOpciones, Adjunto, Cargando, MensajeError, QueVasAHacer,
+  useOpciones, Adjunto, Cargando, MensajeError, QueVasAHacer, TextoConIdeas,
 } from './comunes';
 
 function sumarDias(f, n) {
@@ -100,11 +100,13 @@ const COLOR_EVENTO = {
   creada: 'bg-stone-400', tomada: 'bg-sky-600', avance: 'bg-sky-600', plazo: 'bg-amber-500',
   gasto: 'bg-sky-600', comprobante: 'bg-sky-600', gasto_aprobado: 'bg-emerald-600', gasto_rechazado: 'bg-red-600',
   pidio_cierre: 'bg-ahg-primary', aprobada: 'bg-emerald-600', pidio_mas: 'bg-red-600', rechazada: 'bg-red-600', sistema: 'bg-stone-400',
+  comentario: 'bg-ahg-secondary',
 };
 const TITULO_EVENTO = {
   creada: 'El sistema levantó la alerta', tomada: 'La tomó', avance: 'Avance', plazo: 'Cambió la fecha',
   gasto: 'Cargó un gasto', comprobante: 'Subió un comprobante', gasto_aprobado: 'Gasto aprobado', gasto_rechazado: 'Gasto no aprobado',
   pidio_cierre: 'Pidió el cierre', aprobada: 'Aprobada', pidio_mas: 'Pide más', rechazada: 'No la aprobó', sistema: 'Aviso del sistema',
+  comentario: 'Comentó',
 };
 
 function Seguimiento({ eventos, tarea }) {
@@ -165,24 +167,26 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
 
   const [accion, setAccion] = useState('');
   const [plazo, setPlazo] = useState(sumarDias(hoyStr(), 2));
-  const [motivoDesc, setMotivoDesc] = useState(opcionesGen?.motivos_descarte?.[0] || '');
-  const [avTipo, setAvTipo] = useState(opcionesGen?.avances?.[0] || '');
-  const [avNota, setAvNota] = useState('');
+  const [motivoDesc, setMotivoDesc] = useState('');
+  const [avTexto, setAvTexto] = useState('');
   const [avFoto, setAvFoto] = useState(null);
   const [nuevoPlazo, setNuevoPlazo] = useState('');
-  const [motivoPlazo, setMotivoPlazo] = useState(opcionesGen?.motivos_plazo?.[0] || '');
+  const [motivoPlazo, setMotivoPlazo] = useState('');
   const [gConcepto, setGConcepto] = useState('');
   const [gMonto, setGMonto] = useState('');
   const [gRol, setGRol] = useState('presupuesto');
   const [gFoto, setGFoto] = useState(null);
-  const [resultado, setResultado] = useState(opciones.resultados?.[0] || '');
+  const [resultado, setResultado] = useState('');
   const [monto, setMonto] = useState('');
   const [afectado, setAfectado] = useState('');
   const [nota, setNota] = useState('');
   const [prueba, setPrueba] = useState(null);
 
   const tope = opcionesGen?.tope_gasto || 100000;
-  const conMonto = (opciones.con_monto || []).includes(resultado);
+  // Si eligió una idea que habla de plata, el monto es obligatorio; en las ventas el
+  // casillero está siempre, por si lo que escribió también es plata.
+  const conMonto = (opciones.con_monto || []).includes(resultado.trim());
+  const muestraMonto = conMonto || (opciones.con_monto || []).length > 0;
 
   async function hacer(clave, fn) {
     setOcupado(clave); setError('');
@@ -218,12 +222,9 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
     return (
       <Bloque titulo="¿No hay nada que hacer?" sub="El descarte también lo tiene que aprobar un dueño.">
         <div className="flex flex-wrap gap-3 items-end">
-          <label className={etiq}>Motivo
-            <select className="input !py-1.5" value={motivoDesc} onChange={e => setMotivoDesc(e.target.value)}>
-              {(opcionesGen?.motivos_descarte || []).map(m => <option key={m}>{m}</option>)}
-            </select>
-          </label>
-          <button className="btn-secondary !py-1.5" disabled={!!ocupado}
+          <TextoConIdeas id="motivo-descarte" label="¿Por qué no hay nada que hacer?" valor={motivoDesc} onChange={setMotivoDesc}
+                         ideas={opcionesGen?.motivos_descarte || []} placeholder="Escribí por qué. Ej.: ya lo arregló el dueño del local el sábado" />
+          <button className="btn-secondary !py-1.5" disabled={!!ocupado || motivoDesc.trim().length < 3}
                   onClick={() => hacer('desc', () => api.post(`/tareas/${t.id}/descartar`, { motivo: motivoDesc }))}>
             Pedir descartarla
           </button>
@@ -237,19 +238,13 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
 
   return (
     <div className="space-y-3">
-      <Bloque titulo="Anotar un avance" sub="Qué hiciste. La nota y la foto son opcionales.">
+      <Bloque titulo="Anotar un avance" sub="Qué hiciste, con tus palabras. La foto es opcional.">
         <div className="flex flex-wrap gap-3 items-end">
-          <label className={etiq}>¿Qué hiciste?
-            <select className="input !py-1.5" value={avTipo} onChange={e => setAvTipo(e.target.value)}>
-              {(opcionesGen?.avances || []).map(a => <option key={a}>{a}</option>)}
-            </select>
-          </label>
-          <label className={`${etiq} flex-1 min-w-[180px]`}>Nota
-            <input className="input !py-1.5" value={avNota} maxLength={300} onChange={e => setAvNota(e.target.value)} placeholder="Opcional" />
-          </label>
+          <TextoConIdeas id="avance" label="¿Qué hiciste?" valor={avTexto} onChange={setAvTexto} max={1000}
+                         ideas={opcionesGen?.avances || []} placeholder="Ej.: hablé con la vendedora, dice que cargó mal un ticket de tarjeta" />
           <Archivo id="av-foto" archivo={avFoto} setArchivo={setAvFoto} />
-          <button className="btn-primary !py-1.5" disabled={!!ocupado}
-                  onClick={() => hacer('av', async () => { await enviar(`/tareas/${t.id}/avance`, { tipo: avTipo, nota: avNota }, avFoto); setAvNota(''); setAvFoto(null); })}>
+          <button className="btn-primary !py-1.5" disabled={!!ocupado || avTexto.trim().length < 3}
+                  onClick={() => hacer('av', async () => { await enviar(`/tareas/${t.id}/avance`, { texto: avTexto }, avFoto); setAvTexto(''); setAvFoto(null); })}>
             {ocupado === 'av' ? 'Guardando…' : 'Guardar avance'}
           </button>
         </div>
@@ -260,13 +255,10 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
           <label className={etiq}>Fecha nueva
             <input type="date" className="input !py-1.5" value={nuevoPlazo} min={hoyStr()} onChange={e => setNuevoPlazo(e.target.value)} />
           </label>
-          <label className={etiq}>Motivo
-            <select className="input !py-1.5" value={motivoPlazo} onChange={e => setMotivoPlazo(e.target.value)}>
-              {(opcionesGen?.motivos_plazo || []).map(m => <option key={m}>{m}</option>)}
-            </select>
-          </label>
-          <button className="btn-secondary !py-1.5" disabled={!!ocupado || !nuevoPlazo}
-                  onClick={() => hacer('plazo', async () => { await api.post(`/tareas/${t.id}/plazo`, { plazo: nuevoPlazo, motivo: motivoPlazo }); setNuevoPlazo(''); })}>
+          <TextoConIdeas id="motivo-plazo" label="¿Por qué cambia?" valor={motivoPlazo} onChange={setMotivoPlazo}
+                         ideas={opcionesGen?.motivos_plazo || []} placeholder="Ej.: el técnico viene recién el jueves" />
+          <button className="btn-secondary !py-1.5" disabled={!!ocupado || !nuevoPlazo || motivoPlazo.trim().length < 3}
+                  onClick={() => hacer('plazo', async () => { await api.post(`/tareas/${t.id}/plazo`, { plazo: nuevoPlazo, motivo: motivoPlazo }); setNuevoPlazo(''); setMotivoPlazo(''); })}>
             Cambiar fecha
           </button>
         </div>
@@ -311,15 +303,12 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
         </Bloque>
       )}
 
-      <Bloque titulo="Pedir el cierre" sub="Elegí qué era. La tarea queda terminada cuando un dueño la aprueba.">
+      <Bloque titulo="Pedir el cierre" sub="Escribí qué era. La tarea queda terminada cuando un dueño la aprueba.">
         <div className="flex flex-wrap gap-3 items-end">
-          <label className={etiq}>¿Qué era?
-            <select className="input !py-1.5" value={resultado} onChange={e => setResultado(e.target.value)}>
-              {opciones.resultados.map(r => <option key={r}>{r}</option>)}
-            </select>
-          </label>
-          {conMonto && (
-            <label className={etiq}>Monto
+          <TextoConIdeas id="resultado" label="¿Qué era?" valor={resultado} onChange={setResultado}
+                         ideas={opciones.resultados} placeholder="Ej.: la vendedora cargó dos veces un pago con tarjeta; la caja estaba bien" />
+          {muestraMonto && (
+            <label className={etiq}>{conMonto ? 'Monto' : 'Monto (si corresponde)'}
               <input className="input !py-1.5 w-36" inputMode="numeric" value={monto}
                      onChange={e => { const v = e.target.value.replace(/\D/g, ''); setMonto(v ? Number(v).toLocaleString('es-AR') : ''); }} placeholder="$" />
             </label>
@@ -337,9 +326,9 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
           </label>
           <Archivo id="cierre-foto" archivo={prueba} setArchivo={setPrueba} texto="Foto de prueba" />
         </div>
-        <button className="btn-primary" disabled={!!ocupado}
+        <button className="btn-primary" disabled={!!ocupado || resultado.trim().length < 3}
                 onClick={() => hacer('cierre', () => enviar(`/tareas/${t.id}/pedir-cierre`, {
-                  resultado, monto: conMonto ? Number(String(monto).replace(/\D/g, '')) : undefined,
+                  resultado: resultado.trim(), monto: Number(String(monto).replace(/\D/g, '')) || undefined,
                   afectado_usuario_id: afectado || undefined, nota,
                 }, prueba))}>
           {ocupado === 'cierre' ? 'Enviando…' : 'Pedir el cierre a los dueños'}
@@ -413,17 +402,14 @@ function RespuestaDueno({ data, onCambio }) {
           <span>Aprobar como <b>causa conocida</b> de {t.local_corto}: las próximas con este resultado se aprueban solas, solo si el monto coincide con la diferencia.</span>
         </label>
       )}
-      {modo && (
-        <textarea className="input" rows={2} value={texto} onChange={e => setTexto(e.target.value)} autoFocus
-                  placeholder={modo === 'pedir' ? 'Qué le pedís (ej.: mandame la foto del arqueo)' : 'Por qué no alcanza'} />
-      )}
+      <textarea className="input" rows={2} value={texto} onChange={e => { setTexto(e.target.value); setModo(''); }} maxLength={1000}
+                placeholder="Escribile lo que quieras. Para aprobar es opcional; para pedir algo o rechazar, escribí qué." />
       <div className="flex flex-wrap gap-2">
-        {!modo && <button className="btn-primary" disabled={ocupado} onClick={() => responder('aprobar')}>Aprobar</button>}
-        {!modo && <button className="btn-secondary" onClick={() => setModo('pedir')}>Pedir foto o dato</button>}
-        {!modo && <button className="btn-secondary" onClick={() => setModo('rechazar')}>No alcanza</button>}
-        {modo && <button className="btn-primary" disabled={ocupado || !texto.trim()} onClick={() => responder(modo)}>{modo === 'pedir' ? 'Mandar pedido' : 'Rechazar'}</button>}
-        {modo && <button className="btn-secondary" onClick={() => { setModo(''); setTexto(''); }}>Volver</button>}
+        <button className="btn-primary" disabled={ocupado} onClick={() => responder('aprobar')}>Aprobar</button>
+        <button className="btn-secondary" disabled={ocupado} onClick={() => texto.trim() ? responder('pedir') : setModo('pedir')}>Pedir foto o dato</button>
+        <button className="btn-secondary" disabled={ocupado} onClick={() => texto.trim() ? responder('rechazar') : setModo('rechazar')}>No alcanza</button>
       </div>
+      {modo && !texto.trim() && <p className="text-sm text-amber-800">Escribí arriba {modo === 'pedir' ? 'qué le pedís (ej.: mandame la foto del arqueo)' : 'por qué no alcanza'} y volvé a tocar el botón.</p>}
       {error && <p className="text-sm text-red-700">{error}</p>}
     </div>
   );
@@ -451,6 +437,29 @@ function GastoPendienteDueno({ g, onCambio }) {
         {modo && <button className="btn-primary" onClick={() => responder(modo)}>{modo === 'otro' ? 'Pedir otro presupuesto' : 'Rechazar gasto'}</button>}
         {modo && <button className="btn-secondary" onClick={() => { setModo(''); setTexto(''); }}>Volver</button>}
       </div>
+      {error && <p className="text-sm text-red-700">{error}</p>}
+    </div>
+  );
+}
+
+// Comentarios: cualquier dueño y el encargado escriben cuando quieran, aunque la
+// tarea ya esté terminada. Todo queda en el seguimiento.
+function Comentar({ id, onCambio }) {
+  const [texto, setTexto] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState('');
+  async function mandar() {
+    setOcupado(true); setError('');
+    try { await api.post(`/tareas/${id}/comentar`, { texto }); setTexto(''); onCambio(); }
+    catch (err) { setError(err.response?.data?.error || 'No se pudo mandar'); }
+    finally { setOcupado(false); }
+  }
+  return (
+    <div className="card p-4 sm:p-5 space-y-2">
+      <h2 className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Comentar</h2>
+      <p className="text-xs text-ahg-text/55">Lo ven el encargado y los cuatro dueños, y queda en el seguimiento. Les llega un aviso.</p>
+      <textarea className="input" rows={2} maxLength={1000} value={texto} onChange={e => setTexto(e.target.value)} placeholder="Escribí lo que quieras" />
+      <button className="btn-secondary" disabled={ocupado || !texto.trim()} onClick={mandar}>{ocupado ? 'Mandando…' : 'Mandar comentario'}</button>
       {error && <p className="text-sm text-red-700">{error}</p>}
     </div>
   );
@@ -545,14 +554,18 @@ export default function DetalleTarea() {
             </div>
           )}
 
-          {['nueva', 'en_curso'].includes(t.estado) && (
+          {['nueva', 'en_curso'].includes(t.estado) && !dueno && (
             <div className="card p-4 sm:p-5">
-              <h2 className="font-bold mb-3" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                {dueno ? 'Lo que hace el encargado' : 'Qué hacés'}
-              </h2>
+              <h2 className="font-bold mb-3" style={{ fontFamily: 'Nunito, sans-serif' }}>Qué hacés</h2>
               <AccionesEncargado data={data} opcionesGen={opcionesGen} onCambio={cargar} />
             </div>
           )}
+          {['nueva', 'en_curso'].includes(t.estado) && dueno && (
+            <div className="card p-4 text-sm text-ahg-text/70">
+              {t.estado === 'nueva' ? 'El encargado todavía no la tomó.' : `La está resolviendo el encargado: ${t.accion}, para el ${diaCorto(t.plazo)}.`} Cuando pida el cierre, te aparece acá para aprobar. Mientras tanto le podés comentar.
+            </div>
+          )}
+          <Comentar id={t.id} onCambio={cargar} />
           {t.estado === 'por_aprobar' && !dueno && (
             <div className="card p-4 text-sm text-ahg-text/70">Esperando la respuesta de los dueños hace {duracion(t.relojes.duenos_ms)}. Tu tiempo quedó frenado.</div>
           )}

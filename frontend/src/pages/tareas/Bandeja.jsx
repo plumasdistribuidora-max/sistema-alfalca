@@ -74,7 +74,7 @@ function CuadroDias({ dias }) {
 }
 
 // Una alerta sin tomar: se toma acá mismo eligiendo qué hacer y para cuándo.
-function AlertaNueva({ t, opciones, onCambio }) {
+function AlertaNueva({ t, opciones, onCambio, dueno }) {
   const [abierta, setAbierta] = useState(false);
   const acciones = opciones?.tipos?.[t.tipo]?.acciones || [];
   const [accion, setAccion] = useState('');
@@ -102,7 +102,10 @@ function AlertaNueva({ t, opciones, onCambio }) {
             {t.local_corto && <><PuntoLocal nombre={t.local_nombre} />{t.local_corto} ·</>} {diaCorto(t.fecha)} · esperando hace {duracion(t.relojes.encargado_ms)}
           </p>
         </div>
-        <button onClick={() => setAbierta(a => !a)} className="btn-primary !py-1.5 !px-3 text-sm flex-shrink-0">{abierta ? 'Cerrar' : 'Tomar'}</button>
+        {/* Tomarla es trabajo del encargado: el dueño solo la abre. */}
+        {dueno
+          ? <Link to={`/tareas/${t.id}`} className="btn-secondary !py-1.5 !px-3 text-sm flex-shrink-0">Ver</Link>
+          : <button onClick={() => setAbierta(a => !a)} className="btn-primary !py-1.5 !px-3 text-sm flex-shrink-0">{abierta ? 'Cerrar' : 'Tomar'}</button>}
       </div>
       {abierta && (
         <div className="mt-3 bg-ahg-bg rounded-lg p-3 flex flex-wrap gap-3 items-end">
@@ -206,7 +209,7 @@ export default function Bandeja() {
         sub="Cada una se toma escribiendo qué vas a hacer y para cuándo. Desde que nace, corre tu tiempo.">
         {nuevas.length === 0
           ? <p className="text-sm text-ahg-text/50">No hay alertas sin tomar.</p>
-          : nuevas.map(t => <AlertaNueva key={t.id} t={t} opciones={opciones} onCambio={cargar} />)}
+          : nuevas.map(t => <AlertaNueva key={t.id} t={t} opciones={opciones} onCambio={cargar} dueno={dueno} />)}
       </Seccion>
 
       {(devueltas.length > 0 || (!dueno && porAprobar.length > 0) || terminadas.length > 0) && (

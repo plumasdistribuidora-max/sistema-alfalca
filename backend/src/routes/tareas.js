@@ -512,8 +512,11 @@ async function cargarParaEditar(req, res, estados) {
 router.post('/:id/tomar', requireAuth, soloEncargado, async (req, res) => {
   try {
     const t = await cargarParaEditar(req, res, ['nueva']); if (!t) return;
-    const { accion, plazo } = req.body;
-    if (!T.TIPOS[t.tipo]?.acciones.includes(accion)) return fail(res, 400, 'Elegí qué vas a hacer de la lista');
+    // Lo escribe el encargado: no todo se resuelve igual (Martín, 11/10/2026). La lista
+    // del tipo queda solo como ideas en la pantalla.
+    const accion = String(req.body.accion || '').trim().slice(0, 300);
+    const { plazo } = req.body;
+    if (accion.length < 3) return fail(res, 400, 'Escribí qué vas a hacer');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(plazo || '')) return fail(res, 400, 'Poné para cuándo lo vas a resolver');
     if (plazo < T.hoyMendoza()) return fail(res, 400, 'La fecha no puede ser anterior a hoy');
     await pool.query(`

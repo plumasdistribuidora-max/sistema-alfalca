@@ -7,7 +7,7 @@ import { comprimir } from '../../utils/fotos';
 import DetalleReporte from '../reportes/DetalleReporte';
 import {
   pesos, ddmm, diaCorto, diaLargo, cuando, duracion, hoyStr, PuntoLocal, ChipTipo, Chip, EstadoTarea,
-  useOpciones, Adjunto, Cargando, MensajeError,
+  useOpciones, Adjunto, Cargando, MensajeError, QueVasAHacer,
 } from './comunes';
 
 function sumarDias(f, n) {
@@ -163,7 +163,7 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState('');
 
-  const [accion, setAccion] = useState(opciones.acciones?.[0] || '');
+  const [accion, setAccion] = useState('');
   const [plazo, setPlazo] = useState(sumarDias(hoyStr(), 2));
   const [motivoDesc, setMotivoDesc] = useState(opcionesGen?.motivos_descarte?.[0] || '');
   const [avTipo, setAvTipo] = useState(opcionesGen?.avances?.[0] || '');
@@ -196,17 +196,13 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
   if (t.estado === 'nueva') {
     return (
       <div className="space-y-3">
-        <Bloque titulo="Tomar la tarea" sub="Elegí qué vas a hacer y para cuándo. Esa fecha la ven los dueños.">
+        <Bloque titulo="Tomar la tarea" sub="Escribí qué vas a hacer y elegí para cuándo. Las dos cosas las ven los dueños.">
           <div className="flex flex-wrap gap-3 items-end">
-            <label className={etiq}>¿Qué vas a hacer?
-              <select className="input !py-1.5" value={accion} onChange={e => setAccion(e.target.value)}>
-                {opciones.acciones.map(a => <option key={a}>{a}</option>)}
-              </select>
-            </label>
+            <QueVasAHacer id="accion-detalle" valor={accion} onChange={setAccion} ideas={opciones.acciones} />
             <label className={etiq}>¿Para cuándo?
               <input type="date" className="input !py-1.5" value={plazo} min={hoyStr()} onChange={e => setPlazo(e.target.value)} />
             </label>
-            <button className="btn-primary !py-1.5" disabled={!!ocupado}
+            <button className="btn-primary !py-1.5" disabled={!!ocupado || accion.trim().length < 3}
                     onClick={() => hacer('tomar', () => api.post(`/tareas/${t.id}/tomar`, { accion, plazo }))}>
               {ocupado === 'tomar' ? 'Guardando…' : 'Tomar la tarea'}
             </button>

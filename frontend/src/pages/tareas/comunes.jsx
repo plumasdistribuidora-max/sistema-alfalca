@@ -120,6 +120,30 @@ export function Adjunto({ a }) {
   );
 }
 
+// "¿Qué vas a hacer?": lo escribe el encargado con sus palabras. Las acciones de la
+// lista aparecen abajo como ideas que se tocan para arrancar, no como única opción.
+export function QueVasAHacer({ id, valor, onChange, ideas = [] }) {
+  return (
+    <div className="grid gap-1.5 w-full">
+      <label htmlFor={id} className="text-xs text-ahg-text/60">¿Qué vas a hacer?</label>
+      <textarea id={id} className="input" rows={2} maxLength={300} value={valor}
+                onChange={e => onChange(e.target.value)}
+                placeholder="Escribilo como lo vas a resolver. Ej.: llamo a la vendedora y reviso el arqueo con ella mañana a la mañana" />
+      {ideas.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-[11px] text-ahg-text/45">Ideas:</span>
+          {ideas.map(a => (
+            <button key={a} type="button" onClick={() => onChange(a)}
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-ahg-accent/60 bg-white hover:bg-ahg-bg">
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Cargando() {
   return <p className="text-sm text-ahg-text/50 py-6">Cargando…</p>;
 }

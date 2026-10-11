@@ -6,7 +6,7 @@ import { esDueno } from '../../utils/roles';
 import AvisosBoton from '../../components/AvisosBoton';
 import {
   pesos, diaCorto, duracion, hoyStr, PuntoLocal, ChipTipo, Chip, EstadoTarea,
-  useOpciones, Cargando, MensajeError, Titulo, Seccion,
+  useOpciones, Cargando, MensajeError, Titulo, Seccion, QueVasAHacer,
 } from './comunes';
 
 function sumarDias(f, n) {
@@ -85,7 +85,7 @@ function AlertaNueva({ t, opciones, onCambio }) {
   async function tomar() {
     setGuardando(true); setError('');
     try {
-      await api.post(`/tareas/${t.id}/tomar`, { accion: accion || acciones[0], plazo });
+      await api.post(`/tareas/${t.id}/tomar`, { accion, plazo });
       onCambio();
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo tomar');
@@ -106,15 +106,11 @@ function AlertaNueva({ t, opciones, onCambio }) {
       </div>
       {abierta && (
         <div className="mt-3 bg-ahg-bg rounded-lg p-3 flex flex-wrap gap-3 items-end">
-          <label className="text-xs text-ahg-text/60 grid gap-1">¿Qué vas a hacer?
-            <select className="input !py-1.5" value={accion || acciones[0] || ''} onChange={e => setAccion(e.target.value)}>
-              {acciones.map(a => <option key={a}>{a}</option>)}
-            </select>
-          </label>
+          <QueVasAHacer id={`accion-${t.id}`} valor={accion} onChange={setAccion} ideas={acciones} />
           <label className="text-xs text-ahg-text/60 grid gap-1">¿Para cuándo?
             <input type="date" className="input !py-1.5" value={plazo} min={hoyStr()} onChange={e => setPlazo(e.target.value)} />
           </label>
-          <button onClick={tomar} disabled={guardando} className="btn-primary !py-1.5">{guardando ? 'Guardando…' : 'Tomar la tarea'}</button>
+          <button onClick={tomar} disabled={guardando || accion.trim().length < 3} className="btn-primary !py-1.5">{guardando ? 'Guardando…' : 'Tomar la tarea'}</button>
           <Link to={`/tareas/${t.id}`} className="text-xs text-ahg-text/60 underline">Ver detalle o descartar</Link>
           {error && <p className="w-full text-sm text-red-700">{error}</p>}
         </div>
@@ -207,7 +203,7 @@ export default function Bandeja() {
 
       <Seccion
         titulo={`Alertas sin tomar · ${nuevas.length}`}
-        sub="Cada una se toma eligiendo qué vas a hacer y para cuándo. Desde que nace, corre tu tiempo.">
+        sub="Cada una se toma escribiendo qué vas a hacer y para cuándo. Desde que nace, corre tu tiempo.">
         {nuevas.length === 0
           ? <p className="text-sm text-ahg-text/50">No hay alertas sin tomar.</p>
           : nuevas.map(t => <AlertaNueva key={t.id} t={t} opciones={opciones} onCambio={cargar} />)}

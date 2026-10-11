@@ -567,7 +567,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         Si sos dueño o Encargado General, al entrar ves la portada. Arriba están las
         <strong>tres marcas del grupo</strong> — Entre Dos (tiendas y cafetería), Kankay y Senzen —
         y debajo <strong>Hoy en la red</strong>: cómo viene el día sin tener que abrir ningún módulo.
-        Cada marca se puede tocar: Entre Dos te lleva a su dashboard; Kankay, a su estado de resultados
+        Cada marca se puede tocar: Entre Dos te lleva a su dashboard; Kankay, al suyo
         (solo el dueño; el Encargado General ve <em>Próximamente</em>), y Senzen, que todavía no tiene
         nada, dice <em>Próximamente</em>.
       </p>
@@ -720,7 +720,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <div class="m-it m-sub" style="padding-left:30px">Dashboard</div>
             <div class="m-it m-sub" style="padding-left:30px">Importar Excel</div>
             <div class="m-it m-sub" style="padding-left:30px">Historial Excel</div>
-            <div class="m-it m-sub">Kankay</div>
+            <div class="m-it m-sub">Kankay <span style="margin-left:auto;font-size:8px">▾</span></div>
+            <div class="m-it m-sub" style="padding-left:30px">Dashboard</div>
+            <div class="m-it m-sub" style="padding-left:30px">Importar Excel</div>
+            <div class="m-it m-sub" style="padding-left:30px">Historial Excel</div>
             <div class="m-it m-sub">Senzen <span style="margin-left:auto;font-size:7px;opacity:.6">pronto</span></div>
             <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
             <div class="m-it"><span class="ic">⊛</span>Finanzas</div>
@@ -741,7 +744,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <li><strong>El día</strong> — el reporte del día, las tareas, el tablero (solo dueños), los reportes de los turnos y proveedores.</li>
             <li><strong>Análisis</strong> — lo que ya pasó: ventas, stock y plata. <em>Finanzas</em> le aparece solo al dueño.
               <em>Tiendas</em> se abre en las marcas del grupo: <strong>Entre Dos</strong> (el alfajor) tiene adentro el Dashboard, Importar Excel e Historial Excel;
-              <strong>Kankay</strong> (la sartén) tiene su <strong>estado de resultados</strong>, que el dueño carga a mano mes por mes (ver <a href="#kankay">Kankay</a>);
+              <strong>Kankay</strong> (la sartén) tiene lo mismo, solo para el dueño: Dashboard, Importar Excel e Historial Excel (ver <a href="#kankay">Kankay</a>);
               <strong>Senzen</strong> (el rociador) todavía no tiene dashboard y te lleva a una página de <em>Próximamente</em>.</li>
             <li><strong>Equipo</strong> — la gente: quién trabaja, cuántas horas y quién entra al sistema.</li>
             <li><strong>Configuración</strong> — cómo funciona el sistema por dentro. Solo el dueño.</li>
@@ -1802,44 +1805,68 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <section class="seccion" id="kankay">
       <p class="eyebrow">Análisis · Tiendas</p>
       <p class="para-quien">Solo el dueño</p>
-      <h2>Kankay — estado de resultados</h2>
+      <h2>Kankay</h2>
       <p>
-        Kankay todavía no tiene de dónde sacar sus números solo, así que su pantalla es un estado de
-        resultados que se carga <strong>a mano, mes por mes</strong>. Se entra desde
-        <em>Tiendas → Kankay</em> o tocando su tarjeta en la portada.
+        Kankay funciona igual que Entre Dos: en el menú, <em>Tiendas → Kankay</em> tiene
+        <strong>Dashboard</strong>, <strong>Importar Excel</strong> e <strong>Historial Excel</strong>.
+        Los números salen del Excel de ventas de <strong>Dux</strong>, el sistema que usa el local.
       </p>
 
+      <h3>Subir las ventas</h3>
+      <ol class="pasos">
+        <li>En Dux, entrá a <em>Consulta de ventas detallada</em>, elegí las fechas y exportá a Excel.</li>
+        <li>En el sistema, <em>Kankay → Importar Excel</em>: arrastrá el archivo o tocá para elegirlo, y después <em>Importar</em>.</li>
+        <li>Te muestra cuántas ventas, unidades y productos entraron, la venta sin IVA y el costo.</li>
+      </ol>
+      <ul class="simple">
+        <li><strong>Podés subir un mes entero o una parte.</strong> Si subís de nuevo días que ya estaban, se reemplazan: no se duplica nada.</li>
+        <li><strong>Las ventas sin número de comprobante</strong> son facturas que no llegaron a emitirse: cuentan como venta sin factura, completas, aunque el Excel les calcule IVA.</li>
+        <li><em>Historial Excel</em> lista cada archivo que se subió, quién y cuándo, y si sigue vigente o lo reemplazó otro.</li>
+      </ul>
+
+      <h3>El dashboard</h3>
+      <ul class="simple">
+        <li><strong>El mes</strong> — elegís el mes arriba a la derecha. Venta con y sin IVA, margen, cantidad de ventas y unidades, contra el mes anterior (el mes en curso, contra los mismos días). Abajo: cómo se fue juntando la venta contra el punto de equilibrio, el calendario día por día, rubros y lo más vendido.</li>
+        <li><strong>Punto de equilibrio</strong> — lo que hay que vender sin IVA para cubrir los gastos del mes. Si el mes todavía no tiene gastos cargados, usa los del último mes cargado y dice <em>estimado</em>. Una nota de crédito de Kankay lo baja: se ve el equilibrio <em>sin NC</em> y <em>con NC</em>, y podés probar con cualquier monto.</li>
+        <li><strong>Mes a mes</strong> — los meses en columnas, con el mes en curso proyectado.</li>
+        <li><strong>Productos</strong> — rubros, sartenes por línea y los productos que hacen el 80 % de la venta.</li>
+        <li><strong>Vendedores</strong> — está <em>en mejora</em>: hoy usa el vendedor que figura en Dux, que no siempre está bien cargado. Cuando se cargue el calendario de turnos, cada venta va a ir a quien estaba trabajando.</li>
+        <li><strong>Días y horas</strong> — cuánto vende un día promedio de cada día de la semana y cada hora, con el mejor y el peor marcados.</li>
+      </ul>
+
+      <h3>Estado de resultados</h3>
       <figure class="figura">
         <div class="mock">
           <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · kankay · estado de resultados</span></div>
           <div class="m-main" style="padding:16px">
-            <div class="m-fila" style="gap:9px;margin-bottom:8px">
-              <span class="m-input" style="flex:1">Agosto 2026</span>
-            </div>
             <div class="m-cascada">
-              <div class="lin"><span class="op">+</span><span><b>Ventas</b><em>Una línea por rubro, sin IVA</em></span><span class="mto">$ 6.400.000</span></div>
-              <div class="lin"><span class="op">−</span><span><b>Deducciones de ventas</b><em>Comisiones de tarjetas y plataformas</em></span><span class="mto">$ 120.000</span></div>
-              <div class="lin"><span class="op">=</span><span><b>Ventas netas</b><em></em></span><span class="mto">$ 6.280.000</span></div>
-              <div class="lin"><span class="op">−</span><span><b>Costo de la mercadería vendida</b><em>Lo que costó lo que vendiste</em></span><span class="mto">$ 3.100.000</span></div>
-              <div class="lin"><span class="op">=</span><span><b>Margen bruto</b><em></em></span><span class="mto">$ 3.180.000</span></div>
-              <div class="lin"><span class="op">−</span><span><b>Gastos operativos</b><em>Sueldos, alquiler, expensas, marketing…</em></span><span class="mto">$ 1.900.000</span></div>
-              <div class="lin"><span class="op">=</span><span><b>Resultado operativo</b><em></em></span><span class="mto">$ 1.280.000</span></div>
-              <div class="lin"><span class="op">+</span><span><b>Otros ingresos no recurrentes</b><em>Lo que entra una sola vez</em></span><span class="mto">$ 500.000</span></div>
-              <div class="lin"><span class="op">−</span><span><b>Impuestos y gastos financieros</b><em>IIBB, impuesto al cheque, bancos, cuotas</em></span><span class="mto">$ 250.000</span></div>
-              <div class="lin res"><span class="op">=</span><span><b>Resultado neto</b><em></em></span><span class="mto">$ 1.530.000</span></div>
+              <div class="lin"><span class="op">+</span><span><b>Ventas sin IVA, por rubro</b><em>Salen del Excel</em></span><span class="mto">$ 7.000.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Costo de mercadería, por rubro</b><em>Sale del Excel</em></span><span class="mto">$ 3.200.000</span></div>
+              <div class="lin"><span class="op">=</span><span><b>Margen bruto</b><em></em></span><span class="mto">$ 3.800.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Gastos operativos</b><em>Sueldos, alquiler, expensas, marketing, fletes…</em></span><span class="mto">$ 3.000.000</span></div>
+              <div class="lin"><span class="op">=</span><span><b>Resultado operativo</b><em></em></span><span class="mto">$ 800.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Impuestos</b><em>Ingresos brutos y F. 931, del contador</em></span><span class="mto">$ 400.000</span></div>
+              <div class="lin"><span class="op">−</span><span><b>Gastos financieros</b><em>Comisión de tarjetas: % de la venta neta</em></span><span class="mto">$ 420.000</span></div>
+              <div class="lin"><span class="op">+</span><span><b>Otros ingresos no recurrentes</b><em>Nota de crédito de Kankay</em></span><span class="mto">$ 500.000</span></div>
+              <div class="lin res"><span class="op">=</span><span><b>Resultado del mes</b><em></em></span><span class="mto">$ 480.000</span></div>
             </div>
           </div>
         </div>
-        <figcaption><b>El orden de la pantalla.</b> Los subtotales se calculan solos; al lado de cada monto está el % sobre las ventas netas.</figcaption>
+        <figcaption><b>Los meses van uno al lado del otro</b>, con el total del año en la última columna. Los montos son de ejemplo.</figcaption>
       </figure>
-
       <ul class="simple">
-        <li><strong>Los montos se escriben en positivo y sin IVA.</strong> El signo lo pone el grupo: un gasto resta aunque lo escribas sin el menos.</li>
-        <li><strong>Se guarda solo</strong> mientras escribís. Arriba de la tabla dice <em>Guardado</em> y a qué hora.</li>
-        <li><strong>Los renglones son tuyos</strong>: tocá el nombre para cambiarlo, la ✕ para borrarlo, o <em>+ Agregar</em> al pie de cada grupo para sumar uno.</li>
-        <li><strong>Un mes nuevo</strong> arranca con los mismos renglones del mes anterior, con los montos en blanco.</li>
-        <li><strong>Otros ingresos no recurrentes</strong> es para lo que entra una sola vez, como una nota de crédito del proveedor por acompañamiento: va abajo del resultado operativo para no inflar el margen de todos los meses.</li>
+        <li><strong>Ventas y costo salen solos</strong> del Excel (dicen <em>del Excel</em>). Los gastos, el IIBB, el F. 931 y la nota de crédito se escriben a mano (dicen <em>a mano</em>) y se guardan al salir del casillero.</li>
+        <li><strong>La comisión de tarjetas</strong> es un porcentaje de la venta neta (hoy 6 %) que incluye cuotas y gastos de tarjeta. Se cambia en el mismo renglón.</li>
+        <li>Mientras un mes no tenga gastos cargados, sus resultados dicen <em>faltan gastos</em>.</li>
       </ul>
+
+      <h3>Avisos de Kankay</h3>
+      <p>
+        En la cabecera del dashboard, el botón <strong>Avisos de Kankay</strong> abre la lista de avisos que te pueden
+        llegar al celular. Cada dueño prende los suyos: <em>se cargaron ventas</em>, <em>estado de resultados actualizado</em>,
+        <em>punto de equilibrio</em>, <em>cierre del mes</em> y <em>falta subir ventas</em> (si pasan 7 días sin Excel).
+        Para recibirlos, los avisos tienen que estar activados en ese aparato (ver <a href="#dia">avisos en el celular</a>).
+      </p>
     </section>
 
     <!-- ══════════ EQUIPO ══════════ -->

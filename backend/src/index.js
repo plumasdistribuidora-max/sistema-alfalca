@@ -49,12 +49,19 @@ app.use('/api/imports',   soloRed, require('./routes/imports'));
 app.use('/api/maestros',  soloRed, require('./routes/maestros'));
 app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
 app.use('/api/eerr-manual', soloDueno, require('./routes/eerrManual'));
+app.use('/api/kankay',    soloDueno, require('./routes/kankay'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 
 // Cachea el maestro de docenas desde la base en startup (no bloquea el arranque)
 require('./services/maestroDocenas').loadMaestro()
   .catch(err => console.warn('[startup] No se pudo cachear el maestro de docenas:', err.message));
+
+// Avisos programados de Kankay (cierre del mes, el 20, recordatorio): se revisan una vez
+// por hora. Cada aviso se manda una sola vez, aunque haya más de un proceso.
+const kankayAvisos = require('./services/kankayAvisos');
+setInterval(() => kankayAvisos.revisarProgramados()
+  .catch(err => console.warn('[kankay avisos]', err.message)), 60 * 60 * 1000).unref();
 
 if (isProd) {
   const distPath = path.join(__dirname, '../../frontend/dist');

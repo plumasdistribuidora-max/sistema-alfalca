@@ -48,10 +48,11 @@ function Icono({ name, small }) {
 // Tiendas se abre en las marcas; Entre Dos, en sus tres pantallas. Estar en cualquiera
 // de estas rutas deja abierto el grupo que la contiene.
 const ENTREDOS_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
+const KANKAY_ROUTES   = ['/marcas/kankay'];
 const TIENDA_ROUTES   = [...ENTREDOS_ROUTES, '/marcas'];
 
-// Kankay tiene su estado de resultados, que es solo del dueño: para el resto sigue en "pronto".
-// Senzen todavía no tiene nada y lleva a su página de "Próximamente".
+// Kankay tiene su dashboard, su import y su historial, igual que Entre Dos, pero es solo del
+// dueño: para el resto sigue en "pronto". Senzen todavía no tiene nada.
 const MARCAS_PROXIMAS = [
   { slug: 'kankay', label: 'Kankay', icon: 'sarten', listaParaDueno: true },
   { slug: 'senzen', label: 'Senzen', icon: 'limpieza' },
@@ -87,10 +88,11 @@ function NavItem({ to, icon, label }) {
   );
 }
 
-function SubNavItem({ to, icon, label, profundo, children }) {
+function SubNavItem({ to, icon, label, profundo, end, children }) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
         `flex items-center gap-2.5 ${profundo ? 'pl-12' : 'pl-8'} pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors
          ${isActive
@@ -131,9 +133,11 @@ export default function Sidebar({ open, onClose }) {
   const location   = useLocation();
   const [tiendaExpanded, setTiendaExpanded]     = useState(false);
   const [entreDosExpanded, setEntreDosExpanded] = useState(false);
+  const [kankayExpanded, setKankayExpanded]     = useState(false);
 
   const tiendaOpen   = tiendaExpanded   || enRutas(location.pathname, TIENDA_ROUTES);
   const entreDosOpen = entreDosExpanded || enRutas(location.pathname, ENTREDOS_ROUTES);
+  const kankayOpen   = kankayExpanded   || enRutas(location.pathname, KANKAY_ROUTES);
 
   return (
     <>
@@ -207,7 +211,25 @@ export default function Sidebar({ open, onClose }) {
                       <SubNavItem to="/historial-imports" icon="historial" label="Historial Excel" profundo />
                     </>
                   )}
-                  {MARCAS_PROXIMAS.map(m => (
+                  {MARCAS_PROXIMAS.map(m => m.listaParaDueno && esDueno(user) ? (
+                    <div key={m.slug}>
+                      <button
+                        onClick={() => setKankayExpanded(prev => !prev)}
+                        className="w-full flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-white/60 hover:bg-white/10 hover:text-white"
+                      >
+                        <Icono name={m.icon} small />
+                        <span className="flex-1 text-left">{m.label}</span>
+                        <Chevron abierto={kankayOpen} />
+                      </button>
+                      {kankayOpen && (
+                        <>
+                          <SubNavItem to="/marcas/kankay"           icon="dashboard" label="Dashboard"       profundo end />
+                          <SubNavItem to="/marcas/kankay/importar"  icon="importar"  label="Importar Excel"  profundo />
+                          <SubNavItem to="/marcas/kankay/historial" icon="historial" label="Historial Excel" profundo />
+                        </>
+                      )}
+                    </div>
+                  ) : (
                     <SubNavItem key={m.slug} to={`/marcas/${m.slug}`} icon={m.icon} label={m.label}>
                       {!(m.listaParaDueno && esDueno(user)) && (
                         <span className="text-[10px] px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>

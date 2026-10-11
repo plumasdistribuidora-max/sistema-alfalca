@@ -22,7 +22,8 @@ import Reportes               from './pages/reportes/Reportes';
 import FormulariosPage        from './pages/admin/FormulariosPage';
 import ProveedoresPage        from './pages/proveedores/ProveedoresPage';
 import MarcaProximamente      from './pages/MarcaProximamente';
-import KankayPage             from './pages/marcas/KankayPage';
+import KankayDashboard        from './pages/marcas/kankay/KankayDashboard';
+import { KankayImportar, KankayHistorial } from './pages/marcas/kankay/KankayImportar';
 import Bandeja               from './pages/tareas/Bandeja';
 import DetalleTarea          from './pages/tareas/DetalleTarea';
 import Tablero               from './pages/tareas/Tablero';
@@ -87,7 +88,9 @@ export default function App() {
             <Route path="ventas/productos/empleados"     element={<Navigate to="/red" replace />} />
             <Route path="ventas/productos/catalogo"      element={soloRed(<CatalogoPage />)} />
             <Route path="red"                            element={soloRed(<RedDashboard />)} />
-            <Route path="marcas/kankay"                  element={soloRed(<KankayPage />)} />
+            <Route path="marcas/kankay"                  element={soloRed(<KankayDashboard />)} />
+            <Route path="marcas/kankay/importar"         element={soloDueno(<KankayImportar />)} />
+            <Route path="marcas/kankay/historial"        element={soloDueno(<KankayHistorial />)} />
             <Route path="marcas/:slug"                   element={soloRed(<MarcaProximamente />)} />
             <Route path="stock"                          element={soloRed(<StockInteligente />)} />
             <Route path="finanzas"                       element={soloDueno(<FinanzasPage />)} />

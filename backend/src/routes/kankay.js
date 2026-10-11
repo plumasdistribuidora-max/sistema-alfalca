@@ -13,7 +13,8 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 const PERIODO = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-const nombreDe = async id => (await pool.query('SELECT nombre FROM usuarios WHERE id = $1', [id])).rows[0]?.nombre;
+// "Martín (Admin)" → "Martín": así se lee en el aviso.
+const nombreDe = async id => (await pool.query('SELECT nombre FROM usuarios WHERE id = $1', [id])).rows[0]?.nombre?.replace(/\s*\(.*\)\s*$/, '');
 
 router.get('/datos', async (_req, res) => {
   try {
@@ -64,12 +65,29 @@ router.put('/eerr/:periodo', async (req, res) => {
   const { periodo } = req.params;
   if (!PERIODO.test(periodo)) return res.status(400).json({ ok: false, error: 'Período inválido' });
   try {
-    const cambios = await kankay.guardarEerr(periodo, req.body || {}, req.user.id);
-    enSegundoPlano(nombreDe(req.user.id).then(n => kAvisos.trasEerr(periodo, cambios, req.user.id, n)), 'kankay eerr');
+    // Cada cambio se guarda sin avisar: el aviso sale cuando alguien da el mes por terminado.
+    await kankay.guardarEerr(periodo, req.body || {}, req.user.id);
     res.json({ ok: true, data: (await kankay.eerrManual()) });
   } catch (err) {
     console.error('[kankay/eerr]', err);
     res.status(500).json({ ok: false, error: 'No se pudo guardar' });
+  }
+});
+
+router.post('/eerr/:periodo/terminar', async (req, res) => {
+  const { periodo } = req.params;
+  if (!PERIODO.test(periodo)) return res.status(400).json({ ok: false, error: 'Período inválido' });
+  try {
+    if (!await kankay.terminarEerr(periodo, req.user.id)) {
+      return res.status(400).json({ ok: false, error: 'Ese mes todavía no tiene nada cargado' });
+    }
+    const enviados = await kAvisos.eerrTerminado(periodo, await nombreDe(req.user.id)).catch(err => {
+      console.warn('[kankay/terminar] aviso:', err.message); return 0;
+    });
+    res.json({ ok: true, data: { eerr: await kankay.eerrManual(), enviados } });
+  } catch (err) {
+    console.error('[kankay/terminar]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo marcar como terminado' });
   }
 });
 

@@ -13,8 +13,8 @@ const kankay = require('./kankay');
 const TEMAS = [
   { tema: 'kankay_ventas',       titulo: 'Se cargaron ventas',              porDefecto: true,
     detalle: 'Cada vez que alguien sube un Excel. Dice qué días entraron, cuánto se vendió y cómo venimos contra el mes anterior.' },
-  { tema: 'kankay_eerr',         titulo: 'Estado de resultados actualizado', porDefecto: true,
-    detalle: 'Cuando alguien carga o cambia gastos, impuestos o una nota de crédito. Dice qué mes, qué cambió y cómo queda el resultado.' },
+  { tema: 'kankay_eerr',         titulo: 'Estado de resultados terminado',  porDefecto: true,
+    detalle: 'Cuando alguien toca "Terminé, avisar" en un mes del estado de resultados. Dice qué mes y cómo quedó el resultado. Te llega también si lo terminaste vos.' },
   { tema: 'kankay_equilibrio',   titulo: 'Punto de equilibrio',             porDefecto: true,
     detalle: 'El día que el mes pasa el punto de equilibrio. Y el 20 de cada mes, si a este ritmo no llega, cuánto falta.' },
   { tema: 'kankay_cierre',       titulo: 'Cierre del mes',                  porDefecto: true,
@@ -81,7 +81,7 @@ async function trasImport(imp, usuarioId) {
   }
   const rango = imp.desde === imp.hasta ? `del ${fechaCorta(imp.desde)}` : `del ${fechaCorta(imp.desde)} al ${fechaCorta(imp.hasta)}`;
   await mandar('kankay_ventas',
-    `Se cargaron las ventas ${rango}: ${fmt(imp.total)} con IVA en ${imp.ventas} ventas.${cmp}`, { excluir: usuarioId });
+    `Se cargaron las ventas ${rango}: ${fmt(imp.total)} con IVA en ${imp.ventas} ventas.${cmp}`);
 
   for (const mes of imp.meses) {
     const r = await kankay.resultadoMes(mes, D);
@@ -92,14 +92,16 @@ async function trasImport(imp, usuarioId) {
   }
 }
 
-async function trasEerr(periodo, cambios, usuarioId, nombre) {
-  if (!cambios.length) return;
+// Cuando alguien da por terminado el estado de resultados de un mes. Le llega también a
+// quien lo terminó, como confirmación.
+async function eerrTerminado(periodo, nombre) {
   const D = await kankay.datos();
   const r = D.vacio ? null : await kankay.resultadoMes(periodo, D);
-  const que = cambios.length > 3 ? `${cambios.slice(0, 3).join(', ')} y ${cambios.length - 3} más`
-    : cambios.length > 1 ? `${cambios.slice(0, -1).join(', ')} y ${cambios.at(-1)}` : cambios[0];
-  const fin = r?.res != null ? ` Resultado operativo: ${fmt(r.ro)}. Resultado del mes: ${fmt(r.res)}.` : ' Todavía faltan gastos para tener el resultado.';
-  await mandar('kankay_eerr', `${nombre || 'Alguien'} cambió ${que} de ${mesN(periodo)}.${fin}`, { excluir: usuarioId });
+  const M = D.meses?.[periodo];
+  const fin = r?.res != null
+    ? ` Resultado operativo: ${fmt(r.ro)} (${pc(r.ro / M.neto)} de la venta). Resultado del mes: ${fmt(r.res)}.`
+    : ' Todavía faltan gastos para tener el resultado.';
+  return mandar('kankay_eerr', `${nombre || 'Alguien'} terminó el estado de resultados de ${mesN(periodo)}.${fin}`);
 }
 
 // Lo que se revisa una vez por hora: cierre del mes, el 20 y el recordatorio.
@@ -143,4 +145,4 @@ async function revisarProgramados() {
   }
 }
 
-module.exports = { TEMAS, preferencias, guardarPreferencia, trasImport, trasEerr, revisarProgramados };
+module.exports = { TEMAS, preferencias, guardarPreferencia, trasImport, eerrTerminado, revisarProgramados };

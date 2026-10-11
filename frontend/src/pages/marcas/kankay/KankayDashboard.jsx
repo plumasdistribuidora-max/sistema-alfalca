@@ -108,7 +108,7 @@ function Avisos({ D }) {
   const cmpP = P && (curso ? P.hasta1_[dia] : P);
   const ej = {
     kankay_ventas: `Se cargaron las ventas hasta el ${Number(M.hasta.slice(8))} de ${mesN(u)}: ${fmt(M.tot)} con IVA en ${M.ventas} ventas.${cmpP ? ` ${cap(mesN(u))} va ${M.tot >= cmpP.tot ? '▲' : '▼'} ${pc(Math.abs(M.tot / cmpP.tot - 1))} contra ${curso ? 'los mismos días del mes anterior' : mesN(prevK)}.` : ''}`,
-    kankay_eerr: `Martín cambió Alquiler de ${mesN(meses[0])}. Resultado operativo y resultado del mes, recalculados.`,
+    kankay_eerr: `Martín terminó el estado de resultados de ${mesN(meses[0])}. Resultado operativo y resultado del mes, con el porcentaje de la venta.`,
     kankay_equilibrio: `${cap(mesN(u))} pasó el punto de equilibrio: lleva más venta de la que hace falta para cubrir los gastos.`,
     kankay_cierre: P ? `${cap(mesN(prevK))} cerró en ${fmt(P.tot)} con IVA. Margen bruto ${pc((P.neto - P.cmv) / P.neto)}.` : 'El día 1, el resumen del mes que terminó.',
     kankay_recordatorio: 'Hace 7 días que no se sube el Excel de ventas de Kankay.',

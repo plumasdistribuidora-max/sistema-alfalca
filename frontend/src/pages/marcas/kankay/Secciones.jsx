@@ -179,6 +179,15 @@ export function Eerr({ D, eerr, comPct, onCambio }) {
   const base = k => st[k] || { gastos: nombres.map(n => [n, null]), iibb: null, f931: null, nc: null };
   const setGasto = (k, nombre, v) => { const b = base(k); const g = nombres.map(n => [n, n === nombre ? v : (b.gastos.find(x => x[0] === n)?.[1] ?? null)]); guardar(k, { ...b, gastos: g }); };
   const setCampo = (k, f, v) => guardar(k, { ...base(k), [f]: v });
+  async function terminar(k) {
+    setEstado('Avisando…');
+    try {
+      const r = await api.post(`/kankay/eerr/${k}/terminar`);
+      onCambio(r.data.data.eerr);
+      setEstado(r.data.data.enviados ? `${cap(mesN(k))} terminado. Aviso enviado.` : `${cap(mesN(k))} terminado. Nadie tiene los avisos activados en su celular.`);
+    } catch (err) { setEstado(err.response?.data?.error || 'No se pudo marcar como terminado'); }
+  }
+
   async function guardarPct() {
     const n = Number(String(pct).replace(',', '.'));
     if (!Number.isFinite(n) || String(pct).trim() === '' || n === comPct) return;
@@ -197,7 +206,8 @@ export function Eerr({ D, eerr, comPct, onCambio }) {
         <span className="cap"><span className="tag a">del Excel</span> sale solo · <span className="tag m">a mano</span> lo escribís · <span className="tag p">%</span> porcentaje {estado && <b style={{ fontSize: 12, marginLeft: 8 }}>{estado}</b>}</span>
       </div>
       <div className="card sx"><table className="t er">
-        <thead><tr><th></th>{meses.map(k => <th key={k}>{cap(mesN(k))}{k === curso ? <small> 1–{diaHasta(D, k)}</small> : null}</th>)}<th className="tot">Total {meses.at(-1).slice(0, 4)}</th></tr></thead>
+        <thead><tr><th></th>{meses.map(k => <th key={k}>{cap(mesN(k))}{k === curso ? <small> 1–{diaHasta(D, k)}</small> : null}
+          <Terminado e={st[k]} onTerminar={() => terminar(k)} /></th>)}<th className="tot">Total {meses.at(-1).slice(0, 4)}</th></tr></thead>
         <tbody>
           <Grupo n={ncol} t="Ventas sin IVA" />
           {RUB.map(r => <Linea C={C} key={`v${r}`} label={<>{r}{A}</>} vals={C.map(c => c.M.rubro[r] ? c.M.rubro[r].neto : null)} />)}
@@ -233,10 +243,29 @@ export function Eerr({ D, eerr, comPct, onCambio }) {
             <td className="tot">{fmt(meses.reduce((a, k) => a + (base(k).nc || 0), 0))}</td></tr>
           <Linea C={C} label="Resultado del mes" vals={C.map(c => c.res)} cls="res" pctOf falta />
           <tr><td colSpan={ncol} className="mut" style={{ textAlign: 'left', whiteSpace: 'normal', fontSize: 12, paddingTop: 14, border: 0 }}>
-            Cada monto se guarda solo al salir del casillero. Mientras un mes no tenga gastos cargados, sus resultados dicen "faltan gastos"
+            Cada monto se guarda solo al salir del casillero, sin avisar a nadie. Cuando termines un mes, tocá
+            <b> Terminé, avisar</b> debajo del nombre del mes: ahí les llega el aviso a los dueños, con el resultado. Mientras un mes no tenga gastos cargados, sus resultados dicen "faltan gastos"
             y el total del año suma solo los meses completos.</td></tr>
         </tbody>
       </table></div>
+    </div>
+  );
+}
+
+const cuandoCorto = ts => { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+// Debajo de cada mes: si ya se dio por terminado, quién y cuándo; si no (o si se cambió
+// algo después), el botón que avisa a los dueños.
+function Terminado({ e, onTerminar }) {
+  if (!e?.guardado) return null;
+  const cambiado = e.terminado_en && new Date(e.actualizado_en) > new Date(e.terminado_en);
+  return (
+    <div style={{ marginTop: 6, display: 'grid', gap: 4, justifyItems: 'end', textTransform: 'none', letterSpacing: 0 }}>
+      {e.terminado_en && <span style={{ fontSize: 11, fontWeight: 600, color: cambiado ? '#92400e' : '#047857' }}>
+        {cambiado ? 'Cambió después de terminado' : `✓ Terminado ${cuandoCorto(e.terminado_en)}`}</span>}
+      {(!e.terminado_en || cambiado) && <button type="button" onClick={onTerminar}
+        style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: '#45484c', border: 0, borderRadius: 7, padding: '4px 9px', cursor: 'pointer' }}>
+        {cambiado ? 'Avisar de nuevo' : 'Terminé, avisar'}</button>}
     </div>
   );
 }

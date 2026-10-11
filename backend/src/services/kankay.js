@@ -214,8 +214,10 @@ async function comisionPct() {
 async function eerrManual() {
   const { rows: ms } = await pool.query(`SELECT DISTINCT to_char(fecha,'YYYY-MM') AS p FROM kankay_ventas ORDER BY 1`);
   const { rows } = await pool.query(`
-    SELECT e.periodo, e.gastos, e.iibb::float, e.f931::float, e.nc::float, e.actualizado_en, u.nombre AS actualizado_por
-    FROM kankay_eerr e LEFT JOIN usuarios u ON u.id = e.actualizado_por ORDER BY e.periodo
+    SELECT e.periodo, e.gastos, e.iibb::float, e.f931::float, e.nc::float, e.actualizado_en, u.nombre AS actualizado_por,
+           e.terminado_en, t.nombre AS terminado_por
+    FROM kankay_eerr e LEFT JOIN usuarios u ON u.id = e.actualizado_por
+    LEFT JOIN usuarios t ON t.id = e.terminado_por ORDER BY e.periodo
   `);
   const porP = Object.fromEntries(rows.map(r => [r.periodo, r]));
   const out = {};
@@ -253,6 +255,13 @@ async function guardarEerr(periodo, body, usuarioId) {
   return cambios;
 }
 
+// Dar el mes por terminado: recién ahí se avisa a los dueños.
+async function terminarEerr(periodo, usuarioId) {
+  const { rowCount } = await pool.query(
+    'UPDATE kankay_eerr SET terminado_en = NOW(), terminado_por = $2 WHERE periodo = $1', [periodo, usuarioId]);
+  return rowCount > 0;
+}
+
 // Resultado y punto de equilibrio de un mes, con lo que haya cargado.
 async function resultadoMes(periodo, D) {
   const M = D.meses[periodo];
@@ -277,4 +286,4 @@ async function resultadoMes(periodo, D) {
   return { mb, ro, res, pe, estimado: !cargado };
 }
 
-module.exports = { leerExcel, importar, datos, eerrManual, guardarEerr, comisionPct, resultadoMes, ultimoDia, GASTOS_BASE };
+module.exports = { leerExcel, importar, datos, eerrManual, guardarEerr, terminarEerr, comisionPct, resultadoMes, ultimoDia, GASTOS_BASE };

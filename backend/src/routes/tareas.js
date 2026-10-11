@@ -625,10 +625,12 @@ router.get('/:id', requireAuth, soloEncargado, async (req, res) => {
       [t.local_id]
     )).rows[0] || null : null;
 
+    const negativa = tarea.estado === 'en_curso' && tarea.resultado ? await ultimaRespuestaNegativa(tarea.id) : null;
     res.json({
       ok: true,
       data: {
         tarea,
+        aprobar_igual: negativa ? { quien: negativa.nombre, tipo: negativa.tipo } : null,
         eventos: eventos.map(e => ({ ...e, adjuntos: adjuntos.filter(a => a.evento_id === e.id) })),
         gastos, personas, reportes, causa,
         opciones: T.TIPOS[t.tipo] || { acciones: [], resultados: [] },
@@ -905,14 +907,32 @@ function avisarDuenos(payload) {
   avisos.enSegundoPlano(avisos.aDuenos(payload), 'respuesta a dueños');
 }
 
+// Si un dueño rechazó o pidió más, otro dueño puede aprobarla igual: quizás sabe algo
+// que el primero no (Martín, 11/10/2026). Vale mientras la última respuesta al pedido de
+// cierre sea negativa, y el que aprueba tiene que aclarar por qué.
+async function ultimaRespuestaNegativa(tareaId) {
+  const { rows } = await pool.query(`
+    SELECT e.tipo, u.nombre FROM tarea_eventos e LEFT JOIN usuarios u ON u.id = e.usuario_id
+    WHERE e.tarea_id = $1 AND e.tipo IN ('pidio_cierre', 'aprobada', 'pidio_mas', 'rechazada')
+    ORDER BY e.created_at DESC, e.id DESC LIMIT 1
+  `, [tareaId]);
+  return rows[0] && ['pidio_mas', 'rechazada'].includes(rows[0].tipo) ? rows[0] : null;
+}
+
 // POST /:id/responder  { accion: aprobar|pedir|rechazar, texto, causa_conocida }
 router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
   try {
     const t = await tareaPorId(req.params.id);
     if (!t) return fail(res, 404, 'No existe esa tarea');
-    if (t.estado !== 'por_aprobar') return fail(res, 409, t.estado === 'terminada' ? 'Ya la aprobó otro dueño' : 'No está esperando aprobación');
     const { accion } = req.body;
     const texto = (req.body.texto || '').trim();
+    let aprobarIgual = null;
+    if (t.estado !== 'por_aprobar') {
+      if (t.estado === 'terminada') return fail(res, 409, 'Ya la aprobó otro dueño');
+      aprobarIgual = accion === 'aprobar' && t.estado === 'en_curso' && t.resultado ? await ultimaRespuestaNegativa(t.id) : null;
+      if (!aprobarIgual) return fail(res, 409, 'No está esperando aprobación');
+      if (!texto) return fail(res, 400, `${aprobarIgual.nombre} la ${aprobarIgual.tipo === 'rechazada' ? 'rechazó' : 'devolvió'}: escribí por qué la aprobás igual`);
+    }
 
     if (accion === 'aprobar') {
       let causaId = null;
@@ -930,8 +950,8 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
         WHERE id = $1
       `, [t.id, req.user.id, causaId]);
       await evento(t.id, req.user.id, 'aprobada',
-        `Aprobada${texto ? `: ${texto}` : '.'}${causaId ? ' Quedó como causa conocida del local: las próximas se aprueban solas si el monto coincide.' : ''}`,
-        { causa_id: causaId });
+        `${aprobarIgual ? `Aprobada igual (${aprobarIgual.nombre} la había ${aprobarIgual.tipo === 'rechazada' ? 'rechazado' : 'devuelto'})` : 'Aprobada'}${texto ? `: ${texto}` : '.'}${causaId ? ' Quedó como causa conocida del local: las próximas se aprueban solas si el monto coincide.' : ''}`,
+        { causa_id: causaId, aprobada_igual: !!aprobarIgual });
       // El mantenimiento terminado se saca de la lista que ven los turnos.
       if (t.tipo === 'mantenimiento' && t.detalle?.item_id) {
         await pool.query(`
@@ -941,7 +961,7 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
       }
       avisarEncargado(t, { titulo: 'Tarea aprobada', texto: `${req.user.nombre}: ${t.titulo}`, url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}` });
       avisarDuenos({
-        titulo: `${req.user.nombre} aprobó una tarea`,
+        titulo: aprobarIgual ? `${req.user.nombre} aprobó igual una tarea que ${aprobarIgual.nombre} había ${aprobarIgual.tipo === 'rechazada' ? 'rechazado' : 'devuelto'}` : `${req.user.nombre} aprobó una tarea`,
         texto: `${corto(t.local_nombre) || 'Red'}: ${t.titulo} → ${t.resultado}${causaId ? ' (quedó como causa conocida)' : ''}`,
         url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}`,
       });

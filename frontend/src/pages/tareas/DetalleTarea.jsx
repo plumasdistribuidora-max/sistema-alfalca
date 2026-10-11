@@ -415,6 +415,32 @@ function RespuestaDueno({ data, onCambio }) {
   );
 }
 
+// Otro dueño ya la rechazó o pidió más, pero quizás vos sabés algo que él no: la
+// podés aprobar igual, aclarando por qué.
+function AprobarIgual({ data, onCambio }) {
+  const { tarea: t, aprobar_igual: a } = data;
+  const [texto, setTexto] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState('');
+  async function aprobar() {
+    setOcupado(true); setError('');
+    try { await api.post(`/tareas/${t.id}/responder`, { accion: 'aprobar', texto }); onCambio(); }
+    catch (err) { setError(err.response?.data?.error || 'No se pudo aprobar'); }
+    finally { setOcupado(false); }
+  }
+  return (
+    <div className="card p-4 border-2 border-sky-200 space-y-2">
+      <p className="text-sm">
+        <b>{a.quien}</b> la {a.tipo === 'rechazada' ? 'rechazó' : 'devolvió pidiendo más'}. El encargado pedía cerrarla con: <b>{t.resultado}</b>{t.resultado_monto ? ` (${pesos(t.resultado_monto)})` : ''}.
+      </p>
+      <p className="text-xs text-ahg-text/60">Si sabés algo que {a.quien} no, la podés aprobar igual. Tenés que aclarar por qué: queda en el seguimiento y les llega a todos.</p>
+      <textarea className="input" rows={2} maxLength={1000} value={texto} onChange={e => setTexto(e.target.value)} placeholder="Ej.: la nota de crédito ya la tengo yo, el monto está bien" />
+      <button className="btn-primary" disabled={ocupado || !texto.trim()} onClick={aprobar}>{ocupado ? 'Aprobando…' : 'Aprobar igual'}</button>
+      {error && <p className="text-sm text-red-700">{error}</p>}
+    </div>
+  );
+}
+
 function GastoPendienteDueno({ g, onCambio }) {
   const [modo, setModo] = useState('');
   const [texto, setTexto] = useState('');
@@ -527,6 +553,7 @@ export default function DetalleTarea() {
       </section>
 
       {dueno && t.estado === 'por_aprobar' && <RespuestaDueno data={data} onCambio={cargar} />}
+      {dueno && data.aprobar_igual && <AprobarIgual data={data} onCambio={cargar} />}
       {dueno && pendientesDueno.map(g => <GastoPendienteDueno key={g.id} g={g} onCambio={cargar} />)}
 
       <div className="grid gap-4 lg:grid-cols-2 items-start">

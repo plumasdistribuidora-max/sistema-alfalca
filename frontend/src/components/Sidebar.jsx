@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { esDueno, esDeRed, esDeTurno, rolLabel } from '../utils/roles';
@@ -52,6 +53,15 @@ function enRutas(pathname, rutas) {
   return rutas.some(r => pathname === r || pathname.startsWith(r + '/'));
 }
 
+// Qué pantallas son de cada bloque: estar en una deja abierto su bloque.
+const RUTAS = {
+  entreDos: ['/dia', '/tareas', '/tablero', '/reportes', '/red', '/finanzas', '/stock', '/proveedores',
+             '/empleados', '/calendario', '/ventas', '/historial-imports'],
+  kankay:   ['/marcas/kankay'],
+  senzen:   ['/marcas/senzen'],
+  grupo:    ['/usuarios', '/locales', '/formularios', '/admin'],
+};
+
 function NavItem({ to, icon, label, rutas, end, onClick }) {
   const { pathname } = useLocation();
   const marcado = rutas ? enRutas(pathname, rutas) : null;
@@ -73,18 +83,31 @@ function NavItem({ to, icon, label, rutas, end, onClick }) {
   );
 }
 
-function SectionLabel({ label }) {
-  return <p className="px-3 pt-4 pb-1 text-xs font-semibold text-white/40 uppercase tracking-widest">{label}</p>;
-}
-
-// El título de cada marca: su ícono y su nombre, más marcado que una sección común.
-function MarcaLabel({ icon, label, children }) {
+// Cada marca (y El grupo) es un bloque que se pliega: arranca cerrado, salvo el que tiene
+// la pantalla en la que estás, que se abre solo. Así el menú no queda larguísimo.
+function Bloque({ icon, label, rutas, extra, children }) {
+  const { pathname } = useLocation();
+  const aca = enRutas(pathname, rutas);
+  const [abierto, setAbierto] = useState(aca);
+  useEffect(() => { if (aca) setAbierto(true); }, [aca]);
   return (
-    <p className="flex items-center gap-2 px-3 pt-5 pb-1.5 text-xs font-bold text-white uppercase tracking-wider">
-      <Icono name={icon} small />
-      <span className="flex-1">{label}</span>
-      {children}
-    </p>
+    <div className="pt-2">
+      <button
+        onClick={() => setAbierto(a => !a)}
+        aria-expanded={abierto}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors hover:bg-white/10
+          ${aca ? 'text-white' : 'text-white/60 hover:text-white'}`}
+      >
+        {icon && <Icono name={icon} small />}
+        <span className="flex-1 text-left">{label}</span>
+        {extra}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+             className={`w-3.5 h-3.5 transition-transform duration-200 ${abierto ? 'rotate-0' : '-rotate-90'}`} aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {abierto && <div className="space-y-0.5 pt-0.5">{children}</div>}
+    </div>
   );
 }
 
@@ -149,47 +172,49 @@ export default function Sidebar({ open, onClose }) {
             <>
               <NavItem to="/" icon="inicio" label="Inicio" end />
 
-              <MarcaLabel icon="alfajor" label="Entre Dos" />
-              <NavItem to="/dia"         icon="dia"         label="Reporte del día" />
-              <NavItem to="/tareas"      icon="tareas"      label="Tareas" rutas={rutasDe('tareas')} />
-              <NavItem to="/reportes"    icon="reportes"    label="Reportes de los turnos" />
-              {/* El dashboard y Finanzas son de los dueños: el Encargado General no ve ventas ni plata. */}
-              {dueno && <NavItem to="/red"      icon="dashboard" label="Dashboard" />}
-              {dueno && <NavItem to="/finanzas" icon="finanzas"  label="Finanzas" />}
-              <NavItem to="/stock"       icon="stock"       label="Stock inteligente" />
-              <NavItem to="/proveedores" icon="proveedores" label="Proveedores" />
-              <NavItem to="/empleados"   icon="personal"    label="Empleados y horas" />
-              <NavItem to="/calendario"  icon="calendario"  label="Calendario de trabajo" />
-              <NavItem to="/ventas/importar" icon="importar" label="Ventas de Fudo" rutas={rutasDe('fudo')} />
+              <Bloque icon="alfajor" label="Entre Dos" rutas={RUTAS.entreDos}>
+                <NavItem to="/dia"         icon="dia"         label="Reporte del día" />
+                <NavItem to="/tareas"      icon="tareas"      label="Tareas" rutas={rutasDe('tareas')} />
+                <NavItem to="/reportes"    icon="reportes"    label="Reportes de los turnos" />
+                {/* El dashboard y Finanzas son de los dueños: el Encargado General no ve ventas ni plata. */}
+                {dueno && <NavItem to="/red"      icon="dashboard" label="Dashboard" />}
+                {dueno && <NavItem to="/finanzas" icon="finanzas"  label="Finanzas" />}
+                <NavItem to="/stock"       icon="stock"       label="Stock inteligente" />
+                <NavItem to="/proveedores" icon="proveedores" label="Proveedores" />
+                <NavItem to="/empleados"   icon="personal"    label="Empleados y horas" />
+                <NavItem to="/calendario"  icon="calendario"  label="Calendario de trabajo" />
+                <NavItem to="/ventas/importar" icon="importar" label="Ventas de Fudo" rutas={rutasDe('fudo')} />
+              </Bloque>
 
               {dueno && (
                 <>
-                  <MarcaLabel icon="sarten" label="Kankay" />
-                  <NavItem to="/marcas/kankay" icon="dashboard" label="Dashboard" end />
-                  <NavItem to="/marcas/kankay/importar" icon="importar" label="Ventas de Dux" rutas={rutasDe('dux')} />
-
-                  <MarcaLabel icon="limpieza" label="Senzen">
-                    <span className="text-[10px] font-semibold normal-case tracking-normal px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>
-                  </MarcaLabel>
-                  <NavItem to="/marcas/senzen" icon="dashboard" label="Próximamente" />
+                  <Bloque icon="sarten" label="Kankay" rutas={RUTAS.kankay}>
+                    <NavItem to="/marcas/kankay" icon="dashboard" label="Dashboard" end />
+                    <NavItem to="/marcas/kankay/importar" icon="importar" label="Ventas de Dux" rutas={rutasDe('dux')} />
+                  </Bloque>
+                  <Bloque icon="limpieza" label="Senzen" rutas={RUTAS.senzen}
+                          extra={<span className="text-[10px] font-semibold normal-case tracking-normal px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>}>
+                    <NavItem to="/marcas/senzen" icon="dashboard" label="Próximamente" />
+                  </Bloque>
                 </>
               )}
 
-              <SectionLabel label="El grupo" />
-              <NavItem to="/usuarios" icon="usuarios" label="Usuarios y accesos" />
-              {dueno && (
-                <>
-                  <NavItem to="/locales"                icon="locales"     label="Locales" />
-                  <NavItem to="/formularios"            icon="formularios" label="Formularios" />
-                  <NavItem to="/admin/maestros/docenas" icon="docenas"     label="Maestros" rutas={rutasDe('maestros')} />
-                </>
-              )}
+              <Bloque icon="usuarios" label="El grupo" rutas={RUTAS.grupo}>
+                <NavItem to="/usuarios" icon="usuarios" label="Usuarios y accesos" />
+                {dueno && (
+                  <>
+                    <NavItem to="/locales"                icon="locales"     label="Locales" />
+                    <NavItem to="/formularios"            icon="formularios" label="Formularios" />
+                    <NavItem to="/admin/maestros/docenas" icon="docenas"     label="Maestros" rutas={rutasDe('maestros')} />
+                  </>
+                )}
+              </Bloque>
             </>
           )}
 
           {/* Fuera de los bloques de rol a propósito: el manual lo ve todo el mundo,
               y el que carga el reporte de su turno es justamente el que más lo necesita. */}
-          {!esDeRed(user) && <SectionLabel label="Ayuda" />}
+          <div className="pt-3" />
           <LinkExterno href="/manual.html" icon="manual" label="Manual de uso" />
         </nav>
 

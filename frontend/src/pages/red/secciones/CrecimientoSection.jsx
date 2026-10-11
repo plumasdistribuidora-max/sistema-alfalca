@@ -4,7 +4,7 @@ import { fmtARS, colorDeTienda, shortName, ordenarTiendas } from '../redUtils';
 
 // "Crecimiento": de dónde viene lo que creció Entre Dos contra los mismos días del año
 // pasado. Lo que ya estaba (mismos locales y zonas) va separado de lo que no tiene contra
-// qué compararse, y el número que importa es el de sin inflación. Los locales de una misma
+// qué compararse, y el número que importa es el descontando inflación. Los locales de una misma
 // zona (Sheraton con Amigorena) se comparan como uno solo. El Café también suma docenas.
 
 const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -15,7 +15,7 @@ const diaMes = iso => { const { m, d } = partes(iso); return `${d}/${m}`; };
 const doc = v => (Number(v) || 0).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pct = v => Math.abs(v).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-// Crecimiento en %: a contra b. Sin inflación: descontada la del INDEC.
+// Crecimiento en %: a contra b. Descontando inflación: la del INDEC.
 const crec = (a, b) => (b ? (a / b - 1) * 100 : null);
 const real = (a, b, ipc) => (b && ipc != null ? (a / b / (1 + ipc / 100) - 1) * 100 : null);
 
@@ -125,7 +125,7 @@ export default function CrecimientoSection() {
     else lectura.push(<>Ninguna zona le gana a la inflación.</>);
   }
   if (sin.length && realTot !== null) {
-    lectura.push(<>Con lo que no tiene contra qué compararse, Entre Dos en total {realTot >= 0 ? 'crece' : 'cae'} <b>{pct(realTot)} % sin inflación</b>
+    lectura.push(<>Con lo que no tiene contra qué compararse, Entre Dos en total {realTot >= 0 ? 'crece' : 'cae'} <b>{pct(realTot)} % descontando inflación</b>
       {docTot !== null && <> y vende <b>{pct(docTot)} % {docTot >= 0 ? 'más' : 'menos'} docenas</b></>}.</>);
   }
 
@@ -149,7 +149,7 @@ export default function CrecimientoSection() {
               <th className={th}>{anioAnt}</th>
               <th className={th}>{anioAnt + 1}</th>
               {pesos ? <th className={th}>En pesos</th> : <th className={th}>Diferencia</th>}
-              {pesos ? <th className={`${th} ${realCol} text-ahg-text`}>Sin inflación</th> : <th className={th}>Creció</th>}
+              {pesos ? <th className={`${th} ${realCol} text-ahg-text`}>Descontando inflación</th> : <th className={th}>Creció</th>}
             </tr>
           </thead>
           <tbody>
@@ -232,7 +232,7 @@ export default function CrecimientoSection() {
             <p className="text-xs text-stone-500">{doc(cAnt.d)} → {doc(cAct.d)}</p>
           </div>
           <div className="card px-5 py-4">
-            <p className="text-xs text-stone-500">Entre Dos total, sin inflación</p>
+            <p className="text-xs text-stone-500">Entre Dos total, descontando inflación</p>
             <p className="text-2xl font-extrabold mt-0.5" style={NUNITO}><Pct v={realTot} /></p>
             <p className="text-xs text-stone-500">En pesos <Pct v={crec(tot.act.f, tot.ant.f)} />{sin.length ? ', con lo que no se compara' : ''}</p>
           </div>
@@ -244,7 +244,7 @@ export default function CrecimientoSection() {
         <p className="text-[12.5px] text-stone-500 mt-0.5">En pesos, con IVA. La última columna es la que importa.</p>
         <Tabla campo="f" />
         <p className="text-[11.5px] text-stone-500 mt-3">
-          Sin inflación: lo que creció en pesos, descontado el {ipc != null ? `${pct(ipc)} %` : '—'} interanual del INDEC{data.inflacion?.mes ? ` (${MES_LARGO[Number(data.inflacion.mes.slice(5)) - 1]})` : ''}, el mismo dato que se carga en <em>Cómo venimos</em>.
+          Descontando inflación: lo que creció en pesos, descontado el {ipc != null ? `${pct(ipc)} %` : '—'} interanual del INDEC{data.inflacion?.mes ? ` (${MES_LARGO[Number(data.inflacion.mes.slice(5)) - 1]})` : ''}, el mismo dato que se carga en <em>Cómo venimos</em>.
         </p>
       </div>
 

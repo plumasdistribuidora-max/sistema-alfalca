@@ -106,7 +106,7 @@ function ModalProveedor({ proveedor, onGuardar, onCerrar }) {
           ))}
         </select>
         <p className="text-xs text-ahg-text/50 mt-1">
-          Con esto se calcula solo el vencimiento de cada factura que carga el turno.
+          Solo informativo: las facturas no tienen vencimiento, se mira cuánto hace que están sin pagar.
         </p>
       </div>
 
@@ -204,14 +204,11 @@ export default function FichasSection({ proveedores, cargando, onCambio }) {
               {p.deuda > 0
                 ? `en ${p.facturas_abiertas} factura${p.facturas_abiertas === 1 ? '' : 's'}`
                 : 'al día'}
-              {p.vencidas > 0 && (
-                <span className="text-red-600 font-semibold"> · {p.vencidas} vencida{p.vencidas === 1 ? '' : 's'}</span>
-              )}
             </p>
 
             <dl className="grid grid-cols-2 gap-y-1 mt-3 text-xs">
-              <dt className="text-ahg-text/50">Próximo vencimiento</dt>
-              <dd className="text-right font-medium">{fechaCorta(p.proximo_vencimiento)}</dd>
+              <dt className="text-ahg-text/50">La más vieja sin pagar</dt>
+              <dd className="text-right font-medium">{p.mas_vieja ? `${fechaCorta(p.mas_vieja)} · ${Math.round((Date.now() - new Date(`${p.mas_vieja}T12:00:00`)) / 86400000)} días` : '—'}</dd>
               <dt className="text-ahg-text/50">Cobra</dt>
               <dd className="text-right font-medium">{listaDias(p.dias_pago)}</dd>
               <dt className="text-ahg-text/50">Le pagamos</dt>

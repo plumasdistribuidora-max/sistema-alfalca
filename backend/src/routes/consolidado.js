@@ -40,7 +40,7 @@ function horasDe(reporte) {
 async function facturasDelDia(fecha) {
   // Las facturas que entraron ese día, cargadas desde el reporte del turno o desde Proveedores.
   const cargadas = (await pool.query(`
-    SELECT f.numero, f.total, f.vencimiento::text AS vencimiento,
+    SELECT f.numero, f.total,
            COALESCE(p.nombre, f.proveedor) AS proveedor,
            l.nombre AS local_nombre
     FROM facturas f
@@ -61,40 +61,25 @@ async function facturasDelDia(fecha) {
     ORDER BY pg.id
   `, [fecha])).rows;
 
-  // El domingo de esa semana: hasta ahí llega "vence esta semana".
-  const d = new Date(`${fecha}T00:00:00`);
-  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
-  const finSemana = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
+  // Las facturas no tienen vencimiento fijo: se mira la deuda y cuánto hace que está
+  // sin pagar cada una (por la fecha de la factura).
   const abiertas = (await pool.query(`
-    SELECT f.numero, f.vencimiento::text AS vencimiento, f.local_id,
+    SELECT f.fecha::text AS fecha, f.local_id,
            COALESCE(p.nombre, f.proveedor) AS proveedor,
-           p.medio_pago,
-           l.nombre AS local_nombre,
            f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) AS saldo
     FROM facturas f
     LEFT JOIN proveedores p ON p.id = f.proveedor_id
-    LEFT JOIN locales     l ON l.id = f.local_id
     WHERE f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) > 0
-    ORDER BY f.vencimiento, f.id
+    ORDER BY f.fecha, f.id
   `)).rows.map(r => ({ ...r, saldo: n(r.saldo) }));
-
-  const vencidas = abiertas.filter(f => f.vencimiento && f.vencimiento < fecha);
-  const semana   = abiertas.filter(f => f.vencimiento && f.vencimiento >= fecha && f.vencimiento <= finSemana);
-
-  const sumar = lista => lista.reduce((s, f) => s + f.saldo, 0);
 
   return {
     cargadas,
     total_cargadas: cargadas.reduce((s, f) => s + f.total, 0),
     pagos,
     pagado_hoy: pagos.reduce((s, p) => s + n(p.monto), 0),
-    vencidas,
-    total_vencido: sumar(vencidas),
-    semana,
-    total_semana: sumar(semana),
-    fin_semana: finSemana,
-    deuda_total: sumar(abiertas),
+    deuda_total: abiertas.reduce((s, f) => s + f.saldo, 0),
+    mas_vieja: abiertas[0]?.fecha || null,
     facturas_abiertas: abiertas.length,
   };
 }

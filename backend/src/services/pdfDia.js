@@ -251,7 +251,7 @@ function Documento({ d, x }) {
   const movimientos = [
     ...(p.cargadas || []).map(f => ({ c: [
       { t: 'Factura cargada', color: C.ambar, bold: true }, f.proveedor, corto(f.local_nombre),
-      `${f.numero ? `N.º ${f.numero}` : 'sin número'}${f.vencimiento ? ` · vence ${fechaCorta(f.vencimiento)}` : ''}`,
+      f.numero ? `N.º ${f.numero}` : 'sin número',
       $(f.total),
     ]})),
     ...(p.pagos || []).map(pg => ({ c: [

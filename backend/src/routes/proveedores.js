@@ -126,18 +126,18 @@ router.get('/', requireAuth, soloEncargado, async (req, res) => {
       SELECT p.id, p.nombre, p.medio_pago, p.dias_pago, p.plazo_dias, p.nota, p.activo,
              COALESCE(d.abiertas, 0)::int   AS facturas_abiertas,
              COALESCE(d.deuda, 0)           AS deuda,
-             COALESCE(d.vencidas, 0)::int   AS vencidas,
-             d.proximo_vencimiento::text AS proximo_vencimiento,
+             d.mas_vieja::text              AS mas_vieja,
              COALESCE(pg.pagado, 0)         AS pagado_historico
       FROM proveedores p
       LEFT JOIN (
         SELECT f.proveedor_id,
                COUNT(*)                                        AS abiertas,
                SUM(f.saldo)                                    AS deuda,
-               COUNT(*) FILTER (WHERE f.vencimiento < $1::date) AS vencidas,
-               MIN(f.vencimiento)                              AS proximo_vencimiento
+               -- Las facturas no tienen vencimiento fijo (Martín, 11/10/2026): lo que se
+               -- mira es cuánto hace que está sin pagar la más vieja.
+               MIN(f.fecha)                                    AS mas_vieja
         FROM (
-          SELECT f.proveedor_id, f.vencimiento,
+          SELECT f.proveedor_id, f.fecha,
                  f.total - COALESCE((SELECT SUM(monto) FROM pagos_proveedor WHERE factura_id = f.id), 0) AS saldo
           FROM facturas f
         ) f
@@ -150,7 +150,7 @@ router.get('/', requireAuth, soloEncargado, async (req, res) => {
         GROUP BY fa.proveedor_id
       ) pg ON pg.proveedor_id = p.id
       ORDER BY COALESCE(d.deuda, 0) DESC, lower(p.nombre)
-    `, [hoy]);
+    `);
 
     res.json({
       ok: true,
@@ -261,7 +261,6 @@ router.get('/facturas', requireAuth, soloEncargado, async (req, res) => {
     // Las más viejas primero: lo que se mira es cuánto hace que está sin pagar.
     let facturas = rows.map(armarFactura);
     if (req.query.estado !== 'todas') facturas = facturas.filter(f => f.saldo > 0);
-    if (req.query.estado === 'vencidas') facturas = facturas.filter(f => f.vencimiento < hoy);
     if (req.query.estado === 'parciales') facturas = facturas.filter(f => f.pagado > 0);
 
     res.json({ ok: true, data: facturas });

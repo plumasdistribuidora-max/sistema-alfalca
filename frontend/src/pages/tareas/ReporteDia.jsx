@@ -12,6 +12,56 @@ function correr(f, n) {
 }
 const pct = v => (v == null ? 's/d' : `${v.toFixed(1).replace('.', ',')} %`);
 
+// El PDF viene del servidor con el token de sesión, así que no se abre con un link
+// común: se baja como archivo. En el celular se comparte con el menú del teléfono
+// (WhatsApp lo recibe como adjunto); en la computadora se abre o se baja.
+async function bajarPdf(fecha) {
+  const r = await api.get('/tareas/dia/pdf', { params: { fecha }, responseType: 'blob' });
+  return new File([r.data], `Reporte del día ${fecha}.pdf`, { type: 'application/pdf' });
+}
+
+function BotonesPdf({ fecha }) {
+  const [estado, setEstado] = useState('');   // '' | 'armando' | 'error'
+  const puedeCompartir = typeof navigator !== 'undefined' && !!navigator.share && !!navigator.canShare;
+
+  async function hacer(modo) {
+    setEstado('armando');
+    try {
+      const archivo = await bajarPdf(fecha);
+      if (modo === 'compartir' && puedeCompartir && navigator.canShare({ files: [archivo] })) {
+        try { await navigator.share({ files: [archivo], title: archivo.name }); }
+        catch (err) { if (err?.name !== 'AbortError') throw err; }   // cerró el menú: no es error
+      } else {
+        const url = URL.createObjectURL(archivo);
+        if (modo === 'ver') window.open(url, '_blank');
+        else { const a = document.createElement('a'); a.href = url; a.download = archivo.name; a.click(); }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      setEstado('');
+    } catch {
+      setEstado('error');
+    }
+  }
+
+  return (
+    <div className="card p-4 flex items-center gap-3 flex-wrap">
+      <div className="flex-1 min-w-[180px]">
+        <p className="font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>El PDF del día</p>
+        <p className="text-xs text-ahg-text/55">Ventas y personal por local, tareas del encargado, vencimientos, mantenimiento, café, facturas y gastos.</p>
+      </div>
+      {estado === 'error' && <p className="w-full text-sm text-red-700 order-last">No se pudo armar el PDF. Probá de nuevo.</p>}
+      {puedeCompartir && (
+        <button onClick={() => hacer('compartir')} disabled={estado === 'armando'} className="btn-primary">
+          {estado === 'armando' ? 'Armando…' : 'Compartir PDF'}
+        </button>
+      )}
+      <button onClick={() => hacer(puedeCompartir ? 'bajar' : 'ver')} disabled={estado === 'armando'} className={puedeCompartir ? 'btn-secondary' : 'btn-primary'}>
+        {estado === 'armando' && !puedeCompartir ? 'Armando…' : puedeCompartir ? 'Bajar' : 'Ver PDF'}
+      </button>
+    </div>
+  );
+}
+
 // El reporte del día: lo mismo que les llega en el aviso, con el detalle. Pensado
 // para leerse en el celular.
 export default function ReporteDia() {
@@ -45,6 +95,8 @@ export default function ReporteDia() {
       }>
         {diaLargo(d.fecha)} · {cosas ? `${cosas} cosa${cosas === 1 ? '' : 's'} para mirar` : 'todo en orden'}
       </Titulo>
+
+      <BotonesPdf fecha={d.fecha} />
 
       <AvisosBoton />
 

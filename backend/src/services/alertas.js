@@ -266,7 +266,7 @@ async function avisarDia(r) {
   const venta = r.dia.totales.ventas_sistema;
   await avisos.aDuenos({
     titulo: `${diaLargo(r.fecha)} · ${n ? `${n} cosa${n === 1 ? '' : 's'} para mirar` : 'todo en orden'}`,
-    texto: `Venta ${$(venta)} · Reportes ${r.reportes.recibidos} de ${r.reportes.esperados}`,
+    texto: `Venta ${$(venta)} · Reportes ${r.reportes.recibidos} de ${r.reportes.esperados} · tocá para ver el PDF`,
     url: `/dia?fecha=${r.fecha}`,
     etiqueta: `dia-${r.fecha}`,
   });

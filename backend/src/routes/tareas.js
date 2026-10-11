@@ -278,22 +278,26 @@ router.get('/tablero', requireAuth, requireAdmin, async (_req, res) => {
   }
 });
 
+// El último día que tiene el Fudo de todos los locales; si ninguno, ayer.
+async function ultimoDiaCompleto() {
+  const activos = n((await pool.query('SELECT COUNT(*) FROM locales WHERE activo = true')).rows[0].count);
+  const hoy = T.hoyMendoza();
+  for (let i = 1; i <= 10; i++) {
+    const d = new Date(`${hoy}T12:00:00`); d.setDate(d.getDate() - i);
+    const f = T.fechaStr(d);
+    if ((await alertas.localesCubiertos(f)).size >= activos) return f;
+  }
+  const d = new Date(`${hoy}T12:00:00`); d.setDate(d.getDate() - 1);
+  return T.fechaStr(d);
+}
+
 // ── GET /dia (el reporte del día) ────────────────────────────────────────────
 // Lo mismo que les llega en el aviso, con el detalle. Sin fecha, el último día que
 // tiene el Fudo de todos los locales.
 router.get('/dia', requireAuth, soloEncargado, async (req, res) => {
   try {
-    let fecha = req.query.fecha;
+    const fecha = req.query.fecha || await ultimoDiaCompleto();
     const activos = n((await pool.query('SELECT COUNT(*) FROM locales WHERE activo = true')).rows[0].count);
-    if (!fecha) {
-      const hoy = T.hoyMendoza();
-      for (let i = 1; i <= 10; i++) {
-        const d = new Date(`${hoy}T12:00:00`); d.setDate(d.getDate() - i);
-        const f = T.fechaStr(d);
-        if ((await alertas.localesCubiertos(f)).size >= activos) { fecha = f; break; }
-      }
-      if (!fecha) { const d = new Date(`${hoy}T12:00:00`); d.setDate(d.getDate() - 1); fecha = T.fechaStr(d); }
-    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fail(res, 400, 'Fecha inválida');
 
     const cubiertos = await alertas.localesCubiertos(fecha);
@@ -362,6 +366,44 @@ router.get('/dia', requireAuth, soloEncargado, async (req, res) => {
   } catch (err) {
     console.error('[tareas/dia]', err);
     fail(res, 500, 'No se pudo armar el reporte del día');
+  }
+});
+
+// ── GET /dia/pdf ─────────────────────────────────────────────────────────────
+// El reporte del día en PDF: el mismo papel de antes, armado solo. Se genera en el
+// momento con los datos de ese día, así nunca queda viejo.
+router.get('/dia/pdf', requireAuth, soloEncargado, async (req, res) => {
+  try {
+    const fecha = req.query.fecha || await ultimoDiaCompleto();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fail(res, 400, 'Fecha inválida');
+    const activos = n((await pool.query('SELECT COUNT(*) FROM locales WHERE activo = true')).rows[0].count);
+    const cubiertos = await alertas.localesCubiertos(fecha);
+    const dia = await armarDia(fecha);
+    const abiertos = new Set(dia.locales.filter(l => cubiertos.has(l.local_id) && l.tickets_sistema > 0).map(l => l.local_id));
+    const slots = await alertas.slotsDelDia(fecha, abiertos);
+    const delDia = await enriquecer((await pool.query(`${SELECT_TAREA} WHERE t.fecha = $1 ORDER BY t.id`, [fecha])).rows);
+    const abiertas = await enriquecer((await pool.query(`${SELECT_TAREA} WHERE t.estado <> 'terminada' ORDER BY t.created_at`)).rows);
+    const gastos = (await pool.query(`
+      SELECT g.concepto, g.monto, g.estado, t.titulo, l.nombre AS local_nombre,
+             EXISTS (SELECT 1 FROM tarea_adjuntos a WHERE a.gasto_id = g.id AND a.rol = 'comprobante') AS con_comprobante
+      FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id
+      WHERE (g.created_at AT TIME ZONE 'America/Argentina/Mendoza')::date = $1 ORDER BY g.id
+    `, [fecha])).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
+    const gastosPendientes = n((await pool.query(`SELECT COUNT(*) FROM tarea_gastos WHERE estado = 'pendiente'`)).rows[0].count);
+
+    const { pdfDia } = require('../services/pdfDia');
+    const buffer = await pdfDia(dia, {
+      delDia, abiertas, gastos,
+      completo: cubiertos.size >= activos,
+      reportes: { esperados: slots.length, recibidos: slots.filter(s => s.reporte).length },
+      porAprobar: abiertas.filter(t => t.estado === 'por_aprobar').length + gastosPendientes,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Reporte del dia ${fecha}.pdf"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('[tareas/dia/pdf]', err);
+    fail(res, 500, 'No se pudo armar el PDF');
   }
 });
 

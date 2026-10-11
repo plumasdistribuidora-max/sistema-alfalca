@@ -44,22 +44,35 @@ function ChipGris({ children, oscuro }) {
   );
 }
 
-// Las dos lecturas sin precios: la del país y la nuestra
-function SinPrecios({ a, b, inflacion, suba }) {
+// Un renglón de comparación, siempre real contra real: contra qué, cuánto fue y el %.
+function Fila({ label, a, b, fmt, oscuro, sub }) {
   if (!b) return null;
-  const linea = (txt, factor) => {
-    const v = (a / b / factor - 1) * 100;
-    return (
-      <span className="block text-[11.5px] mt-0.5">
-        {txt}: <b>{v >= 0 ? '▲' : '▼'} {pct1(v)} %</b>
-      </span>
-    );
-  };
+  const v = (a / b - 1) * 100;
+  const color = Math.abs(v) < 2 ? (oscuro ? 'text-white' : 'text-stone-600') : v > 0 ? (oscuro ? 'text-emerald-200' : 'text-emerald-700') : (oscuro ? 'text-red-200' : 'text-red-700');
   return (
-    <div className="w-full">
-      {inflacion != null && linea(`sin inflación (${pct1(inflacion)} %)`, 1 + inflacion / 100)}
-      {suba != null && linea(`sin nuestra suba de precios (${pct1(suba)} %)`, 1 + suba / 100)}
+    <div className={`flex items-start justify-between gap-2 text-[12px] ${sub ? 'pl-3' : ''}`}>
+      <span className="min-w-0">
+        <span className={`block ${oscuro ? 'text-white/70' : 'text-stone-500'}`}>{label}</span>
+        <span className={`block tabular-nums text-[11.5px] ${oscuro ? 'text-white/85' : 'text-stone-700'}`}>{fmt(b)}</span>
+      </span>
+      <b className={`tabular-nums whitespace-nowrap ${color}`}>{v >= 0 ? '▲' : '▼'} {pct1(v)} %</b>
     </div>
+  );
+}
+
+function FilaGris({ children, oscuro }) {
+  return <p className={`text-[12px] ${oscuro ? 'text-white/55' : 'text-stone-400'}`}>{children}</p>;
+}
+
+// Las dos lecturas sin precios, en pesos: lo del año pasado llevado a precios de hoy
+// con la inflación del país y con nuestra propia suba.
+function SinPrecios({ a, b, label, inflacion, suba, fmt = fmtARS, oscuro }) {
+  if (!b) return null;
+  return (
+    <>
+      {inflacion != null && <Fila oscuro={oscuro} fmt={fmt} a={a} b={b * (1 + inflacion / 100)} sub label={`+ inflación ${pct1(inflacion)} %`} />}
+      {suba != null && <Fila oscuro={oscuro} fmt={fmt} a={a} b={b * (1 + suba / 100)} sub label={`+ nuestra suba ${pct1(suba)} %`} />}
+    </>
   );
 }
 
@@ -71,7 +84,7 @@ function Tarjeta({ tono, titulo, valor, abajo, children, explica }) {
       <p className={`text-[11px] font-semibold uppercase tracking-wide ${oscuro ? 'text-white/65' : 'text-stone-500'}`}>{titulo}</p>
       <p className="text-2xl font-extrabold leading-tight tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{valor}</p>
       {abajo && <p className={`text-[12.5px] tabular-nums ${oscuro ? 'text-white/65' : 'text-stone-500'}`}>{abajo}</p>}
-      <div className="flex flex-wrap gap-1.5">{children}</div>
+      <div className={`grid gap-1 pt-2 border-t ${oscuro ? 'border-white/15' : 'border-stone-100'}`}>{children}</div>
       {explica && (
         <p className={`text-xs pt-2 mt-auto border-t ${oscuro ? 'text-white/60 border-white/15' : 'text-stone-500 border-stone-100'}`}>{explica}</p>
       )}
@@ -162,7 +175,7 @@ function Inflacion({ inflacion, puedeEditar, onGuardado }) {
   }
   return (
     <span>
-      "Sin inflación" usa la inflación interanual del INDEC: {inflacion?.valor != null ? `${pct1(inflacion.valor)} % (${etiqueta})` : 'sin cargar'}.
+      "+ inflación" usa la inflación interanual del INDEC: {inflacion?.valor != null ? `${pct1(inflacion.valor)} % (${etiqueta})` : 'sin cargar'}.
       {puedeEditar && (
         <button
           className="ml-1.5 underline text-stone-600 hover:text-stone-900"
@@ -246,20 +259,23 @@ export default function ComoVenimosSection({ selId = null }) {
   const txtMesAnt = p.mes_ant ? ` vs ${partes(p.mes_ant.desde).d}–${partes(p.mes_ant.hasta).d} ${mesAntNombre}` : '';
   const anioAnt = partes(p.anio_ant.desde).y;
   const txtAnioAnt = anio ? ` vs ${anioAnt}` : ` vs ${partes(p.anio_ant.desde).d}–${partes(p.anio_ant.hasta).d} ${MES_CORTO[partes(p.anio_ant.desde).m - 1]} ${anioAnt}`;
-  const mesCompletoNombre = p.mes_completo_ant ? MES_CORTO[partes(p.mes_completo_ant.desde).m - 1] : '';
+  // Contra qué se compara cada renglón (siempre lo vendido de verdad en esos días)
+  const lblMes = p.mes_ant ? `${partes(p.mes_ant.desde).d}–${partes(p.mes_ant.hasta).d} ${MES_CORTO[partes(p.mes_ant.desde).m - 1]}` : null;
+  const lblAnio = anio ? `Mismos días ${anioAnt}` : `${partes(p.anio_ant.desde).d}–${partes(p.anio_ant.hasta).d} ${MES_CORTO[partes(p.anio_ant.desde).m - 1]} ${anioAnt}`;
+  // Para los renglones "+ inflación" y "+ nuestra suba", que ya son largos
+  const lblAnioCorto = anio ? `${anioAnt}` : `${MES_CORTO[partes(p.anio_ant.desde).m - 1]} ${anioAnt}`;
+  const estimado = v => `Estimado: a este ritmo cierra ${anio ? 'el año' : 'el mes'} en ${v}`;
 
   // ── Tiendas ──
   const tAct = suma(tiendas, l => l.act);
   const tMes = p.mes_ant ? suma(tiendas, l => l.mes_ant) : null;
-  const tMesCompleto = p.mes_completo_ant ? suma(tiendas, l => l.mes_completo_ant) : null;
   const tCmp = comparable(tiendas);
   const ast = tCmp?.parcial ? '*' : '';
-  const sinAnt = <ChipGris>{anio ? `no abría en ${anioAnt}` : 'no abría el año pasado'}</ChipGris>;
-
-  const chipsT = (k, oscuro) => (
+  const chipsT = (k, oscuro, fmt) => (
     <>
-      {tMes && <Chip a={tAct[k]} b={tMes[k]} texto={txtMesAnt} oscuro={oscuro} />}
-      {tCmp ? <Chip a={tCmp.act[k]} b={tCmp.ant[k]} texto={txtAnioAnt + ast} oscuro={oscuro} /> : sinAnt}
+      {tMes && <Fila label={lblMes} a={tAct[k]} b={tMes[k]} fmt={fmt} oscuro={oscuro} />}
+      {tCmp ? <Fila label={lblAnio + ast} a={tCmp.act[k]} b={tCmp.ant[k]} fmt={fmt} oscuro={oscuro} />
+            : <FilaGris oscuro={oscuro}>No abría el año pasado</FilaGris>}
     </>
   );
 
@@ -272,7 +288,6 @@ export default function ComoVenimosSection({ selId = null }) {
   // ── Red ──
   const rAct = suma(ordenados, l => l.act);
   const rMes = p.mes_ant ? suma(ordenados, l => l.mes_ant) : null;
-  const rMesCompleto = p.mes_completo_ant ? suma(ordenados, l => l.mes_completo_ant) : null;
   const rCmp = comparable(ordenados);
 
   // Locales que no se comparan enteros contra el año pasado, para la nota
@@ -295,20 +310,20 @@ export default function ComoVenimosSection({ selId = null }) {
         <Bloque titulo={sel && !sel.es_cafe ? shortName(sel.nombre) : 'Tiendas de alfajores'}>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Tarjeta tono="gris" titulo="Docenas" valor={fmtDoc(tAct.d)}
-                     abajo={`A este ritmo cierra${anio ? ' el año' : ''} en ${fmtDoc(proy(tAct.d))}${tMesCompleto ? ` · ${mesCompletoNombre}: ${fmtDoc(tMesCompleto.d)}` : ''}`}
+                     abajo={estimado(fmtDoc(proy(tAct.d)))}
                      explica="Cuántos alfajores salieron. No tiene inflación: es la medida de si vendemos más o menos.">
-              {chipsT('d', true)}
+              {chipsT('d', true, fmtDoc)}
             </Tarjeta>
             <Tarjeta titulo="Facturación" valor={fmtARS(tAct.f)}
-                     abajo={`A este ritmo cierra${anio ? ' el año' : ''} en ${fmtARS(proy(tAct.f))}${tMesCompleto ? ` · ${mesCompletoNombre}: ${fmtARS(tMesCompleto.f)}` : ''}`}
-                     explica={'Los pesos que entraron. Contra el año pasado: "sin inflación" descuenta lo que subió todo en el país; "sin nuestra suba de precios" descuenta lo que subimos nosotros, y muestra si vendimos más o menos cantidad.'}>
-              {chipsT('f')}
-              {tCmp && <SinPrecios a={tCmp.act.f} b={tCmp.ant.f} inflacion={inf} suba={suba.tiendas?.pct} />}
+                     abajo={estimado(fmtARS(proy(tAct.f)))}
+                     explica={'Cada renglón compara lo vendido de verdad en esos días, con el monto de entonces al lado. "+ inflación" lleva lo del año pasado a precios de hoy con la inflación del país; "+ nuestra suba", con lo que subimos nosotros: si igual da para abajo, vendimos menos cantidad.'}>
+              {chipsT('f', false, fmtARS)}
+              {tCmp && <SinPrecios a={tCmp.act.f} b={tCmp.ant.f} label={lblAnioCorto + ast} inflacion={inf} suba={suba.tiendas?.pct} />}
             </Tarjeta>
             <Tarjeta titulo="Clientes" valor={fmtNum(tAct.tk)}
                      abajo={tAct.tk ? `${fmtDoc(tAct.d / tAct.tk)} docenas por compra` : ''}
                      explica="Cuántas compras hubo. Si bajan las docenas pero no los clientes, la gente lleva menos; si bajan los clientes, entra menos gente.">
-              {chipsT('tk')}
+              {chipsT('tk', false, fmtNum)}
             </Tarjeta>
           </div>
 
@@ -409,25 +424,25 @@ export default function ComoVenimosSection({ selId = null }) {
         <Bloque titulo="Café" cafe>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Tarjeta tono="cobre" titulo="Facturación" valor={fmtARS(c.act.f)}
-                     abajo={`A este ritmo cierra${anio ? ' el año' : ''} en ${fmtARS(proy(c.act.f))}${c.mes_completo_ant ? ` · ${mesCompletoNombre}: ${fmtARS(c.mes_completo_ant.f)}` : ''}`}
+                     abajo={estimado(fmtARS(proy(c.act.f)))}
                      explica="La medida principal del Café: no vende por docena.">
-              {c.mes_ant && <Chip a={c.act.f} b={c.mes_ant.f} texto={txtMesAnt} oscuro />}
-              {cCmp ? <Chip a={cCmp.act.f} b={cCmp.ant.f} texto={txtAnioAnt + cAstTxt} oscuro /> : <ChipGris oscuro>sin año pasado</ChipGris>}
-              {cCmp && <SinPrecios a={cCmp.act.f} b={cCmp.ant.f} inflacion={inf} suba={suba.cafe?.pct} />}
+              {c.mes_ant && <Fila label={lblMes} a={c.act.f} b={c.mes_ant.f} fmt={fmtARS} oscuro />}
+              {cCmp ? <Fila label={lblAnio + cAstTxt} a={cCmp.act.f} b={cCmp.ant.f} fmt={fmtARS} oscuro /> : <FilaGris oscuro>Sin año pasado</FilaGris>}
+              {cCmp && <SinPrecios a={cCmp.act.f} b={cCmp.ant.f} label={lblAnioCorto + cAstTxt} inflacion={inf} suba={suba.cafe?.pct} oscuro />}
             </Tarjeta>
             <Tarjeta titulo="Personas" valor={c.act.p ? fmtNum(c.act.p) : 'sin dato'}
                      abajo={c.act.p && c.act.tk ? `${fmtNum(c.act.tk)} mesas · ${fmtDoc(c.act.p / c.act.tk)} personas por mesa` : ''}
                      explica="Cuánta gente atendió el Café, según los comensales que cargan los mozos en Fudo.">
-              {c.mes_ant?.p > 0 && <Chip a={c.act.p} b={c.mes_ant.p} texto={txtMesAnt} />}
-              {personasAnt ? <Chip a={cCmp.act.p} b={cCmp.ant.p} texto={txtAnioAnt + cAstTxt} /> : <ChipGris>sin personas del año pasado</ChipGris>}
+              {c.mes_ant?.p > 0 && <Fila label={lblMes} a={c.act.p} b={c.mes_ant.p} fmt={fmtNum} />}
+              {personasAnt ? <Fila label={lblAnio + cAstTxt} a={cCmp.act.p} b={cCmp.ant.p} fmt={fmtNum} /> : <FilaGris>Sin personas cargadas del año pasado</FilaGris>}
             </Tarjeta>
             <Tarjeta titulo="Gasto por persona" valor={c.act.p ? fmtARS(c.act.f / c.act.p) : 'sin dato'}
                      explica="Cuánto deja cada persona que se sienta.">
-              {c.mes_ant?.p > 0 && c.act.p > 0 && <Chip a={c.act.f / c.act.p} b={c.mes_ant.f / c.mes_ant.p} texto={txtMesAnt} />}
+              {c.mes_ant?.p > 0 && c.act.p > 0 && <Fila label={lblMes} a={c.act.f / c.act.p} b={c.mes_ant.f / c.mes_ant.p} fmt={fmtARS} />}
               {personasAnt && cCmp.act.p > 0 && (
                 <>
-                  <Chip a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} texto={txtAnioAnt + cAstTxt} />
-                  <SinPrecios a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} inflacion={inf} suba={suba.cafe?.pct} />
+                  <Fila label={lblAnio + cAstTxt} a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} fmt={fmtARS} />
+                  <SinPrecios a={cCmp.act.f / cCmp.act.p} b={cCmp.ant.f / cCmp.ant.p} label={lblAnioCorto + cAstTxt} inflacion={inf} suba={suba.cafe?.pct} />
                 </>
               )}
             </Tarjeta>
@@ -440,16 +455,16 @@ export default function ComoVenimosSection({ selId = null }) {
         <Bloque titulo="Toda la red">
           <div className="grid sm:grid-cols-2 gap-3">
             <Tarjeta tono="gris" titulo="Facturación de la red" valor={fmtARS(rAct.f)}
-                     abajo={`A este ritmo cierra${anio ? ' el año' : ''} en ${fmtARS(proy(rAct.f))}${rMesCompleto ? ` · ${mesCompletoNombre}: ${fmtARS(rMesCompleto.f)}` : ''}`}
+                     abajo={estimado(fmtARS(proy(rAct.f)))}
                      explica="Tiendas y Café juntos.">
-              {rMes && <Chip a={rAct.f} b={rMes.f} texto={txtMesAnt} oscuro />}
-              {rCmp && <Chip a={rCmp.act.f} b={rCmp.ant.f} texto={txtAnioAnt + (rCmp.parcial ? '*' : '')} oscuro />}
-              {rCmp && <SinPrecios a={rCmp.act.f} b={rCmp.ant.f} inflacion={inf} suba={suba.red?.pct} />}
+              {rMes && <Fila label={lblMes} a={rAct.f} b={rMes.f} fmt={fmtARS} oscuro />}
+              {rCmp && <Fila label={lblAnio + (rCmp.parcial ? '*' : '')} a={rCmp.act.f} b={rCmp.ant.f} fmt={fmtARS} oscuro />}
+              {rCmp && <SinPrecios a={rCmp.act.f} b={rCmp.ant.f} label={lblAnioCorto + (rCmp.parcial ? '*' : '')} inflacion={inf} suba={suba.red?.pct} oscuro />}
             </Tarjeta>
             <Tarjeta titulo="Tickets" valor={fmtNum(rAct.tk)} abajo={rAct.tk ? `Ticket promedio ${fmtARS(rAct.f / rAct.tk)}` : ''}
                      explica="Compras en las tiendas más mesas del Café.">
-              {rMes && <Chip a={rAct.tk} b={rMes.tk} texto={txtMesAnt} />}
-              {rCmp && <Chip a={rCmp.act.tk} b={rCmp.ant.tk} texto={txtAnioAnt + (rCmp.parcial ? '*' : '')} />}
+              {rMes && <Fila label={lblMes} a={rAct.tk} b={rMes.tk} fmt={fmtNum} />}
+              {rCmp && <Fila label={lblAnio + (rCmp.parcial ? '*' : '')} a={rCmp.act.tk} b={rCmp.ant.tk} fmt={fmtNum} />}
             </Tarjeta>
           </div>
         </Bloque>
@@ -460,10 +475,10 @@ export default function ComoVenimosSection({ selId = null }) {
         <p>
           <Inflacion inflacion={data.inflacion} puedeEditar={esDueno(user)}
                      onGuardado={inflacion => setData(d => ({ ...d, inflacion }))} />
-          {' '}"Sin nuestra suba de precios" usa lo que subieron los productos que hacen el 80 % de la venta
+          {' '}"+ nuestra suba" usa lo que subieron los productos que hacen el 80 % de la venta
           {anio ? ' (precio promedio del año contra el mismo período del año pasado)' : ' (precio más cobrado en estos días contra los mismos días del año pasado)'}
           {suba.tiendas ? `: tiendas ${pct1(suba.tiendas.pct)} %` : ''}{suba.cafe ? `, Café ${pct1(suba.cafe.pct)} %` : ''}.
-          {' '}"A este ritmo" es una regla de tres con los días que van.
+          {' '}El "estimado" es una regla de tres con los días que van; los porcentajes nunca lo usan: comparan solo lo ya vendido.
         </p>
       </div>
     </div>

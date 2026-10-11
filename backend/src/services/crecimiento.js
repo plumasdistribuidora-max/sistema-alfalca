@@ -7,12 +7,22 @@
 // Reglas:
 //  · Los locales de una misma zona (locales.zona_de) se comparan como uno solo: Sheraton
 //    se abrió al lado de Amigorena, así que lo que una pierde y la otra gana se compensa.
-//  · Cada zona se compara desde su primera venta cargada del año pasado (mismo criterio que
-//    Cómo venimos). Lo vendido antes de esa fecha va a "sin año pasado para comparar".
+//  · Una zona que el año pasado ya vendía se compara en todo el período, aunque le falten
+//    unas semanas al principio (la Peatonal tiene 2025 desde el 25/1): así se mira año
+//    contra año, como Entre Dos mira su red. Solo si le faltan más de 45 días (el Café
+//    abrió en julio de 2025) se compara desde su primera venta, y lo de antes va a
+//    "sin año pasado para comparar".
 //  · Pesos y docenas, tiendas y Café: el Café también vende docenas.
 
 const pool = require('../config/db');
-const { diarios, periodos, desdeComparable, atras, parametrosIpc } = require('./comoVenimos');
+const { diarios, periodos, atras, parametrosIpc } = require('./comoVenimos');
+
+const TOLERANCIA_DIAS = 45;
+const diasEntre = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+function desdeComparable(inicio, primeraVenta) {
+  if (!primeraVenta || primeraVenta <= inicio) return inicio;
+  return diasEntre(inicio, primeraVenta) <= TOLERANCIA_DIAS ? inicio : primeraVenta;
+}
 
 const CACHE_MS = 10 * 60 * 1000;
 const cache = new Map();

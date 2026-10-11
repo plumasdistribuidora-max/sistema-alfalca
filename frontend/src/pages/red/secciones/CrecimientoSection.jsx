@@ -264,7 +264,7 @@ export default function CrecimientoSection() {
       )}
 
       <p className="text-[11.5px] text-stone-500 px-1">
-        Los locales de una misma zona se comparan juntos (se arma en <em>Locales</em>). Cada zona se compara desde su primera venta cargada del año pasado; lo vendido antes va a «sin {anioAnt} para comparar».
+        Los locales de una misma zona se comparan juntos (se arma en <em>Locales</em>). Cada zona se compara en todo el período, año contra año. Solo un local que el año pasado todavía no estaba abierto en esos días (le faltan más de 45) se compara desde que abrió, y lo de antes va a «sin {anioAnt} para comparar».
       </p>
     </div>
   );

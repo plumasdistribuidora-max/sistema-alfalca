@@ -723,6 +723,13 @@ function avisarEncargado(t, payload) {
   avisos.enSegundoPlano(p, 'respuesta');
 }
 
+// A todos los dueños, incluido el que respondió: así los cuatro saben que ya se
+// contestó y qué se dijo. Usa la misma etiqueta que el "Para aprobar", que queda
+// reemplazado en el celular.
+function avisarDuenos(payload) {
+  avisos.enSegundoPlano(avisos.aDuenos(payload), 'respuesta a dueños');
+}
+
 // POST /:id/responder  { accion: aprobar|pedir|rechazar, texto, causa_conocida }
 router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -758,6 +765,11 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
         `, [t.detalle.item_id, T.hoyMendoza()]);
       }
       avisarEncargado(t, { titulo: 'Tarea aprobada', texto: `${req.user.nombre}: ${t.titulo}`, url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}` });
+      avisarDuenos({
+        titulo: `${req.user.nombre} aprobó una tarea`,
+        texto: `${corto(t.local_nombre) || 'Red'}: ${t.titulo} → ${t.resultado}${causaId ? ' (quedó como causa conocida)' : ''}`,
+        url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}`,
+      });
     } else if (accion === 'pedir' || accion === 'rechazar') {
       if (!texto) return fail(res, 400, accion === 'pedir' ? 'Escribí qué le pedís' : 'Escribí por qué no alcanza');
       await pool.query(`UPDATE tareas SET estado = 'en_curso', updated_at = NOW() WHERE id = $1`, [t.id]);
@@ -765,6 +777,11 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
       avisarEncargado(t, {
         titulo: accion === 'pedir' ? `${req.user.nombre} te pide más` : `${req.user.nombre} no la aprobó`,
         texto: `${t.titulo}: ${texto}`, url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}`,
+      });
+      avisarDuenos({
+        titulo: accion === 'pedir' ? `${req.user.nombre} le pidió más al encargado` : `${req.user.nombre} no aprobó una tarea`,
+        texto: `${corto(t.local_nombre) || 'Red'}: ${t.titulo} · "${texto}"`,
+        url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}`,
       });
     } else {
       return fail(res, 400, 'Acción inválida');
@@ -780,7 +797,8 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
 router.post('/gastos/:gid/responder', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT g.*, t.titulo, t.tomada_por, t.id AS tid FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id WHERE g.id = $1
+      SELECT g.*, t.titulo, t.tomada_por, t.id AS tid, l.nombre AS local_nombre
+      FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id WHERE g.id = $1
     `, [req.params.gid]);
     if (!rows.length) return fail(res, 404, 'No existe ese gasto');
     const g = rows[0];
@@ -803,6 +821,12 @@ router.post('/gastos/:gid/responder', requireAuth, requireAdmin, async (req, res
     avisarEncargado({ tomada_por: g.tomada_por, id: g.tid }, {
       titulo: accion === 'aprobar' ? `Gasto aprobado: ${$(n(g.monto))}` : accion === 'otro' ? 'Piden otro presupuesto' : 'Gasto no aprobado',
       texto: `${g.concepto} · ${g.titulo}`, url: `/tareas/${g.tid}`, etiqueta: `gasto-${g.id}`,
+    });
+    avisarDuenos({
+      titulo: accion === 'aprobar' ? `${req.user.nombre} aprobó un gasto de ${$(n(g.monto))}`
+        : accion === 'otro' ? `${req.user.nombre} pidió otro presupuesto` : `${req.user.nombre} no aprobó un gasto`,
+      texto: `${corto(g.local_nombre) || 'Red'}: ${g.concepto} ${$(n(g.monto))} · ${g.titulo}${texto ? ` · "${texto}"` : ''}`,
+      url: `/tareas/${g.tid}`, etiqueta: `gasto-${g.id}`,
     });
     res.json({ ok: true });
   } catch (err) {

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../api';
+import { useAuth } from '../../contexts/AuthContext';
+import { esDueno } from '../../utils/roles';
 
 function ResultBadge({ label, value, color }) {
   return (
@@ -11,6 +13,7 @@ function ResultBadge({ label, value, color }) {
 }
 
 export default function VentasImportar() {
+  const dueno = esDueno(useAuth().user);
   const [locales, setLocales]   = useState([]);
   const [localId, setLocalId]   = useState('');
   const [file, setFile]         = useState(null);
@@ -164,7 +167,8 @@ export default function VentasImportar() {
           </div>
           <div className="flex gap-3">
             <button onClick={reset} className="btn-secondary">Importar otro archivo</button>
-            <a href={`/red?local_id=${localId}`} className="btn-primary">Ver cómo viene el local →</a>
+            {/* El dashboard es de los dueños */}
+            {dueno && <a href={`/red?local_id=${localId}`} className="btn-primary">Ver cómo viene el local →</a>}
           </div>
         </div>
       ) : (

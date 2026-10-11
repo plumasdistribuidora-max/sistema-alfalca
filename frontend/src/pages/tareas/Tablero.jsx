@@ -41,7 +41,7 @@ export default function Tablero() {
 
   return (
     <div className="space-y-4 max-w-5xl">
-      <Titulo eyebrow="Alfalca · Dueños" derecha={<Link to="/tareas" className="text-sm text-white/80 hover:text-white underline">Bandeja →</Link>}>
+      <Titulo eyebrow="Alfalca · Dueños">
         Tablero de tareas
       </Titulo>
 

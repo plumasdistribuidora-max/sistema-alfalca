@@ -28,6 +28,7 @@ import Bandeja               from './pages/tareas/Bandeja';
 import DetalleTarea          from './pages/tareas/DetalleTarea';
 import Tablero               from './pages/tareas/Tablero';
 import ReporteDia            from './pages/tareas/ReporteDia';
+import Solapas from './components/Solapas';
 import { esDueno, esDeRed, esDeTurno } from './utils/roles';
 
 function PrivateRoute({ children }) {
@@ -69,34 +70,35 @@ export default function App() {
             <Route path="locales"              element={soloDueno(<Locales />)} />
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Reportes />)} />
-            <Route path="tareas"               element={soloRed(<Bandeja />)} />
+            <Route path="tareas"               element={soloRed(<Solapas grupo="tareas"><Bandeja /></Solapas>)} />
             <Route path="tareas/:id"           element={soloRed(<DetalleTarea />)} />
             <Route path="dia"                  element={soloRed(<ReporteDia />)} />
-            <Route path="tablero"              element={soloDueno(<Tablero />)} />
+            <Route path="tablero"              element={soloDueno(<Solapas grupo="tareas"><Tablero /></Solapas>)} />
             <Route path="proveedores"          element={soloRed(<ProveedoresPage />)} />
             <Route path="formularios"          element={soloRed(<FormulariosPage />)} />
             <Route path="mi-reporte"           element={<MiReporte />} />
             <Route path="empleados"            element={soloRed(<EmpleadosPage />)} />
             <Route path="calendario"           element={soloRed(<CalendarioPage />)} />
-            <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />
+            <Route path="ventas/importar"      element={soloRed(<Solapas grupo="fudo"><VentasImportar /></Solapas>)} />
             <Route path="ventas/listado"       element={soloRed(<VentasListado />)} />
             {/* Pantallas viejas que pasaron al tablero de Entre Dos: los enlaces guardados llevan ahí */}
             <Route path="ventas/dashboard"     element={<Navigate to="/red" replace />} />
             <Route path="ventas/comparativo"   element={<Navigate to="/red" replace />} />
-            <Route path="historial-imports"              element={soloRed(<HistorialImports />)} />
+            <Route path="historial-imports"              element={soloRed(<Solapas grupo="fudo"><HistorialImports /></Solapas>)} />
             <Route path="ventas/productos/docenas"       element={<Navigate to="/red" replace />} />
             <Route path="ventas/productos/empleados"     element={<Navigate to="/red" replace />} />
             <Route path="ventas/productos/catalogo"      element={soloRed(<CatalogoPage />)} />
-            <Route path="red"                            element={soloRed(<RedDashboard />)} />
+            {/* El dashboard de Entre Dos es de los dueños: el Encargado General no ve ventas. */}
+            <Route path="red"                            element={soloDueno(<RedDashboard />)} />
             <Route path="marcas/kankay"                  element={soloRed(<KankayDashboard />)} />
-            <Route path="marcas/kankay/importar"         element={soloDueno(<KankayImportar />)} />
-            <Route path="marcas/kankay/historial"        element={soloDueno(<KankayHistorial />)} />
+            <Route path="marcas/kankay/importar"         element={soloDueno(<Solapas grupo="dux"><KankayImportar /></Solapas>)} />
+            <Route path="marcas/kankay/historial"        element={soloDueno(<Solapas grupo="dux"><KankayHistorial /></Solapas>)} />
             <Route path="marcas/:slug"                   element={soloRed(<MarcaProximamente />)} />
             <Route path="stock"                          element={soloRed(<StockInteligente />)} />
             <Route path="finanzas"                       element={soloDueno(<FinanzasPage />)} />
-            <Route path="admin/maestros/docenas"         element={soloDueno(<MaestroDocenasPage />)} />
-            <Route path="admin/maestros/cafe"            element={soloDueno(<MaestroCafePage />)} />
-            <Route path="admin/maestros/cocina"          element={soloDueno(<MaestroCocinaPage />)} />
+            <Route path="admin/maestros/docenas"         element={soloDueno(<Solapas grupo="maestros"><MaestroDocenasPage /></Solapas>)} />
+            <Route path="admin/maestros/cafe"            element={soloDueno(<Solapas grupo="maestros"><MaestroCafePage /></Solapas>)} />
+            <Route path="admin/maestros/cocina"          element={soloDueno(<Solapas grupo="maestros"><MaestroCocinaPage /></Solapas>)} />
           </Route>
         </Routes>
       </BrowserRouter>

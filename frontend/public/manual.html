@@ -488,7 +488,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <a href="#proveedores"><span class="ic">⊡</span>Proveedores</a>
 
     <p class="tit">Análisis</p>
-    <a href="#importar"><span class="ic">↑</span>Importar Excel</a>
+    <a href="#importar"><span class="ic">↑</span>Ventas de Fudo</a>
     <a href="#dashboard"><span class="ic">⊙</span>Dashboard de Entre Dos</a>
     <a href="#stock"><span class="ic">▣</span>Stock inteligente</a>
     <a href="#finanzas"><span class="ic">⊛</span>Finanzas</a>
@@ -637,12 +637,12 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
           <tbody>
             <tr>
               <td><strong>Dueño</strong></td>
-              <td>Todo, más el tablero de tareas y la configuración</td>
+              <td>Todo: las tres marcas, Finanzas, el tablero de tareas y la configuración</td>
               <td>Mira el reporte del día y aprueba lo que pide cerrar el encargado</td>
             </tr>
             <tr>
               <td><strong>Encargado General</strong></td>
-              <td>Todo menos <strong>Finanzas</strong> y la configuración</td>
+              <td>Entre Dos sin ventas: no ve el <strong>Dashboard</strong> ni <strong>Finanzas</strong>, ni Kankay, Senzen o la configuración</td>
               <td>Resuelve las tareas que levanta el sistema y pide el cierre a los dueños</td>
             </tr>
             <tr>
@@ -696,10 +696,9 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <div class="aviso ojo">
         <span class="mk">⚠</span>
-        <p><strong>Finanzas es solo del dueño.</strong> El Encargado General ve toda la red
-        —ventas, docenas, tiendas, stock— pero no el estado de resultados, ni el cash flow,
-        ni los KPI de plata. No es que esté escondido del menú nada más: el sistema
-        directamente no le contesta si intenta entrar por la dirección.</p>
+        <p><strong>El Dashboard y Finanzas son solo del dueño.</strong> El Encargado General no ve
+        las ventas de la red ni el estado de resultados, el cash flow o los KPI de plata. No es que
+        esté escondido del menú nada más: si intenta entrar por la dirección, el sistema lo devuelve al inicio.</p>
       </div>
     </section>
 
@@ -707,8 +706,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <section class="seccion" id="menu">
       <h2>El menú</h2>
       <p>
-        Es la barra gris oscura de la izquierda. Está agrupada por para qué sirve cada cosa,
-        no por orden alfabético.
+        Es la barra gris oscura de la izquierda. Está ordenada <strong>por marca</strong>, como se mira el grupo:
+        cada negocio tiene su bloque con el mismo formato, y abajo va lo que es de todo el grupo.
       </p>
 
       <figure class="figura dos">
@@ -718,48 +717,46 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <div class="m-iso"><svg viewBox="0 0 100 100" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M0 47A47 47 0 0 1 47 0V47Z"/><path d="M53 0V47H100Z"/><rect x="0" y="53" width="47" height="47"/><path d="M53 53H100A23.5 23.5 0 0 1 53 53Z"/></svg></div>
               <div><b>alfalca</b><em>grupo inversor · mendoza</em></div>
             </div>
-            <p class="m-tit">El día</p>
+            <div class="m-it on"><span class="ic">⌂</span>Inicio</div>
+            <p class="m-tit" style="color:#fff">Entre Dos</p>
             <div class="m-it"><span class="ic">☀</span>Reporte del día</div>
-            <div class="m-it on"><span class="ic">✓</span>Tareas</div>
-            <div class="m-it"><span class="ic">▥</span>Tablero de tareas</div>
+            <div class="m-it"><span class="ic">✓</span>Tareas</div>
             <div class="m-it"><span class="ic">☰</span>Reportes de los turnos</div>
-            <div class="m-it"><span class="ic">⇄</span>Proveedores</div>
-            <p class="m-tit">Análisis</p>
-            <div class="m-it"><span class="ic">⊙</span>Tiendas <span style="margin-left:auto;font-size:8px">▾</span></div>
-            <div class="m-it m-sub">Entre Dos <span style="margin-left:auto;font-size:8px">▾</span></div>
-            <div class="m-it m-sub" style="padding-left:30px">Dashboard</div>
-            <div class="m-it m-sub" style="padding-left:30px">Importar Excel</div>
-            <div class="m-it m-sub" style="padding-left:30px">Historial Excel</div>
-            <div class="m-it m-sub">Kankay <span style="margin-left:auto;font-size:8px">▾</span></div>
-            <div class="m-it m-sub" style="padding-left:30px">Dashboard</div>
-            <div class="m-it m-sub" style="padding-left:30px">Importar Excel</div>
-            <div class="m-it m-sub" style="padding-left:30px">Historial Excel</div>
-            <div class="m-it m-sub">Senzen <span style="margin-left:auto;font-size:7px;opacity:.6">pronto</span></div>
-            <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
+            <div class="m-it"><span class="ic">⊙</span>Dashboard</div>
             <div class="m-it"><span class="ic">⊛</span>Finanzas</div>
-            <p class="m-tit">Equipo</p>
+            <div class="m-it"><span class="ic">▣</span>Stock inteligente</div>
+            <div class="m-it"><span class="ic">⇄</span>Proveedores</div>
             <div class="m-it"><span class="ic">◈</span>Empleados y horas</div>
             <div class="m-it"><span class="ic">⌛</span>Calendario de trabajo</div>
+            <div class="m-it"><span class="ic">↑</span>Ventas de Fudo</div>
+            <p class="m-tit" style="color:#fff">Kankay</p>
+            <div class="m-it"><span class="ic">⊙</span>Dashboard</div>
+            <div class="m-it"><span class="ic">↑</span>Ventas de Dux</div>
+            <p class="m-tit" style="color:#fff">Senzen <span style="font-size:7px;opacity:.6">pronto</span></p>
+            <div class="m-it"><span class="ic">⊙</span>Próximamente</div>
+            <p class="m-tit">El grupo</p>
             <div class="m-it"><span class="ic">◐</span>Usuarios y accesos</div>
-            <p class="m-tit">Configuración</p>
-            <div class="m-it"><span class="ic">▤</span>Formularios</div>
-            <div class="m-it"><span class="ic">⊟</span>Maestro de docenas</div>
             <div class="m-it"><span class="ic">⌂</span>Locales</div>
-            <p class="m-tit">Ayuda</p>
+            <div class="m-it"><span class="ic">▤</span>Formularios</div>
+            <div class="m-it"><span class="ic">⊟</span>Maestros</div>
             <div class="m-it"><span class="ic">⊚</span>Manual de uso</div>
           </div>
         </div>
         <div>
           <ul class="simple">
-            <li><strong>El día</strong> — el reporte del día, las tareas, el tablero (solo dueños), los reportes de los turnos y proveedores.</li>
-            <li><strong>Análisis</strong> — lo que ya pasó: ventas, stock y plata. <em>Finanzas</em> le aparece solo al dueño.
-              <em>Tiendas</em> se abre en las marcas del grupo: <strong>Entre Dos</strong> (el alfajor) tiene adentro el Dashboard, Importar Excel e Historial Excel;
-              <strong>Kankay</strong> (la sartén) tiene lo mismo, solo para el dueño: Dashboard, Importar Excel e Historial Excel (ver <a href="#kankay">Kankay</a>);
-              <strong>Senzen</strong> (el rociador) todavía no tiene dashboard y te lleva a una página de <em>Próximamente</em>.</li>
-            <li><strong>Equipo</strong> — la gente: quién trabaja, cuántas horas y quién entra al sistema.</li>
-            <li><strong>Configuración</strong> — cómo funciona el sistema por dentro. Solo el dueño.</li>
-            <li><strong>Ayuda</strong> — este manual. Lo ve todo el mundo, desde cualquier rol, y se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
+            <li><strong>Inicio</strong> — la <a href="#inicio">portada</a>. También se llega tocando el logo.</li>
+            <li><strong>Entre Dos</strong> — ordenado como el día: primero lo que pasó (reporte del día, tareas, turnos), después los números (dashboard, finanzas, stock) y al final lo que se administra y se carga (proveedores, equipo, ventas de Fudo).</li>
+            <li><strong>Kankay</strong> — su dashboard y sus ventas de Dux, igual que Entre Dos (ver <a href="#kankay">Kankay</a>). <strong>Senzen</strong> todavía no tiene nada y lleva a <em>Próximamente</em>.</li>
+            <li><strong>El grupo</strong> — lo que se toca poco: usuarios, locales, formularios, maestros y este manual, que se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
           </ul>
+          <p style="margin-top:16px">
+            Algunas pantallas tienen <strong>solapas</strong> arriba: <em>Tareas</em> (Bandeja y, para los dueños, Tablero),
+            <em>Ventas de Fudo</em> y <em>Ventas de Dux</em> (Subir Excel e Historial) y <em>Maestros</em> (Docenas, Café y Cocina).
+          </p>
+          <p style="margin-top:12px">
+            El Encargado General ve el bloque de Entre Dos sin <em>Dashboard</em> ni <em>Finanzas</em>, y de El grupo solo
+            <em>Usuarios y accesos</em> y el manual. No ve Kankay ni Senzen.
+          </p>
           <p style="margin-top:16px">
             En el celular el menú arranca cerrado: se abre con el botón <strong>☰</strong> de arriba
             a la izquierda.
@@ -1217,7 +1214,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </p>
 
       <h3>El tablero</h3>
-      <p>En el menú, <strong>Tablero de tareas</strong> (solo dueños):</p>
+      <p>En <strong>Tareas</strong>, la solapa <strong>Tablero</strong> (solo dueños):</p>
       <ul class="simple">
         <li>Arriba: tareas abiertas, vencidas, el tiempo promedio del encargado y el de los dueños, cuántas pidió cerrar en la fecha que él mismo puso y cuántas se descartaron.</li>
         <li>Las abiertas de la más vieja a la más nueva, con lo que va a hacer y los cambios de fecha.</li>
@@ -1422,7 +1419,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
     <!-- ══════════ IMPORTAR ══════════ -->
     <section class="seccion" id="importar">
-      <p class="eyebrow">Análisis · Tiendas · Entre Dos</p>
+      <p class="eyebrow">Entre Dos · Ventas de Fudo</p>
       <h2>Importar el Excel de ventas</h2>
       <p>
         Todo lo que el sistema sabe de ventas entra por acá. Es el Excel que exporta el
@@ -1489,7 +1486,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         mensaje a quien mantiene el sistema.</p>
       </div>
 
-      <h3>Historial Excel</h3>
+      <h3>Historial</h3>
       <p>
         La lista de todo lo que se importó: qué archivo, quién lo subió, cuándo, de qué
         período y cuántos tickets trajo. El archivo original queda guardado y se puede volver a bajar.
@@ -1505,7 +1502,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
     <!-- ══════════ DASHBOARD ══════════ -->
     <section class="seccion" id="dashboard">
-      <p class="eyebrow">Análisis · Tiendas · Entre Dos</p>
+      <p class="eyebrow">Entre Dos</p>
+      <p class="para-quien">Solo los dueños</p>
       <h2>Dashboard de Entre Dos</h2>
       <p>
         Es la foto de cómo viene la marca. Tiene cuatro solapas arriba y todas usan las ventas
@@ -1814,25 +1812,25 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
     <!-- ══════════ KANKAY ══════════ -->
     <section class="seccion" id="kankay">
-      <p class="eyebrow">Análisis · Tiendas</p>
+      <p class="eyebrow">Kankay</p>
       <p class="para-quien">Solo el dueño</p>
       <h2>Kankay</h2>
       <p>
-        Kankay funciona igual que Entre Dos: en el menú, <em>Tiendas → Kankay</em> tiene
-        <strong>Dashboard</strong>, <strong>Importar Excel</strong> e <strong>Historial Excel</strong>.
+        Kankay funciona igual que Entre Dos: en el menú, el bloque <em>Kankay</em> tiene
+        <strong>Dashboard</strong> y <strong>Ventas de Dux</strong>, con las solapas <em>Subir Excel</em> e <em>Historial</em>.
         Los números salen del Excel de ventas de <strong>Dux</strong>, el sistema que usa el local.
       </p>
 
       <h3>Subir las ventas</h3>
       <ol class="pasos">
         <li>En Dux, entrá a <em>Consulta de ventas detallada</em>, elegí las fechas y exportá a Excel.</li>
-        <li>En el sistema, <em>Kankay → Importar Excel</em>: arrastrá el archivo o tocá para elegirlo, y después <em>Importar</em>.</li>
+        <li>En el sistema, <em>Kankay → Ventas de Dux → Subir Excel</em>: arrastrá el archivo o tocá para elegirlo, y después <em>Importar</em>.</li>
         <li>Te muestra cuántas ventas, unidades y productos entraron, la venta sin IVA y el costo.</li>
       </ol>
       <ul class="simple">
         <li><strong>Podés subir un mes entero o una parte.</strong> Si subís de nuevo días que ya estaban, se reemplazan: no se duplica nada.</li>
         <li><strong>Las ventas sin número de comprobante</strong> son facturas que no llegaron a emitirse: cuentan como venta sin factura, completas, aunque el Excel les calcule IVA.</li>
-        <li><em>Historial Excel</em> lista cada archivo que se subió, quién y cuándo, y si sigue vigente o lo reemplazó otro.</li>
+        <li>La solapa <em>Historial</em> lista cada archivo que se subió, quién y cuándo, y si sigue vigente o lo reemplazó otro.</li>
       </ul>
 
       <h3>El dashboard</h3>

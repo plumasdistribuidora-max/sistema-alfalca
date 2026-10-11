@@ -1,12 +1,13 @@
-import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { esDueno, esDeRed, esDeTurno, rolLabel } from '../utils/roles';
 import { Logotipo } from './Marca';
+import { rutasDe } from './Solapas';
 
 // Íconos de línea (estilo Lucide), 16px, trazo 1.75: cada uno es el path de un
 // <svg viewBox="0 0 24 24">. Se dibujan con Icono, que pone el marco común.
 const PATHS = {
+  inicio:     'M4 11l8-7 8 7M6 9.5V20h4v-5h4v5h4V9.5',
   reportes:   'M9 4h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4V3h6v1M9 11h6M9 15h4',
   tareas:     'M9 11l2 2 4-4M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z',
   dia:        'M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3L4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
@@ -45,70 +46,46 @@ function Icono({ name, small }) {
   );
 }
 
-// Tiendas se abre en las marcas; Entre Dos, en sus tres pantallas. Estar en cualquiera
-// de estas rutas deja abierto el grupo que la contiene.
-const ENTREDOS_ROUTES = ['/red', '/ventas/importar', '/historial-imports'];
-const KANKAY_ROUTES   = ['/marcas/kankay'];
-const TIENDA_ROUTES   = [...ENTREDOS_ROUTES, '/marcas'];
-
-// Kankay tiene su dashboard, su import y su historial, igual que Entre Dos, pero es solo del
-// dueño: para el resto sigue en "pronto". Senzen todavía no tiene nada.
-const MARCAS_PROXIMAS = [
-  { slug: 'kankay', label: 'Kankay', icon: 'sarten', listaParaDueno: true },
-  { slug: 'senzen', label: 'Senzen', icon: 'limpieza' },
-];
-
+// Un renglón del menú puede quedar marcado en varias rutas: las solapas de una misma
+// pantalla (Bandeja y Tablero, Subir Excel e Historial) y el detalle de una tarea.
 function enRutas(pathname, rutas) {
   return rutas.some(r => pathname === r || pathname.startsWith(r + '/'));
 }
 
-function Chevron({ abierto }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
-         className={`w-3.5 h-3.5 transition-transform duration-200 ${abierto ? 'rotate-0' : '-rotate-90'}`} aria-hidden="true">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
-
-function NavItem({ to, icon, label }) {
+function NavItem({ to, icon, label, rutas, end, onClick }) {
+  const { pathname } = useLocation();
+  const marcado = rutas ? enRutas(pathname, rutas) : null;
   return (
     <NavLink
       to={to}
+      end={end}
+      onClick={onClick}
       className={({ isActive }) =>
         `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-         ${isActive
+         ${(marcado ?? isActive)
            ? 'bg-white/20 text-white'
            : 'text-white/70 hover:bg-white/10 hover:text-white'}`
       }
     >
       <Icono name={icon} />
-      {label}
-    </NavLink>
-  );
-}
-
-function SubNavItem({ to, icon, label, profundo, end, children }) {
-  return (
-    <NavLink
-      to={to}
-      end={end}
-      className={({ isActive }) =>
-        `flex items-center gap-2.5 ${profundo ? 'pl-12' : 'pl-8'} pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-         ${isActive
-           ? 'bg-white/20 text-white'
-           : 'text-white/60 hover:bg-white/10 hover:text-white'}`
-      }
-    >
-      <Icono name={icon} small />
       <span className="flex-1">{label}</span>
-      {children}
     </NavLink>
   );
 }
 
 function SectionLabel({ label }) {
   return <p className="px-3 pt-4 pb-1 text-xs font-semibold text-white/40 uppercase tracking-widest">{label}</p>;
+}
+
+// El título de cada marca: su ícono y su nombre, más marcado que una sección común.
+function MarcaLabel({ icon, label, children }) {
+  return (
+    <p className="flex items-center gap-2 px-3 pt-5 pb-1.5 text-xs font-bold text-white uppercase tracking-wider">
+      <Icono name={icon} small />
+      <span className="flex-1">{label}</span>
+      {children}
+    </p>
+  );
 }
 
 // El manual es un archivo suelto que sirve el servidor, no una pantalla de React:
@@ -128,16 +105,12 @@ function LinkExterno({ href, icon, label }) {
   );
 }
 
+// El menú va por marca, como se mira el grupo: cada negocio con su bloque y el mismo
+// formato (Dashboard y sus ventas), y abajo lo que es de todo el grupo. Dentro de Entre
+// Dos el orden sigue el día: lo que pasó, los números, y al final lo que se carga.
 export default function Sidebar({ open, onClose }) {
-  const { user }   = useAuth();
-  const location   = useLocation();
-  const [tiendaExpanded, setTiendaExpanded]     = useState(false);
-  const [entreDosExpanded, setEntreDosExpanded] = useState(false);
-  const [kankayExpanded, setKankayExpanded]     = useState(false);
-
-  const tiendaOpen   = tiendaExpanded   || enRutas(location.pathname, TIENDA_ROUTES);
-  const entreDosOpen = entreDosExpanded || enRutas(location.pathname, ENTREDOS_ROUTES);
-  const kankayOpen   = kankayExpanded   || enRutas(location.pathname, KANKAY_ROUTES);
+  const { user } = useAuth();
+  const dueno = esDueno(user);
 
   return (
     <>
@@ -155,7 +128,6 @@ export default function Sidebar({ open, onClose }) {
         ${open ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 lg:static lg:z-auto
       `}>
-        {/* Logo / Brand */}
         {/* El logo lleva al inicio desde cualquier pantalla (y cierra el menú en el celular). */}
         <NavLink
           to="/"
@@ -166,106 +138,58 @@ export default function Sidebar({ open, onClose }) {
           <Logotipo claro />
         </NavLink>
 
-        {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
 
           {/* Quien solo carga su reporte de turno no ve la red */}
           {esDeTurno(user) && (
-            <NavItem to="/" icon="reportes" label="Mi reporte de hoy" />
+            <NavItem to="/" icon="reportes" label="Mi reporte de hoy" end />
           )}
 
           {esDeRed(user) && (
             <>
-              <SectionLabel label="El día" />
-              <NavItem to="/dia"         icon="dia"          label="Reporte del día" />
-              <NavItem to="/tareas"      icon="tareas"       label="Tareas" />
-              {esDueno(user) && <NavItem to="/tablero" icon="tablero" label="Tablero de tareas" />}
-              <NavItem to="/reportes"    icon="reportes"     label="Reportes de los turnos" />
+              <NavItem to="/" icon="inicio" label="Inicio" end />
+
+              <MarcaLabel icon="alfajor" label="Entre Dos" />
+              <NavItem to="/dia"         icon="dia"         label="Reporte del día" />
+              <NavItem to="/tareas"      icon="tareas"      label="Tareas" rutas={rutasDe('tareas')} />
+              <NavItem to="/reportes"    icon="reportes"    label="Reportes de los turnos" />
+              {/* El dashboard y Finanzas son de los dueños: el Encargado General no ve ventas ni plata. */}
+              {dueno && <NavItem to="/red"      icon="dashboard" label="Dashboard" />}
+              {dueno && <NavItem to="/finanzas" icon="finanzas"  label="Finanzas" />}
+              <NavItem to="/stock"       icon="stock"       label="Stock inteligente" />
               <NavItem to="/proveedores" icon="proveedores" label="Proveedores" />
+              <NavItem to="/empleados"   icon="personal"    label="Empleados y horas" />
+              <NavItem to="/calendario"  icon="calendario"  label="Calendario de trabajo" />
+              <NavItem to="/ventas/importar" icon="importar" label="Ventas de Fudo" rutas={rutasDe('fudo')} />
 
-              <SectionLabel label="Análisis" />
+              {dueno && (
+                <>
+                  <MarcaLabel icon="sarten" label="Kankay" />
+                  <NavItem to="/marcas/kankay" icon="dashboard" label="Dashboard" end />
+                  <NavItem to="/marcas/kankay/importar" icon="importar" label="Ventas de Dux" rutas={rutasDe('dux')} />
 
-              {/* Tiendas — grupo desplegable */}
-              <button
-                onClick={() => setTiendaExpanded(prev => !prev)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-white/70 hover:bg-white/10 hover:text-white"
-              >
-                <Icono name="tiendas" />
-                <span className="flex-1 text-left">Tiendas</span>
-                <Chevron abierto={tiendaOpen} />
-              </button>
-              {tiendaOpen && (
-                <div className="space-y-0.5 pb-0.5">
-                  <button
-                    onClick={() => setEntreDosExpanded(prev => !prev)}
-                    className="w-full flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-white/60 hover:bg-white/10 hover:text-white"
-                  >
-                    <Icono name="alfajor" small />
-                    <span className="flex-1 text-left">Entre Dos</span>
-                    <Chevron abierto={entreDosOpen} />
-                  </button>
-                  {entreDosOpen && (
-                    <>
-                      <SubNavItem to="/red"               icon="dashboard" label="Dashboard"       profundo />
-                      <SubNavItem to="/ventas/importar"   icon="importar"  label="Importar Excel"  profundo />
-                      <SubNavItem to="/historial-imports" icon="historial" label="Historial Excel" profundo />
-                    </>
-                  )}
-                  {MARCAS_PROXIMAS.map(m => m.listaParaDueno && esDueno(user) ? (
-                    <div key={m.slug}>
-                      <button
-                        onClick={() => setKankayExpanded(prev => !prev)}
-                        className="w-full flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-white/60 hover:bg-white/10 hover:text-white"
-                      >
-                        <Icono name={m.icon} small />
-                        <span className="flex-1 text-left">{m.label}</span>
-                        <Chevron abierto={kankayOpen} />
-                      </button>
-                      {kankayOpen && (
-                        <>
-                          <SubNavItem to="/marcas/kankay"           icon="dashboard" label="Dashboard"       profundo end />
-                          <SubNavItem to="/marcas/kankay/importar"  icon="importar"  label="Importar Excel"  profundo />
-                          <SubNavItem to="/marcas/kankay/historial" icon="historial" label="Historial Excel" profundo />
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <SubNavItem key={m.slug} to={`/marcas/${m.slug}`} icon={m.icon} label={m.label}>
-                      {!(m.listaParaDueno && esDueno(user)) && (
-                        <span className="text-[10px] px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>
-                      )}
-                    </SubNavItem>
-                  ))}
-                </div>
+                  <MarcaLabel icon="limpieza" label="Senzen">
+                    <span className="text-[10px] font-semibold normal-case tracking-normal px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>
+                  </MarcaLabel>
+                  <NavItem to="/marcas/senzen" icon="dashboard" label="Próximamente" />
+                </>
               )}
 
-              <NavItem to="/stock"    icon="stock"    label="Stock inteligente" />
-              {/* Finanzas es solo del dueño: el Encargado General ve la red pero no la plata. */}
-              {esDueno(user) && (
-                <NavItem to="/finanzas" icon="finanzas" label="Finanzas" />
+              <SectionLabel label="El grupo" />
+              <NavItem to="/usuarios" icon="usuarios" label="Usuarios y accesos" />
+              {dueno && (
+                <>
+                  <NavItem to="/locales"                icon="locales"     label="Locales" />
+                  <NavItem to="/formularios"            icon="formularios" label="Formularios" />
+                  <NavItem to="/admin/maestros/docenas" icon="docenas"     label="Maestros" rutas={rutasDe('maestros')} />
+                </>
               )}
-
-              <SectionLabel label="Equipo" />
-              <NavItem to="/empleados"  icon="personal"  label="Empleados y horas" />
-              <NavItem to="/calendario" icon="calendario" label="Calendario de trabajo" />
-              <NavItem to="/usuarios"   icon="usuarios" label="Usuarios y accesos" />
-            </>
-          )}
-
-          {esDueno(user) && (
-            <>
-              <SectionLabel label="Configuración" />
-              <NavItem to="/formularios"            icon="formularios" label="Formularios" />
-              <NavItem to="/admin/maestros/docenas" icon="docenas" label="Maestro de docenas" />
-              <NavItem to="/admin/maestros/cafe"    icon="cafe"  label="Maestro de café" />
-              <NavItem to="/admin/maestros/cocina"  icon="cafe"  label="Maestro de cocina" />
-              <NavItem to="/locales"                icon="locales"  label="Locales" />
             </>
           )}
 
           {/* Fuera de los bloques de rol a propósito: el manual lo ve todo el mundo,
               y el que carga el reporte de su turno es justamente el que más lo necesita. */}
-          <SectionLabel label="Ayuda" />
+          {!esDeRed(user) && <SectionLabel label="Ayuda" />}
           <LinkExterno href="/manual.html" icon="manual" label="Manual de uso" />
         </nav>
 

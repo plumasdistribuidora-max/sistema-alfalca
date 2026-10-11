@@ -164,7 +164,7 @@ export default function VentasImportar() {
           </div>
           <div className="flex gap-3">
             <button onClick={reset} className="btn-secondary">Importar otro archivo</button>
-            <a href={`/ventas/dashboard?local_id=${localId}`} className="btn-primary">Ver dashboard del local →</a>
+            <a href={`/red?local_id=${localId}`} className="btn-primary">Ver cómo viene el local →</a>
           </div>
         </div>
       ) : (

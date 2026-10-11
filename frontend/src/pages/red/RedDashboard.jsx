@@ -1,23 +1,20 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Isotipo } from '../../components/Marca';
 import api from '../../api';
 import ComoVenimosSection from './secciones/ComoVenimosSection';
 import MesAMesSection from './secciones/MesAMesSection';
 import ProductosSection from './secciones/ProductosSection';
 import VendedoresSection from './secciones/VendedoresSection';
+import DiasHorasSection from './secciones/DiasHorasSection';
 import { colorDeTienda, shortName, ordenarTiendas } from './redUtils';
-import ResumenSection  from './secciones/ResumenSection';
-import TiendasSection  from './secciones/TiendasSection';
-import AnalisisSection from './secciones/AnalisisSection';
 
 const TABS = [
   { id: 'como',     label: 'Cómo venimos' },
   { id: 'mes',      label: 'Mes a mes' },
   { id: 'productos', label: 'Productos' },
   { id: 'vendedores', label: 'Vendedores' },
-  { id: 'resumen',  label: 'Resumen'  },
-  { id: 'tiendas', label: 'Tiendas'  },
-  { id: 'analisis',label: 'Análisis' },
+  { id: 'dias',     label: 'Días y horas' },
 ];
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -50,8 +47,10 @@ export default function RedDashboard() {
 
   // Las solapas nuevas se filtran por local desde acá: elegís uno y todas lo muestran solo a él.
   const [locales, setLocales] = useState([]);
-  const [selId, setSelId]     = useState(null);
-  const conSelector = ['como', 'mes'].includes(activeTab);
+  // ?local_id= lo abre ya filtrado (por ejemplo, desde "Importar Excel")
+  const [params] = useSearchParams();
+  const [selId, setSelId]     = useState(() => Number(params.get('local_id')) || null);
+  const conSelector = ['como', 'mes', 'dias'].includes(activeTab);
 
   useEffect(() => {
     api.get('/locales').then(r => {
@@ -153,9 +152,7 @@ export default function RedDashboard() {
       {activeTab === 'mes'      && <MesAMesSection selId={selId} />}
       {activeTab === 'productos' && <ProductosSection />}
       {activeTab === 'vendedores' && <VendedoresSection selId={selId} locales={locales} />}
-      {activeTab === 'resumen'  && <ResumenSection />}
-      {activeTab === 'tiendas' && <TiendasSection />}
-      {activeTab === 'analisis' && <AnalisisSection />}
+      {activeTab === 'dias'     && <DiasHorasSection selId={selId} />}
     </div>
   );
 }

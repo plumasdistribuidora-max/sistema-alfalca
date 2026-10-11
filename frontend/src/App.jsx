@@ -8,11 +8,7 @@ import EmpleadosPage    from './pages/equipo/EmpleadosPage';
 import CalendarioPage   from './pages/equipo/CalendarioPage';
 import VentasImportar   from './pages/ventas/Importar';
 import VentasListado    from './pages/ventas/Listado';
-import VentasDashboard  from './pages/ventas/DashboardLocal';
-import VentasComparativo from './pages/ventas/Comparativo';
 import HistorialImports from './pages/HistorialImports';
-import DocenasAnalisisPage      from './pages/ventas/productos/DocenasAnalisisPage';
-import DocenasPorEmpleadoPage   from './pages/ventas/productos/DocenasPorEmpleadoPage';
 import CatalogoPage             from './pages/ventas/productos/CatalogoPage';
 import RedDashboard             from './pages/red/RedDashboard';
 import StockInteligente        from './pages/stock/StockInteligente';
@@ -83,11 +79,12 @@ export default function App() {
             <Route path="calendario"           element={soloRed(<CalendarioPage />)} />
             <Route path="ventas/importar"      element={soloRed(<VentasImportar />)} />
             <Route path="ventas/listado"       element={soloRed(<VentasListado />)} />
-            <Route path="ventas/dashboard"     element={soloRed(<VentasDashboard />)} />
-            <Route path="ventas/comparativo"   element={soloRed(<VentasComparativo />)} />
+            {/* Pantallas viejas que pasaron al tablero de Entre Dos: los enlaces guardados llevan ahí */}
+            <Route path="ventas/dashboard"     element={<Navigate to="/red" replace />} />
+            <Route path="ventas/comparativo"   element={<Navigate to="/red" replace />} />
             <Route path="historial-imports"              element={soloRed(<HistorialImports />)} />
-            <Route path="ventas/productos/docenas"       element={soloRed(<DocenasAnalisisPage />)} />
-            <Route path="ventas/productos/empleados"     element={soloRed(<DocenasPorEmpleadoPage />)} />
+            <Route path="ventas/productos/docenas"       element={<Navigate to="/red" replace />} />
+            <Route path="ventas/productos/empleados"     element={<Navigate to="/red" replace />} />
             <Route path="ventas/productos/catalogo"      element={soloRed(<CatalogoPage />)} />
             <Route path="red"                            element={soloRed(<RedDashboard />)} />
             <Route path="marcas/kankay"                  element={soloRed(<KankayPage />)} />

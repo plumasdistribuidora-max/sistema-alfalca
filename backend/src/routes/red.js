@@ -6,6 +6,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { generarConclusiones } = require('../utils/conclusiones');
 const { comoVenimos, productos80, parametrosIpc } = require('../services/comoVenimos');
 const { vendedores } = require('../services/vendedores');
+const { diasHoras } = require('../services/diasHoras');
 const { mesAMes } = require('../services/mesAMes');
 
 const router = express.Router();
@@ -2693,6 +2694,16 @@ router.get('/vendedores', requireAuth, async (req, res) => {
     res.json({ ok: true, data: await vendedores(localId, range[0], range[1]) });
   } catch (err) {
     console.error('[red/vendedores]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Días y horas: día de la semana, semanas y horas, del 1/1 a hoy ──────────
+router.get('/dias-horas', requireAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, data: await diasHoras() });
+  } catch (err) {
+    console.error('[red/dias-horas]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

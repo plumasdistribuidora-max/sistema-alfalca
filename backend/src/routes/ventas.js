@@ -82,6 +82,104 @@ function parseFiscal(val) {
   return val.toString().toLowerCase().trim() === 'si';
 }
 
+// Hora del Excel en milisegundos, sin truncar al segundo: para cruzar hojas entre sí.
+function msExcel(val) {
+  if (typeof val === 'number') return (val - 25569) * 86400 * 1000;
+  const d = parseExcelDate(val);
+  return d ? d.getTime() : null;
+}
+
+// En el Café la hoja Ventas no trae el número de venta, así que las personas de cada
+// mesa se cruzan con la hoja Pagos, en dos pasadas:
+//  1. La hora "Cerrada" de Ventas es la hora de un pago de esa venta (difieren en
+//     milésimas; en los .xls, que no traen milésimas, en menos de un segundo). Cuenta
+//     también el pago anulado: si se cobró mal y se volvió a cobrar, "Cerrada" queda
+//     en el primero. Mesa y total desempatan dos ventas cobradas en el mismo segundo.
+//  2. Lo que queda suelto son sobre todo cuentas divididas, que se cobran unos minutos
+//     antes de cerrar la mesa: misma mesa y mismo total, a la hora más cercana.
+// Cada fila y cada venta se usan una sola vez. Devuelve Map(pos_id → personas).
+function cruzarPersonas(rowsVentas, rowsPagos) {
+  const ventas = new Map();   // pos_id → { horas, mesa, total, cobrada }
+  for (const row of rowsPagos) {
+    const posId = parseInt(row['id venta']);
+    const ms = msExcel(row['fecha pago']);
+    if (!posId || ms === null) continue;
+    if (!ventas.has(posId)) ventas.set(posId, { horas: [], mesa: row['mesa'], total: 0, cobrada: false });
+    const v = ventas.get(posId);
+    v.horas.push(ms);
+    if (!parseFiscal(row['cancelado'])) {
+      v.total += parseFloat(row['monto'] ?? 0) || 0;
+      v.cobrada = true;
+    }
+  }
+  for (const [posId, v] of ventas) if (!v.cobrada) ventas.delete(posId);   // no es ticket
+
+  const filas = [];
+  rowsVentas.forEach((row, i) => {
+    if (normalizeEstado(row['estado']) !== 'cerrada') return;
+    const ms = msExcel(row['cerrada']);
+    if (ms === null) return;
+    filas.push({ i, ms, mesa: String(row['mesa'] ?? ''), total: parseFloat(row['total'] ?? 0) || 0 });
+  });
+
+  const personas = new Map(), filasUsadas = new Set();
+  function asignar(pares) {
+    pares.sort((a, b) => a.orden[0] - b.orden[0] || a.orden[1] - b.orden[1]);
+    for (const { i, posId } of pares) {
+      if (filasUsadas.has(i) || personas.has(posId)) continue;
+      filasUsadas.add(i);
+      personas.set(posId, parseInt(rowsVentas[i]['personas']) || null);
+    }
+  }
+  const mismaMesa  = (v, f) => String(v.mesa ?? '') === f.mesa;
+  const mismoTotal = (v, f) => Math.abs(v.total - f.total) < 0.01;
+  const distancia  = (v, f) => Math.min(...v.horas.map(h => Math.abs(h - f.ms)));
+
+  // Pasada 1: misma hora.
+  const porSegundo = new Map();   // segundo → pos_ids con un pago en ese segundo
+  for (const [posId, v] of ventas) {
+    for (const ms of v.horas) {
+      const s = Math.floor(ms / 1000);
+      if (!porSegundo.has(s)) porSegundo.set(s, new Set());
+      porSegundo.get(s).add(posId);
+    }
+  }
+  const pares = [];
+  for (const f of filas) {
+    const s = Math.floor(f.ms / 1000), vistos = new Set();
+    for (let k = s - 1; k <= s + 1; k++) {
+      for (const posId of porSegundo.get(k) || []) {
+        if (vistos.has(posId)) continue;
+        vistos.add(posId);
+        const v = ventas.get(posId), dt = distancia(v, f);
+        if (dt >= 1500) continue;
+        pares.push({ i: f.i, posId, orden: [(mismaMesa(v, f) ? 0 : 1) + (mismoTotal(v, f) ? 0 : 1), dt] });
+      }
+    }
+  }
+  asignar(pares);
+
+  // Pasada 2: misma mesa y mismo total, el mismo día (una mesa cobrada a las 14 se
+  // cerró a las 18).
+  const porMesaTotal = new Map();
+  for (const f of filas) {
+    if (filasUsadas.has(f.i)) continue;
+    const k = `${f.mesa}|${f.total.toFixed(2)}`;
+    if (!porMesaTotal.has(k)) porMesaTotal.set(k, []);
+    porMesaTotal.get(k).push(f);
+  }
+  const pares2 = [];
+  for (const [posId, v] of ventas) {
+    if (personas.has(posId)) continue;
+    for (const f of porMesaTotal.get(`${String(v.mesa ?? '')}|${v.total.toFixed(2)}`) || []) {
+      const dt = distancia(v, f);
+      if (dt <= 12 * 3600 * 1000) pares2.push({ i: f.i, posId, orden: [0, dt] });
+    }
+  }
+  asignar(pares2);
+  return personas;
+}
+
 // Normaliza una clave de columna: quita tildes, lowercase, special chars → espacio
 function normalizeKey(k) {
   return k.toString()
@@ -395,6 +493,10 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
 
         debugLog.push(`Café path: ${Object.keys(ticketsPorId).length} tickets únicos construidos desde Pagos`);
 
+        // Las personas están en la hoja Ventas, que no trae el número de venta: se cruzan.
+        const personasPorVenta = cruzarPersonas(rowsVentas, rowsPagos);
+        debugLog.push(`Café path: ${personasPorVenta.size} ventas cruzadas con la hoja Ventas (personas)`);
+
         for (const t of Object.values(ticketsPorId)) {
           const upsert = await client.query(`
             INSERT INTO ventas_tickets (
@@ -413,13 +515,14 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
               caja              = EXCLUDED.caja,
               mesa              = EXCLUDED.mesa,
               sala              = EXCLUDED.sala,
+              personas          = COALESCE(EXCLUDED.personas, ventas_tickets.personas),
               archivo_import_id = EXCLUDED.archivo_import_id,
               updated_at        = NOW()
             RETURNING id, (xmax = 0) AS inserted
           `, [
             local_id, t.pos_id, soloFecha(t.fecha), t.fecha, null,
             t.caja, 'cerrada',
-            null, t.mesa, t.sala, null, null, null,
+            null, t.mesa, t.sala, personasPorVenta.get(t.pos_id) ?? null, null, null,
             t.medio_pago, Math.round(t.total * 100) / 100, false,
             null, null, null, null,
             importId,
@@ -1417,5 +1520,5 @@ router.get('/docenas', requireAuth, async (req, res) => {
 
 module.exports = router;
 // Para los scripts de reparación, que releen los Excel guardados con la misma lógica.
-module.exports.helpers = { parseExcelDate, parseFiscal, readSheetNorm, normalizeNombre };
+module.exports.helpers = { parseExcelDate, parseFiscal, readSheetNorm, normalizeNombre, cruzarPersonas };
 

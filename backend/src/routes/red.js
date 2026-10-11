@@ -8,6 +8,7 @@ const { comoVenimos, productos80, parametrosIpc } = require('../services/comoVen
 const { vendedores } = require('../services/vendedores');
 const { diasHoras } = require('../services/diasHoras');
 const { mesAMes } = require('../services/mesAMes');
+const { crecimiento } = require('../services/crecimiento');
 
 const router = express.Router();
 const TZ = 'America/Argentina/Mendoza';
@@ -2683,6 +2684,17 @@ router.get('/como-venimos', requireAuth, async (req, res) => {
     res.json({ ok: true, data });
   } catch (err) {
     console.error('[red/como-venimos]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Crecimiento: mismos locales y zonas contra lo nuevo, con y sin inflación ──
+router.get('/crecimiento', requireAuth, async (req, res) => {
+  try {
+    const modo = req.query.modo === 'mes' ? 'mes' : 'anio';
+    res.json({ ok: true, data: await crecimiento(modo) });
+  } catch (err) {
+    console.error('[red/crecimiento]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

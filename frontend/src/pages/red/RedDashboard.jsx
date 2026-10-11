@@ -7,10 +7,12 @@ import MesAMesSection from './secciones/MesAMesSection';
 import ProductosSection from './secciones/ProductosSection';
 import VendedoresSection from './secciones/VendedoresSection';
 import DiasHorasSection from './secciones/DiasHorasSection';
+import CrecimientoSection from './secciones/CrecimientoSection';
 import { colorDeTienda, shortName, ordenarTiendas } from './redUtils';
 
 const TABS = [
   { id: 'como',     label: 'Cómo venimos' },
+  { id: 'crecimiento', label: 'Crecimiento' },
   { id: 'mes',      label: 'Mes a mes' },
   { id: 'productos', label: 'Productos' },
   { id: 'vendedores', label: 'Vendedores' },
@@ -149,6 +151,7 @@ export default function RedDashboard() {
         </div>
       )}
       {activeTab === 'como'     && <ComoVenimosSection selId={selId} />}
+      {activeTab === 'crecimiento' && <CrecimientoSection />}
       {activeTab === 'mes'      && <MesAMesSection selId={selId} />}
       {activeTab === 'productos' && <ProductosSection />}
       {activeTab === 'vendedores' && <VendedoresSection selId={selId} locales={locales} />}

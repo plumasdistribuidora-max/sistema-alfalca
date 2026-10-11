@@ -60,6 +60,13 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       WHERE id = $5 RETURNING *
     `, [nombre, tipo, direccion, activo, req.params.id, objetivo]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Local no encontrado' });
+    // La zona se cambia solo si viene en el pedido (null = el local es su propia zona).
+    if ('zona_de' in req.body) {
+      const zona = req.body.zona_de ? Number(req.body.zona_de) : null;
+      if (zona === Number(req.params.id)) return res.status(400).json({ ok: false, error: 'Un local no puede ser zona de sí mismo' });
+      const { rows: [z] } = await pool.query('UPDATE locales SET zona_de = $1 WHERE id = $2 RETURNING *', [zona, req.params.id]);
+      return res.json({ ok: true, data: z });
+    }
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
     console.error(err);

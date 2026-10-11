@@ -307,4 +307,4 @@ async function productos80() {
   };
 }
 
-module.exports = { comoVenimos, productos80, parametrosIpc, _periodos: periodos, _atras: atras };
+module.exports = { comoVenimos, productos80, parametrosIpc, diarios, periodos, desdeComparable, atras, _periodos: periodos, _atras: atras };

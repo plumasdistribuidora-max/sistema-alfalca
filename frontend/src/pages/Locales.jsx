@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const TIPOS = ['alfajores', 'cafeteria'];
 
-function Modal({ local, onClose, onSaved }) {
+function Modal({ local, locales, onClose, onSaved }) {
   const isEdit = !!local?.id;
   const [form, setForm]     = useState({ codigo: '', nombre: '', tipo: 'alfajores', direccion: '', ...local });
   const [loading, setLoading] = useState(false);
@@ -62,6 +62,19 @@ function Modal({ local, onClose, onSaved }) {
               Cuánto puede pesar el costo de las horas (sin cargas sociales) sobre la venta neta sin IVA del día. Hoy: 10 % en las tiendas, 25 % en el café.
             </p>
           </div>
+          {isEdit && (
+            <div>
+              <label className="label">Zona</label>
+              <select className="input" value={form.zona_de ?? ''}
+                      onChange={e => setForm(f => ({ ...f, zona_de: e.target.value ? Number(e.target.value) : null }))}>
+                <option value="">Es su propia zona</option>
+                {locales.filter(l => l.id !== local.id && !l.zona_de).map(l => <option key={l.id} value={l.id}>Junto con {l.nombre}</option>)}
+              </select>
+              <p className="text-xs text-ahg-text/50 mt-1">
+                Un local abierto al lado de otro se compara junto con él en la solapa Crecimiento del dashboard. Sheraton va con Amigorena.
+              </p>
+            </div>
+          )}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" className="btn-primary flex-1" disabled={loading}>
@@ -114,6 +127,7 @@ export default function Locales() {
                 <th className="table-th">Código</th>
                 <th className="table-th">Tipo</th>
                 <th className="table-th">Dirección</th>
+                <th className="table-th">Zona</th>
                 <th className="table-th text-right">Meta personal / venta neta</th>
                 <th className="table-th">Estado</th>
                 {isAdmin && <th className="table-th">Acciones</th>}
@@ -130,6 +144,7 @@ export default function Locales() {
                     </span>
                   </td>
                   <td className="table-td text-stone-500">{l.direccion || '-'}</td>
+                  <td className="table-td text-stone-500">{l.zona_de ? `Con ${locales.find(x => x.id === l.zona_de)?.nombre || '—'}` : 'Propia'}</td>
                   <td className="table-td text-right tabular-nums">{l.objetivo_horas_ventas ? `${Number(l.objetivo_horas_ventas)}%` : '-'}</td>
                   <td className="table-td">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${l.activo ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-500'}`}>
@@ -155,7 +170,7 @@ export default function Locales() {
       </div>
 
       {modal !== null && (
-        <Modal local={modal?.id ? modal : null} onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />
+        <Modal local={modal?.id ? modal : null} locales={locales} onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />
       )}
     </div>
   );

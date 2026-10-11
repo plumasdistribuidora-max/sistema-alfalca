@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Isotipo } from '../../components/Marca';
 import api from '../../api';
+import ComoVenimosSection from './secciones/ComoVenimosSection';
 import ResumenSection  from './secciones/ResumenSection';
 import TiendasSection  from './secciones/TiendasSection';
 import AnalisisSection from './secciones/AnalisisSection';
 
 const TABS = [
+  { id: 'como',     label: 'Cómo venimos' },
   { id: 'resumen',  label: 'Resumen'  },
   { id: 'tiendas', label: 'Tiendas'  },
   { id: 'analisis',label: 'Análisis' },
@@ -36,7 +38,7 @@ function rangoTexto(u) {
 }
 
 export default function RedDashboard() {
-  const [activeTab, setActiveTab]     = useState('resumen');
+  const [activeTab, setActiveTab]     = useState('como');
   const [ultimoImport, setUltimoImport] = useState(undefined); // undefined = cargando, null = sin datos
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function RedDashboard() {
 
   return (
     <div className="space-y-0 -mt-2">
-      {/* ── Header violeta ─────────────────────────────────────────────────── */}
+      {/* ── Cabecera ──────────────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#45484c' }}>
         {/* Título + badge */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-3">
@@ -64,7 +66,7 @@ export default function RedDashboard() {
                 className="text-lg sm:text-xl font-bold text-white leading-tight"
                 style={{ fontFamily: 'Nunito, sans-serif' }}
               >
-                Alfalca · Red de tiendas
+                Entre Dos
               </h1>
               <p
                 className="text-white/50 uppercase tracking-widest leading-tight"
@@ -110,6 +112,7 @@ export default function RedDashboard() {
       </div>
 
       {/* ── Contenido del tab activo ────────────────────────────────────────── */}
+      {activeTab === 'como'     && <ComoVenimosSection />}
       {activeTab === 'resumen'  && <ResumenSection />}
       {activeTab === 'tiendas' && <TiendasSection />}
       {activeTab === 'analisis' && <AnalisisSection />}

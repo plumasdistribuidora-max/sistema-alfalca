@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import { formatARS, formatDate, firstOfMonth, today } from '../../utils/format';
 
@@ -16,8 +17,12 @@ export default function VentasListado() {
   const [meta, setMeta]         = useState({ total: 0, page: 1, limit: 50 });
   const [loading, setLoading]   = useState(false);
 
+  // El tablero de Entre Dos abre esta pantalla ya filtrada ("Ver tickets" de una tienda).
+  const [params] = useSearchParams();
+  const fecha = k => (/^\d{4}-\d{2}-\d{2}$/.test(params.get(k) || '') ? params.get(k) : null);
+
   const [filters, setFilters]   = useState({
-    local_id: '', desde: firstOfMonth(), hasta: today(),
+    local_id: params.get('local_id') || '', desde: fecha('desde') || firstOfMonth(), hasta: fecha('hasta') || today(),
     estado: 'cerrada', fiscal: '', medio_pago: '',
     page: 1, limit: 50,
   });

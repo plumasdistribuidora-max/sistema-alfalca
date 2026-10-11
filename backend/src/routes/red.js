@@ -4,6 +4,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { generarConclusiones } = require('../utils/conclusiones');
+const { comoVenimos, parametrosIpc } = require('../services/comoVenimos');
 
 const router = express.Router();
 const TZ = 'America/Argentina/Mendoza';
@@ -2643,6 +2644,40 @@ router.get('/eerr/anio', requireAuth, async (req, res) => {
     res.json({ ok: true, data: { local: rows[0], anio, meses: meses.map((m, i) => ({ mes: m, ...resumenes[i] })) } });
   } catch (err) {
     console.error('[red/eerr/anio]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Cómo venimos: el mes en curso o el año, por local ───────────────────────
+// Ver services/comoVenimos.js. ?modo=mes (por defecto) | anio
+router.get('/como-venimos', requireAuth, async (req, res) => {
+  try {
+    const modo = req.query.modo === 'anio' ? 'anio' : 'mes';
+    const data = await comoVenimos(modo);
+    if (!data) return res.json({ ok: true, data: null });
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('[red/como-venimos]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// La inflación interanual del INDEC que usa "Cómo venimos". La cambia solo el dueño,
+// cuando el INDEC publica el dato del mes.
+router.put('/parametros/ipc', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const valor = Number(String(req.body?.valor ?? '').replace(',', '.'));
+    const mes   = String(req.body?.mes ?? '');
+    if (!Number.isFinite(valor) || valor < 0 || valor > 1000)
+      return res.status(400).json({ ok: false, error: 'La inflación tiene que ser un porcentaje, por ejemplo 33,5' });
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes))
+      return res.status(400).json({ ok: false, error: 'Elegí el mes del dato' });
+    await pool.query(`
+      INSERT INTO parametros (clave, valor, updated_at) VALUES ('ipc_interanual', $1, NOW()), ('ipc_mes', $2, NOW())
+      ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = NOW()`, [String(valor), mes]);
+    res.json({ ok: true, data: await parametrosIpc() });
+  } catch (err) {
+    console.error('[red/parametros/ipc]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

@@ -49,8 +49,8 @@ export default function Recupero({ D, eerr, comPct }) {
         <span className="cap">Cada mes se pasa con el promedio del dólar de ese mes; la inversión y el stock, con el del día.</span>
       </div>
 
-      <div className="card rc-hero">
-        <div className="l">Recuperado del local</div>
+      <div className="card rc-hero dark">
+        <div className="l">Recupero de la inversión · lo que costó el local</div>
         {local ? <>
           <div className="big">{pc(pct, 1)}</div>
           <div className="rc-bar"><i style={{ width: `${Math.min(Math.max(pct, 0), 1) * 100}%` }} /></div>

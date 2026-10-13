@@ -194,3 +194,9 @@
 .kk .rc-form input[type=file]{padding:5px}
 .kk .rc-btn{font-size:12px;font-weight:600;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:7px;padding:3px 8px;cursor:pointer}
 .kk .rc-btn.danger{background:var(--down);border-color:var(--down);color:#fff}
+.kk .rc-hero.dark{background:var(--head);color:#fff}
+.kk .rc-hero.dark .l,.kk .rc-hero.dark .rc-k span,.kk .rc-hero.dark .sub{color:rgba(255,255,255,.7)}
+.kk .rc-hero.dark .sub b{color:#fff}
+.kk .rc-hero.dark .rc-bar{background:rgba(255,255,255,.15)}
+.kk .rc-hero.dark .rc-bar i{background:#6ee7b7}
+.kk .rc-hero.dark .rc-k div{border-color:rgba(255,255,255,.15)}

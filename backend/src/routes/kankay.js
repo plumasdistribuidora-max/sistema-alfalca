@@ -1,4 +1,4 @@
-// Kankay: dashboard, import del Excel de Dux, historial, estado de resultados y avisos.
+// Kankay: dashboard, import del Excel de Dux, historial, estado de resultados, recupero y avisos.
 // Todo es solo del dueño: el router se cierra en index.js.
 
 const express = require('express');
@@ -7,6 +7,7 @@ const pool    = require('../config/db');
 const { uploadToR2 } = require('../config/r2');
 const kankay  = require('../services/kankay');
 const kAvisos = require('../services/kankayAvisos');
+const recupero = require('../services/kankayRecupero');
 const { enSegundoPlano } = require('../services/avisos');
 
 const router = express.Router();
@@ -112,6 +113,60 @@ router.put('/comision', async (req, res) => {
   } catch (err) {
     console.error('[kankay/comision]', err);
     res.status(500).json({ ok: false, error: 'No se pudo guardar' });
+  }
+});
+
+// ---------------------------------------------------------------- Recupero de la inversión
+
+router.get('/recupero', async (_req, res) => {
+  try {
+    res.json({ ok: true, data: await recupero.recupero() });
+  } catch (err) {
+    console.error('[kankay/recupero]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo calcular el recupero' });
+  }
+});
+
+router.post('/inversiones', async (req, res) => {
+  try {
+    await recupero.agregarInversion(req.body || {}, req.user.id);
+    res.json({ ok: true, data: await recupero.recupero() });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+router.delete('/inversiones/:id', async (req, res) => {
+  try {
+    await recupero.borrarInversion(Number(req.params.id));
+    res.json({ ok: true, data: await recupero.recupero() });
+  } catch (err) {
+    console.error('[kankay/inversiones]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo borrar' });
+  }
+});
+
+router.post('/stock', upload.single('archivo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'Falta el archivo' });
+  const archivo = req.file.originalname;
+  if (!/\.xlsx?$/i.test(archivo)) return res.status(400).json({ ok: false, error: 'Tiene que ser un Excel (.xls o .xlsx)' });
+  const deposito = String(req.body?.deposito || '').trim().slice(0, 60);
+  if (!deposito) return res.status(400).json({ ok: false, error: 'Poné de qué depósito es' });
+  try {
+    const s = await recupero.guardarStock(req.file.buffer, archivo, deposito, req.user.id);
+    res.json({ ok: true, data: { subido: s, recupero: await recupero.recupero() } });
+  } catch (err) {
+    console.error('[kankay/stock]', err);
+    res.status(400).json({ ok: false, error: err.message || 'No se pudo leer el Excel' });
+  }
+});
+
+router.put('/stock/deposito', async (req, res) => {
+  try {
+    await recupero.renombrarDeposito(req.body?.de, req.body?.a);
+    res.json({ ok: true, data: await recupero.recupero() });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
   }
 });
 

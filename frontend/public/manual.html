@@ -1872,6 +1872,19 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li>Mientras un mes no tenga gastos cargados, sus resultados dicen <em>faltan gastos</em>.</li>
       </ul>
 
+      <h3>Recupero de la inversión</h3>
+      <p>
+        La solapa <strong>Recupero</strong>, al lado del estado de resultados, muestra cuánto de lo que costó el local
+        ya volvió con las ganancias de Kankay. Todo está en <strong>dólares oficiales BNA</strong> (venta): el sistema los trae solo.
+      </p>
+      <ul class="simple">
+        <li><strong>Recuperado</strong> = el resultado del mes del estado de resultados, con la nota de crédito, sumado mes a mes. Cada mes se pasa con el promedio del dólar de ese mes. Un mes entra cuando terminó y tiene los gastos cargados.</li>
+        <li><strong>Cuántos meses faltan</strong>: lo que falta del local dividido por el resultado promedio de los últimos 3 meses, y el mes en que se recuperaría si sigue igual.</li>
+        <li><strong>Lo que pusimos</strong>: el local y la mercadería inicial, cargados a mano en pesos o en dólares. Los pesos se pasan con el dólar del día. Las compras para reponer no son inversión: ya están en el costo de mercadería.</li>
+        <li><strong>Stock</strong>: subí la <em>Consulta Stock</em> de Dux, un Excel por depósito, y elegí de qué depósito es. Se valoriza a costo sin IVA. Los combos no cuentan, porque Dux descuenta sus productos cuando se venden. El nombre del depósito se cambia escribiendo encima.</li>
+        <li><strong>Si cerráramos hoy</strong>: cuánta plata hay en el bolsillo (resultado − local − stock) y cuánto quedaría vendiendo el stock a costo (resultado − local).</li>
+      </ul>
+
       <h3>Avisos de Kankay</h3>
       <p>
         En la cabecera del dashboard, el botón <strong>Avisos de Kankay</strong> abre la lista de avisos que te pueden

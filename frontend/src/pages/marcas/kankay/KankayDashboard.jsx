@@ -7,6 +7,7 @@ import { esDueno } from '../../../utils/roles';
 import { MARCAS } from '../../../marcas';
 import { Proximamente } from '../../MarcaProximamente';
 import ElMes from './ElMes';
+import Recupero from './Recupero';
 import { MesAMes, Productos, Vendedores, DiasHoras, Eerr } from './Secciones';
 import { fmt, pc, mesN, cap, MES, enCurso, diaHasta } from './kankayUtils';
 import './kankay.css';
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'vend', label: 'Vendedores', wip: true },
   { id: 'dh',   label: 'Días y horas' },
   { id: 'eerr', label: 'Estado de resultados' },
+  { id: 'rec',  label: 'Recupero' },
 ];
 
 function actualizado(ts) {
@@ -83,6 +85,7 @@ function KankayDashboard() {
       {tab === 'vend' && <Vendedores D={D} />}
       {tab === 'dh'   && <DiasHoras D={D} />}
       {tab === 'eerr' && <Eerr D={D} eerr={D.eerr} comPct={comPct} onCambio={onCambioEerr} />}
+      {tab === 'rec'  && <Recupero D={D} eerr={D.eerr} comPct={comPct} />}
     </div>
   );
 }

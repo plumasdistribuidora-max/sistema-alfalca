@@ -11,6 +11,7 @@ const { productosActivos, faltantesVencimientos } = require('../utils/vencimient
 const { paraContar, repasoDe, faltantesCocina, sincronizarCocina } = require('../utils/cocina');
 const { camposApertura, tieneApertura, aperturaBloqueada, codigosFotoApertura } = require('../utils/etapas');
 const { faltantesPesaje } = require('../utils/pesaje');
+const { conFoto, guardarFoto, normalizarNumero, buscarRepetidas, respuestaRepetida } = require('../utils/facturas');
 
 const router = express.Router();
 
@@ -651,13 +652,20 @@ router.delete('/adjuntos/:id', requireAuth, async (req, res) => {
 
 // ── POST /:id/facturas ────────────────────────────────────────────────────────
 
-router.post('/:id/facturas', requireAuth, async (req, res) => {
+// Llega como multipart: la foto de la factura es obligatoria (Martín, 14/10/2026).
+// Si parece repetida contesta 409 con la que ya está; se guarda igual reenviando con
+// confirmar_repetida.
+router.post('/:id/facturas', requireAuth, conFoto, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { proveedor_id, numero, fecha, total, items } = req.body;
+    const { proveedor_id, fecha, total, items } = req.body;
     if (!proveedor_id) {
       return res.status(400).json({ ok: false, error: 'Elegí el proveedor de la lista' });
     }
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Falta la foto de la factura' });
+    const num = normalizarNumero(req.body.numero, req.body.sin_numero);
+    if (num.error) return res.status(400).json({ ok: false, error: num.error });
+    if (!(Number(total) > 0)) return res.status(400).json({ ok: false, error: 'Falta el total de la factura' });
 
     // El proveedor ya no es texto libre: viene de la lista que carga el encargado.
     // De su ficha sale también el vencimiento, que es lo que después ordena los pagos.
@@ -691,14 +699,23 @@ router.post('/:id/facturas', requireAuth, async (req, res) => {
     vence.setDate(vence.getDate() + prov.rows[0].plazo_dias);
     const vencimiento = `${vence.getFullYear()}-${String(vence.getMonth() + 1).padStart(2, '0')}-${String(vence.getDate()).padStart(2, '0')}`;
 
+    if (!req.body.confirmar_repetida) {
+      const repetidas = await buscarRepetidas(pool, {
+        proveedorId: proveedor_id, numero: num.numero, fecha: fechaFactura, total,
+      });
+      if (repetidas.length) return respuestaRepetida(res, repetidas);
+    }
+
     await client.query('BEGIN');
     const f = await client.query(`
       INSERT INTO facturas (local_id, reporte_id, proveedor, proveedor_id, numero, fecha, vencimiento, total, created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
     `, [
-      reporte.local_id, reporte.id, prov.rows[0].nombre, proveedor_id, numero?.trim() || null,
+      reporte.local_id, reporte.id, prov.rows[0].nombre, proveedor_id, num.numero,
       fechaFactura, vencimiento, Number(total) || 0, req.user.id,
     ]);
+    const foto = await guardarFoto(req.file, f.rows[0].id, reporte.local_id);
+    await client.query('UPDATE facturas SET r2_key = $1, foto_mime = $2 WHERE id = $3', [foto.key, foto.mime, f.rows[0].id]);
 
     for (const it of (items || [])) {
       if (!it.producto?.trim()) continue;

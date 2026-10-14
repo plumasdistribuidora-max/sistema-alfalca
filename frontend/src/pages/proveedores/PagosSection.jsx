@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import api from '../../api';
-import { plata, Tile, ChipMedio, Selector, fechaCorta, hoyStr, sumarDias, medioLabel } from './comunes';
+import { plata, Tile, ChipMedio, Selector, fechaCorta, hoyStr, sumarDias, medioLabel, VerFoto } from './comunes';
 import { pdfPagadoDelDia } from './pdfPagos';
 
 // El registro de lo que se pagó: con qué, cuándo y quién lo anotó. Un pago mal
@@ -200,6 +200,7 @@ export default function PagosSection({ proveedores = [], filtro, setFiltro, onCa
                               <tr key={p.id} className="border-b border-ahg-accent/20 last:border-0">
                                 <td className="table-td">
                                   {p.factura_numero || <span className="text-ahg-text/30">sin número</span>}
+                                  {p.tiene_foto && <VerFoto facturaId={p.factura_id} />}
                                   <span className="block text-xs text-ahg-text/40">del {fechaPago(p.factura_fecha)}</span>
                                 </td>
                                 <td className="table-td text-sm">{p.local_nombre || '—'}</td>

@@ -823,7 +823,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
                 </div>
                 <div>
                   <div style="font-size:10px;font-weight:700">Facturas que entraron</div>
-                  <div style="margin-top:3px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#45484c;font-weight:700">+ Agregar factura</div>
+                  <div style="margin-top:3px;text-align:center;border:1px dashed #D6CCFB;border-radius:7px;padding:4px;font-size:10px;color:#45484c;font-weight:700">+ Cargar factura</div>
                 </div>
               </div>
             </div>
@@ -841,7 +841,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <li><div><strong>Contestá las preguntas.</strong> Las que tienen asterisco rojo son obligatorias.</div></li>
             <li><div><strong>Cargá las horas del equipo:</strong> elegís a la persona de la lista y ponés cuántas horas hizo. Primero aparecen los de ese local; los de otros locales están más abajo, con el nombre del local entre paréntesis.</div></li>
             <li><div><strong>Sacá las fotos que te pida.</strong> Se achican solas antes de subirse, así que andan aunque la señal esté floja.</div></li>
-            <li><div><strong>Si entró una factura</strong>, tocá <em>+ Agregar factura</em>, <strong>elegí el proveedor de la lista</strong> y cargá número, renglones y total.</div></li>
+            <li><div><strong>Si entró una factura</strong>, tocá <em>+ Cargar factura</em>, <strong>sacale una foto</strong> (sin foto no se guarda), elegí el proveedor de la lista y cargá número, renglones y total.</div></li>
             <li><div>Tocá <strong>Enviar al Encargado</strong>. Cuando aparece la pantalla verde con el tilde, terminaste.</div></li>
           </ol>
 
@@ -988,6 +988,13 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <p>Esto es lo que después explica por qué la caja no coincide con la venta. Aparece
         en el <a href="#dia">Reporte del día</a>, con el total.</p>
       </div>
+
+      <h3>La factura: foto, número y si ya estaba cargada</h3>
+      <ul class="simple">
+        <li><strong>La foto va primero y es obligatoria.</strong> Que se vea entera, derecha y con buena luz: es lo que el encargado mira si un número o un total quedó mal.</li>
+        <li><strong>El número va en dos casilleros</strong>: el punto de venta (por ejemplo <em>0027</em>) y el número (<em>13674</em>), como vienen impresos. Los ceros de adelante los completa el sistema. Si es una nota de pedido o un remito sin número, tildá <em>No tiene número</em>.</li>
+        <li><strong>Si ya está cargada, te avisa.</strong> Cuando hay otra factura del mismo proveedor con ese número, o del mismo día por el mismo total, aparece en amarillo cuál es. Si es la misma, cancelá. Si es otra (otra entrega), tocá <em>Es otra, guardar igual</em>.</li>
+      </ul>
 
       <h3>La factura te avisa si no cierra</h3>
       <p>
@@ -1342,17 +1349,26 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <h3>Facturas pendientes — todo lo que se debe</h3>
       <p>
         Arriba, cuatro números: la deuda total, cuánto hay de facturas de <strong>más de 30
-        días</strong>, cuántos días lleva la más vieja y cuántos proveedores tienen saldo.
+        días</strong>, cuántos días lleva la más vieja y cuántas hay <strong>para revisar</strong>
+        porque parecen repetidas.
         Abajo, la lista, de la más vieja a la más nueva. La columna <em>Hace</em> dice cuántos
         días pasaron desde la fecha de la factura: verde hasta una semana, ámbar hasta un mes,
         rojo pasado el mes. Cada fila dice también de dónde salió la factura — del
-        <em>formulario</em> de un turno o cargada <em>a mano</em> — y quién la cargó.
+        <em>formulario</em> de un turno o cargada <em>a mano</em> — y quién la cargó. Al lado del
+        número, <em>foto</em> abre la foto de la factura (las de la planilla vieja no tienen).
+      </p>
+      <p>
+        <strong>Las que parecen repetidas</strong> salen en amarillo con <em>¿Repetida?</em>: hay otra
+        del mismo proveedor con el mismo número, o del mismo día por el mismo total. Con el filtro
+        <em>Para revisar</em> se ven solas. Si son la misma, borrá una. Si no, tocá <em>Es otra</em> y
+        deja de avisar.
       </p>
       <ol class="pasos">
-        <li><div><strong>Para anotar un pago</strong>, tocá <em>Anotar pago</em> en la fila de la factura. Viene puesto el saldo completo y la forma de pago del proveedor.</div></li>
+        <li><div><strong>Para anotar un pago</strong>, tocá <em>Anotar pago</em> en la fila de la factura. Viene puesto el saldo completo, la forma de pago del proveedor y <strong>la fecha de su último día de cobro</strong> (si cobra los viernes y hoy es miércoles, el viernes pasado): cambiala si pagaste otro día.</div></li>
+        <li><div><strong>Por banco o cheque, el número de transferencia o de cheque es obligatorio.</strong> En efectivo no hace falta.</div></li>
         <li><div><strong>Si pagaste solo una parte</strong>, cambiá el monto: abajo te dice cuánto queda pendiente y la factura sigue en la lista con el saldo.</div></li>
         <li><div><strong>Si la fecha que elegís no es día de cobro</strong> de ese proveedor, te lo avisa en ámbar y te dice cuál es el próximo. No te frena.</div></li>
-        <li><div><strong>Para pagar varias juntas</strong>, tildá la casilla de cada una (o la de arriba de todo, que tilda todas las que se ven con el filtro puesto). Abajo aparece cuántas son y cuánto suman, y con <em>Anotar los pagos elegidos</em> se anotan todas de una. En esa ventana elegís <strong>con qué se pagó cada proveedor</strong> (viene marcada la habitual de su ficha, pero la cambiás ahí mismo, o <em>todos con…</em> para poner la misma a todos).</div></li>
+        <li><div><strong>Para pagar varias juntas</strong>, tildá la casilla de cada una (o la de arriba de todo, que tilda todas las que se ven con el filtro puesto). Abajo aparece cuántas son y cuánto suman, y con <em>Anotar los pagos elegidos</em> se anotan todas de una. En esa ventana elegís <strong>con qué se pagó cada proveedor</strong> (viene marcada la habitual de su ficha, pero la cambiás ahí mismo, o <em>todos con…</em> para poner la misma a todos) y escribís <strong>el número de transferencia o cheque una vez por proveedor</strong>: una transferencia a Hojaldre cubre todas sus facturas.</div></li>
         <li><div><strong>Si una factura está mal cargada</strong>, debajo de <em>Anotar pago</em> tenés <em>Editar</em> y <em>Borrar</em>. Editar abre la misma pantalla de la carga a mano con todo lo que tiene la factura (proveedor, número, local, fecha, renglones y total), venga del turno o de a mano. Borrar pide confirmación y no se puede deshacer.</div></li>
       </ol>
       <div class="aviso ojo">
@@ -1368,8 +1384,10 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </div>
       <p>
         El botón <em>+ Cargar factura a mano</em> es para lo que no pasa por el formulario del
-        turno: alquiler, servicios, una compra puntual. Proveedor, número, local, fecha, detalle
-        y total; nada más.
+        turno: alquiler, servicios, una compra puntual. Lleva lo mismo que la del turno: <strong>la
+        foto, obligatoria</strong>, el número en dos casilleros y el aviso si ya estaba cargada. Además
+        se elige el local y la fecha. Al corregir una factura vieja que no tiene foto, se puede agregar
+        o guardar sin ella.
       </p>
       <p>
         En <em>De dónde salió</em>, además de <em>Formulario</em> y <em>A mano</em>, puede decir
@@ -2007,7 +2025,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <tr><td><strong>Checklist</strong></td><td>Una lista de ítems para tildar.</td></tr>
             <tr><td><strong>Horas del equipo</strong></td><td>La gente del local con un casillero de horas al lado.</td></tr>
             <tr><td><strong>Fotos</strong></td><td>Botón de cámara, con un máximo configurable.</td></tr>
-            <tr><td><strong>Facturas</strong></td><td>El formulario de factura con proveedor, renglones y total.</td></tr>
+            <tr><td><strong>Facturas</strong></td><td>El formulario de factura: foto obligatoria, proveedor, número, renglones y total.</td></tr>
             <tr><td><strong>Mantenimiento con seguimiento</strong></td><td>Lo pendiente del local ya cargado, con <em>Ya se solucionó</em> / <em>Sigue igual</em>, y un botón para agregar algo nuevo, que pide el rubro y el detalle. Cada cosa queda como ítem hasta que alguien la marque resuelta.</td></tr>
             <tr><td><strong>Pesaje de café</strong></td><td>Kilos en la bolsa abierta y en las bolsas cerradas, cada uno con su foto, y el total abajo. En el formulario de barista el título cambia según el turno: <em>al empezar el día</em> a la mañana, <em>al terminar</em> a la tarde.</td></tr>
           </tbody>

@@ -6,6 +6,9 @@ import Campo, { soloNumero, FotoAdjunta } from './campos';
 import { UNIDADES, precioPor } from '../../utils/unidades';
 import { campoVisible } from './pesaje';
 import { camposApertura, camposEntrega, tieneApertura, codigosFotoApertura, resumenApertura, hora } from './etapas';
+import {
+  NumeroFactura, partirNumero, armarNumero, numeroCompleto, ElegirFoto, AvisoRepetida,
+} from '../proveedores/comunes';
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 const money = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -16,8 +19,14 @@ function hoyStr() {
 }
 const fechaLarga = f => FECHA_LARGA.format(new Date(`${f}T12:00:00`));
 
+// La foto es obligatoria y va primero (Martín, 14/10/2026): sin ella, si un número o
+// un total quedó mal, no hay contra qué mirarlo.
 function ModalFactura({ proveedores, onGuardar, onCerrar }) {
-  const [f, setF] = useState({ proveedor_id: '', numero: '', total: '', items: [{}] });
+  const [f, setF] = useState({ proveedor_id: '', total: '', items: [{}] });
+  const [numero, setNumero] = useState(partirNumero(null));
+  const [foto, setFoto] = useState(null);
+  const [repetidas, setRepetidas] = useState(null);
+  const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   const subtotal = f.items.reduce(
@@ -29,22 +38,42 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
     setF(x => ({ ...x, items: x.items.map((it, idx) => idx === i ? { ...it, [campo]: v } : it) }));
   }
 
-  async function guardar(e) {
-    e.preventDefault();
+  async function guardar(e, confirmar = false) {
+    e?.preventDefault();
+    if (!foto) { setError('Falta la foto de la factura'); return; }
+    if (!numeroCompleto(numero)) { setError('Poné el punto de venta y el número, o tildá que no tiene número'); return; }
     setGuardando(true);
-    await onGuardar({ ...f, items: f.items.filter(i => i.producto?.trim()) });
-    setGuardando(false);
+    setError('');
+    const fd = new FormData();
+    fd.append('datos', JSON.stringify({
+      ...f,
+      numero: armarNumero(numero),
+      sin_numero: numero.sin,
+      items: f.items.filter(i => i.producto?.trim()),
+    }));
+    fd.append('foto', foto);
+    if (confirmar) fd.append('confirmar_repetida', 'true');
+    try {
+      await onGuardar(fd);
+    } catch (err) {
+      if (err.response?.status === 409 && err.response.data?.repetida) setRepetidas(err.response.data.repetida);
+      else setError(err.response?.data?.error || err.message || 'No se pudo guardar la factura');
+      setGuardando(false);
+    }
   }
+  const sinRepetida = fn => v => { fn(v); setRepetidas(null); };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-3 overflow-y-auto">
       <form onSubmit={guardar} className="bg-white rounded-2xl w-full max-w-md my-4 p-5 space-y-4">
         <h2 className="text-lg font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>Nueva factura</h2>
 
+        <ElegirFoto archivo={foto} onElegir={setFoto} />
+
         <div>
           <label className="label">Proveedor</label>
           <select className="input" required value={f.proveedor_id}
-                  onChange={e => setF(x => ({ ...x, proveedor_id: e.target.value }))}>
+                  onChange={e => { setF(x => ({ ...x, proveedor_id: e.target.value })); setRepetidas(null); }}>
             <option value="">Elegí el proveedor…</option>
             {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
@@ -54,11 +83,7 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
               : 'Todavía no hay proveedores cargados. Avisale al encargado.'}
           </p>
         </div>
-        <div>
-          <label className="label">Número de factura</label>
-          <input className="input" value={f.numero} placeholder="A 0003-00018472"
-                 onChange={e => setF(x => ({ ...x, numero: e.target.value }))} />
-        </div>
+        <NumeroFactura valor={numero} onChange={sinRepetida(setNumero)} />
 
         <div>
           <label className="label">
@@ -96,7 +121,7 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
           <label className="label">Total de la factura</label>
           <input className="input tabular-nums" inputMode="numeric" required
                  value={f.total === '' ? '' : money.format(f.total)}
-                 onChange={e => setF(x => ({ ...x, total: soloNumero(e.target.value) }))} />
+                 onChange={e => { setF(x => ({ ...x, total: soloNumero(e.target.value) })); setRepetidas(null); }} />
         </div>
 
         {f.items.some(i => i.producto?.trim()) && (
@@ -114,9 +139,15 @@ function ModalFactura({ proveedores, onGuardar, onCerrar }) {
           </div>
         )}
 
+        {repetidas && (
+          <AvisoRepetida repetidas={repetidas} guardando={guardando} onGuardarIgual={() => guardar(null, true)} />
+        )}
+        {/* Abajo, al lado del botón: en el celular el formulario es largo y arriba no se ve. */}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
         <div className="flex gap-2">
           <button type="button" onClick={onCerrar} className="btn-secondary flex-1">Cancelar</button>
-          <button type="submit" disabled={guardando} className="btn-primary flex-1">
+          <button type="submit" disabled={guardando || !!repetidas} className="btn-primary flex-1">
             {guardando ? 'Guardando…' : 'Guardar factura'}
           </button>
         </div>
@@ -380,18 +411,15 @@ export default function MiReporte() {
     }
   }
 
-  async function agregarFactura(f) {
-    try {
-      let id = reporteId;
-      if (!id) id = await guardar(turno, respuestas);
-      if (!id) throw new Error('Elegí primero el turno');
-      await api.post(`/reportes/${id}/facturas`, f);
-      const r = await api.get(`/reportes/${id}`);
-      setFacturas(r.data.data.facturas || []);
-      setModalFactura(false);
-    } catch (err) {
-      setError(err.response?.data?.error || 'No se pudo guardar la factura');
-    }
+  // Los errores los muestra el modal: ahí también se resuelve el aviso de repetida.
+  async function agregarFactura(fd) {
+    let id = reporteId;
+    if (!id) id = await guardar(turno, respuestas);
+    if (!id) throw new Error('Elegí primero el turno');
+    await api.post(`/reportes/${id}/facturas`, fd);
+    const r = await api.get(`/reportes/${id}`);
+    setFacturas(r.data.data.facturas || []);
+    setModalFactura(false);
   }
 
   async function borrarFactura(id) {

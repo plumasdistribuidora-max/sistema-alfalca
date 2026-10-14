@@ -4,6 +4,7 @@ import { UNIDADES, precioPor } from '../../utils/unidades';
 import {
   plata, money, Tile, ChipAntiguedad, ModalPago, Modal, Selector,
   hoyStr, diasHasta, fechaCorta, listaDias,
+  NumeroFactura, partirNumero, armarNumero, numeroCompleto, ElegirFoto, VerFoto, AvisoRepetida,
 } from './comunes';
 
 // Lo que importa es cuántos días lleva cada factura sin pagar, contados desde su
@@ -15,6 +16,7 @@ const FILTROS = [
   { id: 'todas',     label: 'Todas' },
   { id: 'viejas',    label: `Más de ${DIAS_VIEJA} días` },
   { id: 'parciales', label: 'Pagadas a medias' },
+  { id: 'revisar',   label: 'Para revisar' },
 ];
 
 // ── Factura cargada a mano, o editada ────────────────────────────────────────
@@ -33,6 +35,12 @@ function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar
     local_id: locales[0]?.id || '',
     numero: '', fecha: hoyStr(), total: '', items: [{}],
   });
+  // Una factura vieja sin número se abre con "no tiene número" tildado.
+  const [numero, setNumero] = useState(
+    inicial && !inicial.numero ? { pv: '', num: '', sin: true } : partirNumero(inicial?.numero)
+  );
+  const [foto, setFoto] = useState(null);
+  const [repetidas, setRepetidas] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,18 +48,31 @@ function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar
     setF(x => ({ ...x, items: x.items.map((it, idx) => idx === i ? { ...it, [campo]: v } : it) }));
   }
 
-  async function guardar() {
+  async function guardar(confirmar = false) {
+    if (!inicial && !foto) { setError('Falta la foto de la factura'); return; }
+    if (!numeroCompleto(numero)) { setError('Poné el punto de venta y el número, o tildá que no tiene número'); return; }
     if (!f.total) { setError('Falta el total de la factura'); return; }
     setGuardando(true);
     setError('');
+    // Multipart: los datos van como JSON y la foto aparte. El vencimiento lo calcula
+    // el servidor con el plazo de la ficha.
+    const fd = new FormData();
+    fd.append('datos', JSON.stringify({
+      ...f,
+      numero: armarNumero(numero),
+      sin_numero: numero.sin,
+      items: f.items.filter(i => i.producto?.trim()),
+    }));
+    if (foto) fd.append('foto', foto);
+    if (confirmar) fd.append('confirmar_repetida', 'true');
     try {
-      // El vencimiento lo calcula el servidor con el plazo de la ficha.
-      await onGuardar({
-        ...f,
-        items: f.items.filter(i => i.producto?.trim()),
-      });
+      await onGuardar(fd);
     } catch (err) {
-      setError(err.response?.data?.error || 'No se pudo guardar la factura');
+      if (err.response?.status === 409 && err.response.data?.repetida) {
+        setRepetidas(err.response.data.repetida);
+      } else {
+        setError(err.response?.data?.error || 'No se pudo guardar la factura');
+      }
       setGuardando(false);
     }
   }
@@ -66,13 +87,15 @@ function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar
       pie={
         <>
           <button className="btn-secondary" onClick={onCerrar}>Cancelar</button>
-          <button className="btn-primary" disabled={guardando} onClick={guardar}>
+          <button className="btn-primary" disabled={guardando || !!repetidas} onClick={() => guardar(false)}>
             {guardando ? 'Guardando…' : inicial ? 'Guardar los cambios' : 'Guardar la factura'}
           </button>
         </>
       }
     >
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <ElegirFoto archivo={foto} onElegir={setFoto} yaTiene={!!inicial?.tiene_foto} obligatoria={!inicial} />
 
       <div>
         <label className="label">Proveedor</label>
@@ -84,14 +107,9 @@ function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar
         </select>
       </div>
 
+      <NumeroFactura valor={numero} onChange={v => { setNumero(v); setRepetidas(null); }} />
+
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Número de factura</label>
-          <input
-            className="input" placeholder="A 0004-00013455" value={f.numero}
-            onChange={e => setF(x => ({ ...x, numero: e.target.value }))}
-          />
-        </div>
         <div>
           <label className="label">Local</label>
           <select
@@ -101,14 +119,13 @@ function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar
             {locales.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
           </select>
         </div>
-      </div>
-
-      <div>
-        <label className="label">Fecha de la factura</label>
-        <input
-          type="date" className="input" value={f.fecha}
-          onChange={e => setF(x => ({ ...x, fecha: e.target.value }))}
-        />
+        <div>
+          <label className="label">Fecha de la factura</label>
+          <input
+            type="date" className="input" value={f.fecha}
+            onChange={e => { setF(x => ({ ...x, fecha: e.target.value })); setRepetidas(null); }}
+          />
+        </div>
       </div>
 
       <div>
@@ -161,9 +178,13 @@ function ModalFacturaManual({ proveedores, locales, inicial, onGuardar, onCerrar
         <input
           className="input tabular-nums" inputMode="numeric"
           value={f.total === '' ? '' : money.format(f.total)}
-          onChange={e => setF(x => ({ ...x, total: Number(e.target.value.replace(/[^\d]/g, '')) || '' }))}
+          onChange={e => { setF(x => ({ ...x, total: Number(e.target.value.replace(/[^\d]/g, '')) || '' })); setRepetidas(null); }}
         />
       </div>
+
+      {repetidas && (
+        <AvisoRepetida repetidas={repetidas} guardando={guardando} onGuardarIgual={() => guardar(true)} />
+      )}
     </Modal>
   );
 }
@@ -214,8 +235,8 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
     });
   }
 
-  async function guardarManual(f) {
-    await api.post('/proveedores/facturas', f);
+  async function guardarManual(fd) {
+    await api.post('/proveedores/facturas', fd);
     setManual(false);
     cargar();
     onCambio?.();
@@ -230,11 +251,22 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
     }
   }
 
-  async function guardarEdicion(f) {
-    await api.put(`/proveedores/facturas/${editando.id}`, f);
+  async function guardarEdicion(fd) {
+    await api.put(`/proveedores/facturas/${editando.id}`, fd);
     setEditando(null);
     cargar();
     onCambio?.();
+  }
+
+  // "Es otra": el encargado miró las dos y no son la misma.
+  async function esOtra(f) {
+    try {
+      await api.patch(`/proveedores/facturas/${f.id}/es-otra`);
+      setError('');
+      cargar();
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo marcar la factura');
+    }
   }
 
   async function borrar(f) {
@@ -256,10 +288,12 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
   const viejas   = facturas.filter(f => antiguedad(f) > DIAS_VIEJA);
   const masVieja = facturas.reduce((m, f) => Math.max(m, antiguedad(f)), 0);
   const deuda    = facturas.reduce((s, f) => s + f.saldo, 0);
+  const aRevisar = facturas.filter(f => f.repetida_de?.length);
 
   let lista = facturas;
   if (filtro === 'viejas')    lista = viejas;
   if (filtro === 'parciales') lista = facturas.filter(f => f.pagado > 0);
+  if (filtro === 'revisar')   lista = aRevisar;
   if (provFiltro)  lista = lista.filter(f => String(f.proveedor_id) === String(provFiltro));
   if (localFiltro) lista = lista.filter(f => String(f.local_id) === String(localFiltro));
 
@@ -291,13 +325,16 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
         <Tile titulo="La más vieja" tono="aviso"
               valor={masVieja ? `${masVieja} días` : '—'}
               detalle="sin pagar desde su fecha" />
-        <Tile titulo="Proveedores con deuda" tono="normal"
-              valor={new Set(facturas.map(f => f.proveedor)).size}
-              detalle="de los que hay cargados" />
+        <Tile titulo="Para revisar" tono={aRevisar.length ? 'aviso' : 'bueno'}
+              valor={aRevisar.length}
+              detalle={aRevisar.length ? `posible${aRevisar.length === 1 ? '' : 's'} repetida${aRevisar.length === 1 ? '' : 's'}` : 'ninguna parece repetida'} />
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
-        <Selector opciones={FILTROS} valor={filtro} onChange={setFiltro} />
+        <Selector
+          opciones={FILTROS.map(o => (o.id === 'revisar' && aRevisar.length ? { ...o, label: `${o.label} (${aRevisar.length})` } : o))}
+          valor={filtro} onChange={setFiltro}
+        />
         <select className="input w-auto text-sm" value={provFiltro} onChange={e => setProvFiltro(e.target.value)}>
           <option value="">Todos los proveedores</option>
           {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
@@ -337,7 +374,9 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
           </thead>
           <tbody>
             {lista.map(f => (
-              <tr key={f.id} className={`border-b border-ahg-accent/20 hover:bg-ahg-bg ${elegidas.has(f.id) ? 'bg-ahg-accent/10' : ''}`}>
+              <tr key={f.id} className={`border-b border-ahg-accent/20 hover:bg-ahg-bg ${
+                elegidas.has(f.id) ? 'bg-ahg-accent/10' : f.repetida_de?.length ? 'bg-amber-50' : ''
+              }`}>
                 <td className="table-td">
                   <input
                     type="checkbox" className="w-4 h-4 accent-violet-900 align-middle"
@@ -353,7 +392,16 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
                 </td>
                 <td className="table-td">
                   {f.numero || <span className="text-ahg-text/30">sin número</span>}
+                  {f.tiene_foto && <VerFoto facturaId={f.id} />}
                   <span className="block text-xs text-ahg-text/40">del {fechaCorta(f.fecha)}</span>
+                  {f.repetida_de?.length > 0 && (
+                    <span
+                      className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-300"
+                      title={`Parece la misma que: ${f.repetida_de.map(o => `${o.numero || 'sin número'} del ${fechaCorta(o.fecha)} por ${plata(o.total)}`).join(' · ')}`}
+                    >
+                      ¿Repetida?
+                    </span>
+                  )}
                 </td>
                 <td className="table-td">{f.local_nombre}</td>
                 <td className="table-td"><ChipAntiguedad fecha={f.fecha} /></td>
@@ -375,6 +423,14 @@ export default function PendientesSection({ proveedores, locales, onCambio }) {
                     Anotar pago
                   </button>
                   <span className="block mt-1 text-xs">
+                    {f.repetida_de?.length > 0 && (
+                      <>
+                        <button className="text-amber-800 font-semibold hover:underline" onClick={() => esOtra(f)}>
+                          Es otra
+                        </button>
+                        <span className="text-ahg-text/30 mx-1.5">·</span>
+                      </>
+                    )}
                     <button className="text-ahg-primary font-semibold hover:underline" onClick={() => abrirEdicion(f)}>
                       Editar
                     </button>

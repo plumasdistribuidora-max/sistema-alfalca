@@ -5,6 +5,8 @@ const pool    = require('../config/db');
 const { requireAuth, requireRol, ROLES } = require('../middleware/auth');
 const { hoyStr } = require('../utils/fechas');
 const { unidadValida } = require('../utils/unidades');
+const { getFromR2 } = require('../config/r2');
+const { conFoto, guardarFoto, normalizarNumero, buscarRepetidas, respuestaRepetida } = require('../utils/facturas');
 
 const router = express.Router();
 
@@ -32,6 +34,7 @@ const SELECT_FACTURAS = `
          p.medio_pago, p.dias_pago, p.plazo_dias,
          l.nombre AS local_nombre,
          u.nombre AS cargada_por,
+         f.r2_key IS NOT NULL AS tiene_foto,
          (SELECT COALESCE(SUM(pg.monto), 0) FROM pagos_proveedor pg WHERE pg.factura_id = f.id) AS pagado
   FROM facturas f
   LEFT JOIN proveedores p ON p.id = f.proveedor_id
@@ -57,6 +60,7 @@ function armarFactura(row) {
     medio_pago: row.medio_pago || 'santander',
     dias_pago: row.dias_pago || [1, 2, 3, 4, 5],
     cargada_por: row.cargada_por,
+    tiene_foto: !!row.tiene_foto,
     // Si vino de un reporte de turno, la cargó quien hizo el turno; si vino de una
     // planilla, dice de qué hoja y fila; si no, la cargó el encargado a mano.
     origen: row.reporte_id ? 'formulario' : row.importado_de ? 'planilla' : 'manual',
@@ -263,6 +267,27 @@ router.get('/facturas', requireAuth, soloEncargado, async (req, res) => {
     if (req.query.estado !== 'todas') facturas = facturas.filter(f => f.saldo > 0);
     if (req.query.estado === 'parciales') facturas = facturas.filter(f => f.pagado > 0);
 
+    // Las que parecen repetidas de otra, pagada o no: mismo proveedor y mismo número
+    // con punto de venta, o mismo día y mismo total. Se resuelven con "Es otra" o borrando.
+    if (facturas.length) {
+      const rep = await pool.query(`
+        SELECT f.id, json_agg(json_build_object(
+                 'id', f2.id, 'numero', f2.numero, 'fecha', f2.fecha::text, 'total', f2.total
+               ) ORDER BY f2.fecha, f2.id) AS otras
+        FROM facturas f
+        JOIN facturas f2 ON f2.proveedor_id = f.proveedor_id AND f2.id <> f.id
+         AND NOT f.repetida_ok AND NOT f2.repetida_ok
+         AND (
+           (factura_numero_clave(f.numero) LIKE '%-%' AND factura_numero_clave(f.numero) = factura_numero_clave(f2.numero))
+           OR (f2.fecha = f.fecha AND f2.total = f.total)
+         )
+        WHERE f.id = ANY($1::int[])
+        GROUP BY f.id
+      `, [facturas.map(f => f.id)]);
+      const porId = new Map(rep.rows.map(r => [r.id, r.otras]));
+      facturas = facturas.map(f => ({ ...f, repetida_de: porId.get(f.id) || [] }));
+    }
+
     res.json({ ok: true, data: facturas });
   } catch (err) {
     console.error('[proveedores/facturas]', err);
@@ -273,15 +298,24 @@ router.get('/facturas', requireAuth, soloEncargado, async (req, res) => {
 // ── POST /facturas ────────────────────────────────────────────────────────────
 // Carga a mano: lo que no pasa por el formulario del turno.
 
-router.post('/facturas', requireAuth, soloEncargado, async (req, res) => {
+// Como la del turno, llega como multipart y la foto es obligatoria.
+router.post('/facturas', requireAuth, soloEncargado, conFoto, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { proveedor_id, numero, fecha, vencimiento, total, local_id, items } = req.body;
+    const { proveedor_id, fecha, vencimiento, total, local_id, items } = req.body;
 
     if (!proveedor_id) return res.status(400).json({ ok: false, error: 'Elegí el proveedor' });
     if (!local_id)     return res.status(400).json({ ok: false, error: 'Elegí el local' });
     if (!esFecha(fecha)) return res.status(400).json({ ok: false, error: 'Fecha inválida' });
     if (n(total) <= 0) return res.status(400).json({ ok: false, error: 'Falta el total de la factura' });
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Falta la foto de la factura' });
+    const num = normalizarNumero(req.body.numero, req.body.sin_numero);
+    if (num.error) return res.status(400).json({ ok: false, error: num.error });
+
+    if (!req.body.confirmar_repetida) {
+      const repetidas = await buscarRepetidas(pool, { proveedorId: proveedor_id, numero: num.numero, fecha, total });
+      if (repetidas.length) return respuestaRepetida(res, repetidas);
+    }
 
     const prov = await client.query('SELECT nombre, plazo_dias FROM proveedores WHERE id = $1', [proveedor_id]);
     if (!prov.rows.length) return res.status(404).json({ ok: false, error: 'Ese proveedor no existe' });
@@ -300,8 +334,10 @@ router.post('/facturas', requireAuth, soloEncargado, async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
     `, [
       local_id, prov.rows[0].nombre, proveedor_id,
-      String(numero || '').trim() || null, fecha, vence, n(total), req.user.id,
+      num.numero, fecha, vence, n(total), req.user.id,
     ]);
+    const foto = await guardarFoto(req.file, f.rows[0].id, local_id);
+    await client.query('UPDATE facturas SET r2_key = $1, foto_mime = $2 WHERE id = $3', [foto.key, foto.mime, f.rows[0].id]);
 
     for (const it of (items || [])) {
       if (!it.producto?.trim()) continue;
@@ -347,10 +383,14 @@ router.get('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
 // proveedor, número, fecha, local, total y renglones. El vencimiento se recalcula
 // con el plazo de la ficha. El total no puede quedar por debajo de lo ya pagado.
 
-router.put('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
+// La foto es opcional al corregir: si viene, reemplaza la anterior. Las facturas viejas
+// de la planilla no tienen y se pueden corregir igual.
+router.put('/facturas/:id', requireAuth, soloEncargado, conFoto, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { proveedor_id, numero, fecha, total, local_id, items } = req.body;
+    const { proveedor_id, fecha, total, local_id, items } = req.body;
+    const num = normalizarNumero(req.body.numero, req.body.sin_numero);
+    if (num.error) return res.status(400).json({ ok: false, error: num.error });
 
     if (!proveedor_id) return res.status(400).json({ ok: false, error: 'Elegí el proveedor' });
     if (!local_id)     return res.status(400).json({ ok: false, error: 'Elegí el local' });
@@ -369,6 +409,14 @@ router.put('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
 
     const prov = await client.query('SELECT nombre, plazo_dias FROM proveedores WHERE id = $1', [proveedor_id]);
     if (!prov.rows.length) return res.status(404).json({ ok: false, error: 'Ese proveedor no existe' });
+
+    if (!req.body.confirmar_repetida) {
+      const repetidas = await buscarRepetidas(client, {
+        proveedorId: proveedor_id, numero: num.numero, fecha, total, excluirId: Number(req.params.id),
+      });
+      if (repetidas.length) return respuestaRepetida(res, repetidas);
+    }
+
     const d = new Date(`${fecha}T00:00:00`);
     d.setDate(d.getDate() + prov.rows[0].plazo_dias);
     const vence = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -380,8 +428,12 @@ router.put('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
       WHERE id = $8
     `, [
       local_id, prov.rows[0].nombre, proveedor_id,
-      String(numero || '').trim() || null, fecha, vence, n(total), req.params.id,
+      num.numero, fecha, vence, n(total), req.params.id,
     ]);
+    if (req.file) {
+      const foto = await guardarFoto(req.file, Number(req.params.id), local_id);
+      await client.query('UPDATE facturas SET r2_key = $1, foto_mime = $2 WHERE id = $3', [foto.key, foto.mime, req.params.id]);
+    }
     await client.query('DELETE FROM facturas_items WHERE factura_id = $1', [req.params.id]);
     for (const it of (items || [])) {
       if (!it.producto?.trim()) continue;
@@ -399,6 +451,36 @@ router.put('/facturas/:id', requireAuth, soloEncargado, async (req, res) => {
     res.status(500).json({ ok: false, error: 'No se pudo guardar la factura' });
   } finally {
     client.release();
+  }
+});
+
+// ── GET /facturas/:id/foto ────────────────────────────────────────────────────
+
+router.get('/facturas/:id/foto', requireAuth, soloEncargado, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT r2_key, foto_mime FROM facturas WHERE id = $1', [req.params.id]);
+    if (!rows.length || !rows[0].r2_key) return res.status(404).json({ ok: false, error: 'Esta factura no tiene foto' });
+    const obj = await getFromR2(rows[0].r2_key);
+    res.setHeader('Content-Type', rows[0].foto_mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    obj.Body.pipe(res);
+  } catch (err) {
+    console.error('[proveedores/facturas/foto]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo traer la foto' });
+  }
+});
+
+// ── PATCH /facturas/:id/es-otra ───────────────────────────────────────────────
+// El encargado miró la que parecía repetida y no es la misma: deja de avisar.
+
+router.patch('/facturas/:id/es-otra', requireAuth, soloEncargado, async (req, res) => {
+  try {
+    const { rowCount } = await pool.query('UPDATE facturas SET repetida_ok = true WHERE id = $1', [req.params.id]);
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'Factura no encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[proveedores/facturas/es-otra]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo marcar la factura' });
   }
 });
 
@@ -490,7 +572,7 @@ router.get('/pagos', requireAuth, soloEncargado, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT pg.id, pg.fecha::text AS fecha, pg.monto, pg.medio, pg.comprobante, pg.nota,
              f.numero AS factura_numero, f.id AS factura_id,
-             f.fecha::text AS factura_fecha, f.total AS factura_total,
+             f.fecha::text AS factura_fecha, f.total AS factura_total, f.r2_key IS NOT NULL AS tiene_foto,
              f.proveedor_id, COALESCE(p.nombre, f.proveedor) AS proveedor,
              l.nombre AS local_nombre,
              u.nombre AS anotado_por
@@ -533,6 +615,13 @@ router.post('/pagos', requireAuth, soloEncargado, async (req, res) => {
       const medio = String(p.medio || '');
       if (!MEDIOS.includes(medio)) throw Object.assign(new Error('Esa forma de pago no existe'), { publico: true });
 
+      // Por banco o cheque, el número de transferencia o de cheque es obligatorio
+      // (Martín, 14/10/2026): sin él no hay cómo encontrar el pago después.
+      const comprobante = String(p.comprobante || '').trim();
+      if (medio !== 'efectivo' && !comprobante) {
+        throw Object.assign(new Error('Falta el número de transferencia o de cheque'), { publico: true });
+      }
+
       const fecha = esFecha(p.fecha) ? p.fecha : hoyStr();
 
       // El saldo se relee acá adentro: entre que el encargado abrió la pantalla y
@@ -562,7 +651,7 @@ router.post('/pagos', requireAuth, soloEncargado, async (req, res) => {
         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
       `, [
         f.rows[0].id, fecha, monto, medio,
-        String(p.comprobante || '').trim() || null,
+        comprobante || null,
         String(p.nota || '').trim() || null,
         req.user.id,
       ]);

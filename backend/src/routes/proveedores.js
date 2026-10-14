@@ -488,11 +488,14 @@ router.get('/pagos', requireAuth, soloEncargado, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT pg.id, pg.fecha::text AS fecha, pg.monto, pg.medio, pg.comprobante, pg.nota,
              f.numero AS factura_numero, f.id AS factura_id,
+             f.fecha::text AS factura_fecha, f.total AS factura_total,
              COALESCE(p.nombre, f.proveedor) AS proveedor,
+             l.nombre AS local_nombre,
              u.nombre AS anotado_por
       FROM pagos_proveedor pg
       JOIN facturas    f ON f.id = pg.factura_id
       LEFT JOIN proveedores p ON p.id = f.proveedor_id
+      LEFT JOIN locales     l ON l.id = f.local_id
       JOIN usuarios    u ON u.id = pg.usuario_id
       WHERE ($1::date IS NULL OR pg.fecha >= $1::date)
         AND ($2::date IS NULL OR pg.fecha <= $2::date)
@@ -500,7 +503,7 @@ router.get('/pagos', requireAuth, soloEncargado, async (req, res) => {
       LIMIT 300
     `, [desde, hasta]);
 
-    res.json({ ok: true, data: rows.map(r => ({ ...r, monto: n(r.monto) })) });
+    res.json({ ok: true, data: rows.map(r => ({ ...r, monto: n(r.monto), factura_total: n(r.factura_total) })) });
   } catch (err) {
     console.error('[proveedores/pagos GET]', err);
     res.status(500).json({ ok: false, error: 'No se pudieron traer los pagos' });

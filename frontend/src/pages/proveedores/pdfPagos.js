@@ -143,3 +143,39 @@ export function pdfProveedor(grupo) {
   pie(doc);
   doc.save(`pago-${nombreArchivo(grupo.proveedor)}-${hoyStr()}.pdf`);
 }
+
+// El de "Pagos hechos": lo que se le pagó a un proveedor en un día, para guardarlo
+// o mandárselo como constancia. pagos: los de ese proveedor con esa fecha.
+export function pdfPagadoDelDia(proveedor, fecha, pagos) {
+  const doc = new jsPDF();
+  let y = encabezado(doc, 'Constancia de pago', `Proveedor: ${proveedor}`);
+  const total = pagos.reduce((t, p) => t + p.monto, 0);
+
+  doc.setFontSize(10);
+  doc.text(
+    `Pagos hechos a ${proveedor} el ${fechaLarga(fecha)} (${fechaNum(fecha)}).`,
+    14, y, { maxWidth: doc.internal.pageSize.getWidth() - 28 },
+  );
+  y += 8;
+
+  y = tabla(
+    doc, y,
+    ['Factura', 'Fecha factura', 'Local', 'Cómo se pagó', 'Comprobante', 'Monto'],
+    pagos.map(p => [
+      p.factura_numero || 'sin número',
+      fechaNum(p.factura_fecha),
+      p.local_nombre || '—',
+      medioLabel(p.medio),
+      p.comprobante || '—',
+      plata(p.monto),
+    ]),
+    total,
+  ) + 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text(`Total pagado: ${plata(total)}`, 14, y);
+
+  pie(doc);
+  doc.save(`pagado-${nombreArchivo(proveedor)}-${fecha}.pdf`);
+}

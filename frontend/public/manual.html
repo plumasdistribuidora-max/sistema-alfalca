@@ -1407,15 +1407,19 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <h3>Pagos hechos — el registro</h3>
       <p>
-        Todo lo que se pagó, con fecha, factura, medio, número de transferencia o cheque y
-        quién lo anotó. Un pago cargado con el medio equivocado <strong>se borra y se vuelve a
-        anotar</strong>: la factura vuelve a quedar con ese saldo pendiente.
+        Todo lo que se pagó. <strong>Lo que se le pagó a un proveedor en un mismo día va en un
+        solo renglón</strong>, con cuántas facturas fueron, cómo se pagó y el total: si un día se le
+        pagaron diez facturas a Hojaldre, se ve un renglón de Hojaldre con el total de las diez.
       </p>
+      <ol class="pasos">
+        <li><div><strong>Elegí las fechas de pago</strong>: últimos 30 días (lo que se abre de entrada), este mes, el mes pasado o todo; o poné <em>desde</em> y <em>hasta</em> a mano.</div></li>
+        <li><div><strong>Elegí un proveedor</strong> si querés ver solo lo que se le pagó a él. Los números de arriba (lo pagado y por qué medio) son siempre de lo que estás viendo.</div></li>
+        <li><div><strong>Tocá el renglón</strong> para ver el detalle: cada factura con su fecha, el local, el medio, el número de transferencia o cheque y quién lo anotó.</div></li>
+        <li><div><strong>PDF</strong>, en el mismo renglón, baja la constancia de lo que se le pagó ese día, con el detalle y el total, para guardarla o mandársela al proveedor.</div></li>
+      </ol>
       <p>
-        Los pagos de un mismo día salen agrupados por proveedor. En la primera fila de cada
-        proveedor está el botón <strong>PDF</strong>: baja una constancia con todo lo que se le
-        pagó ese día — factura, fecha de la factura, local, medio, comprobante y el total —
-        para guardarla o mandársela al proveedor.
+        Un pago cargado con el medio equivocado <strong>se borra y se vuelve a anotar</strong>, desde
+        el detalle: la factura vuelve a quedar con ese saldo pendiente.
       </p>
 
       <div class="aviso ojo">

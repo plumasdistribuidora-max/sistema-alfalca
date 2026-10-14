@@ -484,12 +484,14 @@ router.get('/pagos', requireAuth, soloEncargado, async (req, res) => {
   try {
     const desde = esFecha(req.query.desde) ? req.query.desde : null;
     const hasta = esFecha(req.query.hasta) ? req.query.hasta : null;
+    const proveedorId = /^\d+$/.test(req.query.proveedor_id || '') ? Number(req.query.proveedor_id) : null;
 
+    // Sin filtro de fechas se traen los últimos 300; con fechas, todo el período.
     const { rows } = await pool.query(`
       SELECT pg.id, pg.fecha::text AS fecha, pg.monto, pg.medio, pg.comprobante, pg.nota,
              f.numero AS factura_numero, f.id AS factura_id,
              f.fecha::text AS factura_fecha, f.total AS factura_total,
-             COALESCE(p.nombre, f.proveedor) AS proveedor,
+             f.proveedor_id, COALESCE(p.nombre, f.proveedor) AS proveedor,
              l.nombre AS local_nombre,
              u.nombre AS anotado_por
       FROM pagos_proveedor pg
@@ -499,9 +501,10 @@ router.get('/pagos', requireAuth, soloEncargado, async (req, res) => {
       JOIN usuarios    u ON u.id = pg.usuario_id
       WHERE ($1::date IS NULL OR pg.fecha >= $1::date)
         AND ($2::date IS NULL OR pg.fecha <= $2::date)
+        AND ($3::int  IS NULL OR f.proveedor_id = $3::int)
       ORDER BY pg.fecha DESC, pg.id DESC
-      LIMIT 300
-    `, [desde, hasta]);
+      LIMIT $4
+    `, [desde, hasta, proveedorId, desde || hasta ? 5000 : 300]);
 
     res.json({ ok: true, data: rows.map(r => ({ ...r, monto: n(r.monto), factura_total: n(r.factura_total) })) });
   } catch (err) {

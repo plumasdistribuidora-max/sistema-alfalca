@@ -3,7 +3,7 @@ import api from '../../api';
 import { Isotipo } from '../../components/Marca';
 import PendientesSection from './PendientesSection';
 import PlanSection       from './PlanSection';
-import PagosSection      from './PagosSection';
+import PagosSection, { FILTRO_PAGOS_INICIAL } from './PagosSection';
 import FichasSection     from './FichasSection';
 
 const TABS = [
@@ -18,6 +18,8 @@ export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState([]);
   const [locales, setLocales] = useState([]);
   const [cargando, setCargando] = useState(true);
+  // Vive acá y no en la solapa: borrar un pago la vuelve a montar y se perderían los filtros.
+  const [filtroPagos, setFiltroPagos] = useState(FILTRO_PAGOS_INICIAL);
 
   // Un pago o una factura nueva cambian los números de las otras solapas, así que
   // el refresco sube hasta acá y baja a todas.
@@ -75,7 +77,12 @@ export default function ProveedoresPage() {
         />
       )}
       {tab === 'plan'  && <PlanSection key={version} onCambio={refrescar} />}
-      {tab === 'pagos' && <PagosSection key={version} onCambio={refrescar} />}
+      {tab === 'pagos' && (
+        <PagosSection
+          key={version} proveedores={proveedores} onCambio={refrescar}
+          filtro={filtroPagos} setFiltro={setFiltroPagos}
+        />
+      )}
       {tab === 'proveedores' && (
         <FichasSection proveedores={proveedores} cargando={cargando} onCambio={refrescar} />
       )}

@@ -73,6 +73,9 @@ function tabla(doc, y, cabeza, filas, total) {
   return doc.lastAutoTable.finalY;
 }
 
+// En el nombre del archivo la fecha va día-mes-año, como la lee la gente.
+const fechaArchivo = iso => String(iso).slice(0, 10).split('-').reverse().join('-');
+
 const nombreArchivo = txt => String(txt)
   .normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
@@ -119,7 +122,7 @@ export function pdfGeneral(grupos, hasta) {
   }
 
   pie(doc);
-  doc.save(`pagos-proveedores-${hoyStr()}.pdf`);
+  doc.save(`pagos-proveedores-${fechaArchivo(hoyStr())}.pdf`);
 }
 
 export function pdfProveedor(grupo) {
@@ -141,7 +144,7 @@ export function pdfProveedor(grupo) {
   doc.text(`Total: ${plata(total)}`, 14, y);
 
   pie(doc);
-  doc.save(`pago-${nombreArchivo(grupo.proveedor)}-${hoyStr()}.pdf`);
+  doc.save(`pago-${nombreArchivo(grupo.proveedor)}-${fechaArchivo(hoyStr())}.pdf`);
 }
 
 // El de "Pagos hechos": lo que se le pagó a un proveedor en un día, para guardarlo
@@ -177,5 +180,5 @@ export function pdfPagadoDelDia(proveedor, fecha, pagos) {
   doc.text(`Total pagado: ${plata(total)}`, 14, y);
 
   pie(doc);
-  doc.save(`pagado-${nombreArchivo(proveedor)}-${fecha}.pdf`);
+  doc.save(`pagado-${nombreArchivo(proveedor)}-${fechaArchivo(fecha)}.pdf`);
 }

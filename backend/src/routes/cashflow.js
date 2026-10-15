@@ -58,7 +58,8 @@ function categorizarEstado(estado) {
   if (!estado) return 'no_cuenta';
   const s = normalizeKey(estado);
   if (s === 'pagado') return 'pagado';
-  if (['rechazado', 'repudiado', 'anulado'].includes(s)) return 'no_cuenta';
+  // Vencido: pasó el plazo de cobro, el banco ya no lo paga.
+  if (['rechazado', 'repudiado', 'anulado', 'vencido'].includes(s)) return 'no_cuenta';
   return 'pendiente';
 }
 

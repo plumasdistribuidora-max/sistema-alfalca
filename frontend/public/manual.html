@@ -1093,7 +1093,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <!-- ══════════ TAREAS ══════════ -->
     <section class="seccion" id="tareas">
       <p class="para-quien">Para el Encargado General</p>
-      <h2>Tareas — la bandeja del encargado</h2>
+      <h2>Tareas</h2>
       <p>
         <strong>El día termina cuando entra el Fudo</strong>, no cuando alguien lo cierra. Cada
         vez que se importa el Excel de un local, el sistema cruza lo que mandó cada turno con lo
@@ -1106,38 +1106,40 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <div class="mock">
           <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · tareas</span></div>
           <div class="m-main" style="padding:16px">
-            <div class="m-hdr"><div class="m-eye">Alfalca · Tareas</div><h5>Bandeja</h5></div>
-            <div class="m-card">
-              <div class="m-tit">Lo que pasó en cada local <span class="marca-n" style="margin-left:4px">1</span></div>
-              <div style="overflow-x:auto">
-                <table class="m-tabla">
-                  <thead><tr><th>Local</th><th>Vie 9</th><th>Sáb 10</th><th>Dom 11</th></tr></thead>
-                  <tbody>
-                    <tr><td>Amigorena</td><td><span class="m-pill ver">2/2 · ok</span></td><td><span class="m-pill ver">2/2 · ok</span></td><td><span class="m-pill gris">No abrió según Fudo</span></td></tr>
-                    <tr><td>9 de Julio</td><td><span class="m-pill amb">Ventas no coinciden</span></td><td><span class="m-pill ver">2/2 · ok</span></td><td><span class="m-pill roj">No cargó</span></td></tr>
-                  </tbody>
-                </table>
-              </div>
+            <div class="m-hdr"><div class="m-eye">Alfalca</div><h5>Tareas</h5></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0"><span class="m-pill" style="background:#45484c;color:#fff">Abiertas 4</span><span class="m-pill gris">Sin tomar 1</span><span class="m-pill gris">En curso 2</span><span class="m-pill gris">Por aprobar 1</span><span class="m-pill gris">Terminadas 3</span> <span class="marca-n" style="margin-left:4px">1</span></div>
+            <div class="m-card" style="padding:12px">
+              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Ventas no coinciden: los turnos dijeron $ 27.200 más que Fudo</b><div style="font-size:11px;color:#9C94A6">9 de Julio · Ventas no coinciden con Fudo · vie 9</div></div><span style="font-size:11px;font-weight:600;color:#b91c1c;white-space:nowrap">Vencida hace 1 día</span></div>
+              <div style="font-size:12px;margin-top:6px">Revisar el arqueo con la vendedora</div>
+              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#ef4444"></i><i style="flex:1;height:5px;border-radius:9px;background:#ef4444"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
             </div>
-            <div class="m-card" style="display:grid;gap:7px">
-              <div class="m-tit">Alertas sin tomar · 2 <span class="marca-n" style="margin-left:4px">2</span></div>
-              <div class="m-slot"><span class="m-pill roj">No cargó</span><span class="qn">Tienda tarde: no cargó el reporte <span style="color:#9C94A6">· 9 de Julio · dom 11</span></span><span class="m-btn">Tomar</span></div>
-              <div class="m-slot"><span class="m-pill amb">Vencimiento</span><span class="qn">Ron: 22 u. vencen el 19/10 <span style="color:#9C94A6">· Peatonal</span></span><span class="m-btn">Tomar</span></div>
+            <div class="m-card" style="padding:12px">
+              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Tienda tarde: no cargó el reporte</b><div style="font-size:11px;color:#9C94A6">9 de Julio · No cargó el reporte · dom 11</div></div><span style="font-size:11px;font-weight:600;color:#b91c1c;white-space:nowrap">Nadie la tomó · hace 1 día</span></div>
+              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#45484c"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
             </div>
-            <div class="m-card" style="display:grid;gap:7px">
-              <div class="m-tit">En curso · 1 <span class="marca-n" style="margin-left:4px">3</span></div>
-              <div class="m-slot"><span class="et">3 días</span><span class="qn">Ventas no coinciden: los turnos dijeron $ 27.200 más que Fudo <span style="color:#9C94A6">· Va a hacer: revisar el arqueo</span></span><span class="m-pill roj">Vencida hace 1 día</span></div>
+            <div class="m-card" style="padding:12px">
+              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Ron: 22 u. vencen el 19/10</b><div style="font-size:11px;color:#9C94A6">Peatonal · Producto por vencer · sáb 10</div></div><span style="font-size:11px;font-weight:600;color:#b45309;white-space:nowrap">Espera a los dueños hace 3 h</span></div>
+              <div style="font-size:12px;margin-top:6px">Dice: <b>se pasaron a la barra del Café</b></div>
+              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#45484c"></i><i style="flex:1;height:5px;border-radius:9px;background:#45484c"></i><i style="flex:1;height:5px;border-radius:9px;background:#45484c"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
+            </div>
+            <div class="m-card" style="padding:12px">
+              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Piso: baldosa rota</b><div style="font-size:11px;color:#9C94A6">Amigorena · Mantenimiento · vie 9</div></div><span style="font-size:11px;font-weight:600;color:#6b6e72;white-space:nowrap">Para el jue 16</span></div>
+              <div style="font-size:12px;margin-top:6px">Llamo al albañil el lunes</div>
+              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#45484c"></i><i style="flex:1;height:5px;border-radius:9px;background:#45484c"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
             </div>
           </div>
         </div>
-        <figcaption><b>La bandeja.</b> Los nombres y montos son de ejemplo.</figcaption>
+        <figcaption><b>Tareas.</b> Los nombres y montos son de ejemplo. <span class="marca-n">2</span> La barrita de abajo de cada tarea.</figcaption>
       </figure>
 
       <ol class="refs">
-        <li><strong>Lo que pasó en cada local.</strong> Los últimos días que ya tienen Fudo. El lunes son el viernes, el sábado y el domingo. Si Fudo no trae ventas de un local ese día, ese local no abrió y no se espera ningún reporte. Cada alerta dice en qué está: con el color de su tipo mientras <em>nadie la tomó</em>, azul <em>en curso</em>, ámbar <em>por aprobar</em> y verde con tilde cuando un dueño la aprobó. El local queda en verde (<em>ok</em>) cuando llegaron todos los reportes y todo lo de ese día está aprobado.</li>
-        <li><strong>Alertas sin tomar.</strong> Se toman acá mismo: tocás <em>Tomar</em>, escribís qué vas a hacer con tus palabras (abajo hay ideas que se tocan para arrancar) y elegís para cuándo. Desde que la alerta nace corre el tiempo del encargado.</li>
-        <li><strong>En curso.</strong> Ordenadas por lo que vence primero. El número de la izquierda es cuánto lleva en manos del encargado. Si se pasó de la fecha que él mismo puso, sale en rojo.</li>
+        <li><strong>Filtros.</strong> Arriba elegís qué ver: <em>Abiertas</em> (todo lo que falta terminar, es lo que se ve al entrar), <em>Sin tomar</em>, <em>En curso</em>, <em>Por aprobar</em> o <em>Terminadas</em> (las de los últimos 3 días). El número es cuántas hay en cada una.</li>
+        <li><strong>Cómo viene cada tarea.</strong> La barrita tiene cuatro pasos: <em>Sin tomar → En curso → Por aprobar → Terminada</em>, y se llena hasta donde llegó. Se pone <strong>roja</strong> si está vencida o un dueño la devolvió, y <strong>verde</strong> cuando está terminada. Arriba a la derecha dice en una frase qué pasa ahora: <em>Nadie la tomó</em>, <em>Vencida hace 1 día</em>, <em>Para el jue 16</em>, <em>Espera a los dueños</em>, <em>Aprobó Federico</em>.</li>
       </ol>
+      <p>Lo que más apura sale primero: lo vencido y lo devuelto, después lo que nadie tomó, lo que espera a los dueños y lo que está en curso por fecha. <strong>Para tomar una tarea</strong>, para anotar un avance o pedir el cierre, tocala y se abre.</p>
+
+      <h3>Cargarle una tarea al encargado</h3>
+      <p>Los dueños tienen arriba el botón <strong>+ Nueva tarea</strong>. Escribís qué hay que hacer, si querés un detalle, el local (o ninguno, si es algo del grupo) y para cuándo. Al encargado le llega el aviso en el celular y la tarea sigue el mismo camino que las demás: la toma, la resuelve y un dueño aprueba el cierre. Si pusiste fecha, cuando la toma ya le aparece esa.</p>
 
       <h3>Qué levanta el sistema</h3>
       <div class="tabla-caja">
@@ -1195,8 +1197,9 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p class="para-quien">Para los dueños</p>
       <h2>Aprobar y el tablero</h2>
       <p>
-        En la bandeja, arriba de todo, los dueños ven <strong>Para aprobar</strong>: las tareas
-        que el encargado pidió cerrar y los gastos de $ 100.000 o más. Abrís cada una y respondés:
+        En <em>Tareas</em>, el filtro <strong>Por aprobar</strong> junta las tareas que el encargado
+        pidió cerrar. Los gastos de $ 100.000 o más que esperan respuesta salen en un recuadro amarillo
+        arriba de todo. Abrís cada uno y respondés:
       </p>
       <ul class="simple">
         <li><strong>Aprobar.</strong> La tarea queda terminada. Si es un mantenimiento, sale de la lista de pendientes que ven los turnos.</li>

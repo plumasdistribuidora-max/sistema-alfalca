@@ -130,8 +130,8 @@ async function subirAdjunto(file, tareaId, usuarioId, { eventoId = null, gastoId
 router.get('/opciones', requireAuth, (_req, res) => res.json({ ok: true, data: T.opciones() }));
 
 // ── GET / (bandeja) ──────────────────────────────────────────────────────────
-// Lo abierto, lo que espera a los dueños, lo terminado de los últimos días, los gastos
-// que esperan aprobación y el cuadro de los últimos días por local.
+// Lo abierto, lo que espera a los dueños, lo terminado de los últimos días y los gastos
+// que esperan aprobación.
 router.get('/', requireAuth, soloEncargado, async (_req, res) => {
   try {
     const tareas = await enriquecer((await pool.query(`
@@ -147,60 +147,12 @@ router.get('/', requireAuth, soloEncargado, async (_req, res) => {
       WHERE g.estado = 'pendiente' ORDER BY g.created_at
     `)).rows.map(g => ({ ...g, monto: n(g.monto), local_corto: corto(g.local_nombre) }));
 
-    res.json({ ok: true, data: { tareas, gastos_pendientes: gastos, dias: await cuadroDias(), hoy: T.hoyMendoza() } });
+    res.json({ ok: true, data: { tareas, gastos_pendientes: gastos, hoy: T.hoyMendoza() } });
   } catch (err) {
     console.error('[tareas GET]', err);
     fail(res, 500, 'No se pudo cargar la bandeja');
   }
 });
-
-// El cuadro "qué pasó en cada local": los últimos tres días que ya tienen algún Fudo
-// cargado. El lunes son el viernes, el sábado y el domingo.
-async function cuadroDias() {
-  const hoy = T.hoyMendoza();
-  const locales = (await pool.query('SELECT id, nombre FROM locales WHERE activo = true ORDER BY id')).rows;
-  const fechas = [];
-  for (let i = 1; i <= 10 && fechas.length < 3; i++) {
-    const d = new Date(`${hoy}T12:00:00`); d.setDate(d.getDate() - i);
-    const f = T.fechaStr(d);
-    if (f < T.INICIO) break;
-    const cub = await alertas.localesCubiertos(f);
-    if (cub.size) fechas.unshift({ fecha: f, cubiertos: cub });
-  }
-  // Si todavía no entró ningún Fudo desde el arranque, se muestran igual los días.
-  if (!fechas.length) {
-    for (let i = 3; i >= 1; i--) {
-      const d = new Date(`${hoy}T12:00:00`); d.setDate(d.getDate() - i);
-      const f = T.fechaStr(d);
-      if (f >= T.INICIO) fechas.push({ fecha: f, cubiertos: new Set() });
-    }
-  }
-
-  const dias = [];
-  for (const { fecha, cubiertos } of fechas) {
-    const tickets = Object.fromEntries((await pool.query(
-      `SELECT local_id, COUNT(*)::int AS n FROM ventas_tickets WHERE fecha = $1 AND estado = 'cerrada' GROUP BY local_id`, [fecha]
-    )).rows.map(r => [r.local_id, r.n]));
-    const abiertos = new Set(locales.filter(l => cubiertos.has(l.id) && tickets[l.id] > 0).map(l => l.id));
-    const slots = await alertas.slotsDelDia(fecha, abiertos);
-    const tareas = (await pool.query(
-      `SELECT id, tipo, local_id, titulo, estado FROM tareas WHERE fecha = $1 AND tipo <> 'mantenimiento'`, [fecha]
-    )).rows;
-    dias.push({
-      fecha,
-      locales: locales.map(l => {
-        const s = slots.filter(x => x.local_id === l.id);
-        return {
-          local_id: l.id, nombre: corto(l.nombre), nombre_completo: l.nombre,
-          estado: !cubiertos.has(l.id) ? 'sin_fudo' : !abiertos.has(l.id) ? 'no_abrio' : 'abrio',
-          esperados: s.length, recibidos: s.filter(x => x.reporte).length,
-          tareas: tareas.filter(t => t.local_id === l.id).map(t => ({ id: t.id, tipo: t.tipo, label: T.TIPOS[t.tipo]?.label, estado: t.estado })),
-        };
-      }),
-    });
-  }
-  return dias;
-}
 
 // ── GET /tablero (dueños) ────────────────────────────────────────────────────
 router.get('/tablero', requireAuth, requireAdmin, async (_req, res) => {
@@ -584,6 +536,43 @@ router.post('/generar', requireAuth, soloEncargado, async (_req, res) => {
   } catch (err) {
     console.error('[tareas/generar]', err);
     fail(res, 500, 'No se pudieron generar las alertas');
+  }
+});
+
+// ── POST /nueva (dueños) ─────────────────────────────────────────────────────
+// Un dueño le carga una tarea al encargado. Sigue el mismo camino que las alertas:
+// el encargado la toma, la resuelve y un dueño la aprueba.
+// { titulo, texto?, local_id?, para_cuando? }
+router.post('/nueva', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const titulo = escrito(req.body.titulo, 200);
+    if (titulo.length < 3) return fail(res, 400, 'Escribí qué hay que hacer');
+    const texto = escrito(req.body.texto, 1000);
+    const localId = req.body.local_id ? Number(req.body.local_id) : null;
+    const hoy = T.hoyMendoza();
+    const paraCuando = /^\d{4}-\d{2}-\d{2}$/.test(req.body.para_cuando || '') ? req.body.para_cuando : null;
+    if (paraCuando && paraCuando < hoy) return fail(res, 400, 'La fecha ya pasó');
+
+    const { rows } = await pool.query(`
+      INSERT INTO tareas (tipo, local_id, fecha, clave, titulo, detalle)
+      VALUES ('encargo', $1, $2, $3, $4, $5::jsonb) RETURNING id
+    `, [localId, hoy, `encargo:${req.user.id}:${Date.now()}`, titulo,
+        JSON.stringify({ texto, pedido_por: req.user.nombre, para_cuando: paraCuando })]);
+    const id = rows[0].id;
+    await evento(id, req.user.id, 'encargo', texto || null);
+
+    const local = localId ? (await pool.query('SELECT nombre FROM locales WHERE id = $1', [localId])).rows[0] : null;
+    const payload = {
+      titulo: `${req.user.nombre} te cargó una tarea`,
+      texto: `${local ? `${corto(local.nombre)}: ` : ''}${titulo}${paraCuando ? ` · para el ${ddmm(paraCuando)}` : ''}`,
+      url: `/tareas/${id}`, etiqueta: `tarea-${id}`,
+    };
+    avisos.enSegundoPlano(avisos.aEncargados(payload), 'tarea nueva');
+    avisos.enSegundoPlano(avisos.aDuenos({ ...payload, titulo: `${req.user.nombre} cargó una tarea` }), 'tarea nueva a dueños');
+    res.json({ ok: true, data: { id } });
+  } catch (err) {
+    console.error('[tareas/nueva]', err);
+    fail(res, 500, 'No se pudo cargar la tarea');
   }
 });
 

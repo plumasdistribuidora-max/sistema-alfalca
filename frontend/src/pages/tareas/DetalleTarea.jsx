@@ -84,6 +84,15 @@ function DatosDelProblema({ t }) {
       <Dato label="Diferencia" valor={`${d.diferencia} kg`} tono="text-red-700" />
     </div>
   );
+  if (t.tipo === 'encargo') return (
+    <>
+      {d.texto && <p className="text-sm whitespace-pre-line">{d.texto}</p>}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+        <Dato label="La pidió" valor={d.pedido_por || '—'} />
+        <Dato label="Para cuándo" valor={d.para_cuando ? ddmm(d.para_cuando) : 'Sin fecha'} />
+      </div>
+    </>
+  );
   if (Array.isArray(d.items)) return (
     <ul className="text-sm space-y-1">
       {d.items.map((it, i) => (
@@ -100,13 +109,13 @@ const COLOR_EVENTO = {
   creada: 'bg-stone-400', tomada: 'bg-sky-600', avance: 'bg-sky-600', plazo: 'bg-amber-500',
   gasto: 'bg-sky-600', comprobante: 'bg-sky-600', gasto_aprobado: 'bg-emerald-600', gasto_rechazado: 'bg-red-600',
   pidio_cierre: 'bg-ahg-primary', aprobada: 'bg-emerald-600', pidio_mas: 'bg-red-600', rechazada: 'bg-red-600', sistema: 'bg-stone-400',
-  comentario: 'bg-ahg-secondary',
+  comentario: 'bg-ahg-secondary', encargo: 'bg-ahg-primary',
 };
 const TITULO_EVENTO = {
   creada: 'El sistema levantó la alerta', tomada: 'La tomó', avance: 'Avance', plazo: 'Cambió la fecha',
   gasto: 'Cargó un gasto', comprobante: 'Subió un comprobante', gasto_aprobado: 'Gasto aprobado', gasto_rechazado: 'Gasto no aprobado',
   pidio_cierre: 'Pidió el cierre', aprobada: 'Aprobada', pidio_mas: 'Pide más', rechazada: 'No la aprobó', sistema: 'Aviso del sistema',
-  comentario: 'Comentó',
+  comentario: 'Comentó', encargo: 'Cargó la tarea',
 };
 
 function Seguimiento({ eventos, tarea }) {
@@ -166,7 +175,7 @@ function AccionesEncargado({ data, opcionesGen, onCambio }) {
   const [ocupado, setOcupado] = useState('');
 
   const [accion, setAccion] = useState('');
-  const [plazo, setPlazo] = useState(sumarDias(hoyStr(), 2));
+  const [plazo, setPlazo] = useState(t.detalle?.para_cuando || sumarDias(hoyStr(), 2));
   const [motivoDesc, setMotivoDesc] = useState('');
   const [avTexto, setAvTexto] = useState('');
   const [avFoto, setAvFoto] = useState(null);

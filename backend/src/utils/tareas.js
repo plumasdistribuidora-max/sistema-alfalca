@@ -90,6 +90,12 @@ const TIPOS = {
       'No corresponde',
     ],
   },
+  // La carga un dueño a mano: no la levanta el sistema.
+  encargo: {
+    label: 'Pedido de un dueño',
+    acciones: [],
+    resultados: ['Hecho'],
+  },
   cafe: {
     label: 'El café no cierra',
     acciones: ['Revisar el pesaje con la barista', 'Revisar el maestro de café', 'Pesar de nuevo'],

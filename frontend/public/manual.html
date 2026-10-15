@@ -1157,15 +1157,16 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </div>
 
       <h3>Dentro de una tarea</h3>
-      <p>Tocando el título se abre la tarea. Arriba están los datos del problema (por ejemplo, lo que dijo cada turno contra Fudo), los dos relojes y los reportes de ese día para abrirlos. Abajo:</p>
+      <p>Tocando una tarea se abre. Arriba están los datos del problema (por ejemplo, lo que dijo cada turno contra Fudo), la barrita de avance, el tiempo que lleva y los reportes de ese día para abrirlos. Abajo está la <strong>conversación</strong>: todo lo que pasó, como un chat, con fecha, hora y quién lo escribió. Los mensajes del encargado van en gris y los de los dueños en amarillo, cada uno con su nombre y la etiqueta <em>Encargado</em> o <em>Dueño</em>. Lo tuyo va a la derecha. No se puede borrar ni editar.</p>
+      <p>Al final hay <strong>un solo cuadro</strong> para escribir. El encargado escribe ahí cómo viene, con sus palabras:</p>
       <ul class="simple">
-        <li><strong>Seguimiento.</strong> Todo lo que pasó, con fecha, hora y quién. No se puede borrar ni editar.</li>
-        <li><strong>Anotar un avance.</strong> Qué hiciste, con tus palabras, y una foto si hace falta.</li>
-        <li><strong>Cambiar la fecha.</strong> Se puede, pero hay que escribir por qué, y cada cambio queda contado. Los dueños ven cuántas veces se movió.</li>
-        <li><strong>Cargar un gasto.</strong> Ver abajo.</li>
-        <li><strong>Pedir el cierre.</strong> Escribís <em>qué era</em> (por ejemplo <em>la vendedora cargó dos veces un pago con tarjeta</em>), o tocás una idea como <em>Error de carga del vendedor</em> o <em>Faltante real de caja</em>. Si corresponde, ponés el monto y <strong>de quién fue</strong>: eso va al historial de esa persona. Podés sumar una nota y una foto de prueba. Desde ahí tu reloj se frena y empieza el de los dueños.</li>
-        <li><strong>Pedir descartarla.</strong> Si de verdad no hay nada que hacer, se escribe por qué. El descarte también lo aprueba un dueño, y queda a la vista en el tablero.</li>
+        <li><strong>La primera vez, la toma.</strong> Escribe qué va a hacer, elige para cuándo y toca <em>Tomar la tarea</em>.</li>
+        <li><strong>Después, Mandar.</strong> Cada mensaje es un avance. Abajo del texto hay tres botones chicos que se abren solo si los tocás: <em>Cambiar la fecha</em> (lo que escribiste es el motivo, y cada cambio queda contado), <em>Hay un gasto</em> (monto y foto del presupuesto o del comprobante; ver abajo) y <em>Sumar foto</em>.</li>
+        <li><strong>Terminé, pedir el cierre.</strong> Escribís <em>qué era y cómo se resolvió</em>, o tocás una idea como <em>Error de carga del vendedor</em>. Si corresponde, ponés el monto y <strong>de quién fue</strong>: eso va al historial de esa persona. Desde ahí tu reloj se frena y empieza el de los dueños.</li>
+        <li><strong>No hay nada que hacer.</strong> Se escribe por qué. El descarte también lo aprueba un dueño, y queda a la vista en el tablero.</li>
       </ul>
+      <p>Los dueños escriben en la misma conversación. Cuando la tarea espera aprobación tienen <em>Aprobar</em>, <em>Pedir foto o dato</em>, <em>No alcanza</em> y <em>Solo comentar</em>.</p>
+      <p><strong>Cada cosa que se escribe o cambia en una tarea les llega en un aviso a los cuatro dueños y al encargado.</strong> El aviso dice quién fue y si es dueño o encargado, por ejemplo <em>Martin Muscara (encargado) · 9 de Julio</em>.</p>
 
       <div class="aviso tip">
         <span class="mk">◆</span>
@@ -1208,7 +1209,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       </ul>
       <p>Hay un solo recuadro para escribirle lo que quieras: para aprobar es opcional, para pedir algo o rechazar hay que escribir qué. Cualquiera de los dueños puede responder y queda quién fue. Para los gastos: <em>Aprobar gasto</em>, <em>Pedir otro presupuesto</em> o <em>No</em>.</p>
       <p><strong>Si otro dueño la rechazó o pidió más</strong>, igual la podés aprobar: quizás sabés algo que él no. Te aparece el recuadro <em>Aprobar igual</em> y tenés que escribir por qué; queda en el seguimiento y les llega el aviso a todos.</p>
-      <p><strong>Comentar.</strong> Abajo de cada tarea hay un recuadro para comentar, en cualquier momento, aunque esté terminada. Pueden escribir los cuatro dueños y el encargado, más de uno, y todo queda en el seguimiento. A cada comentario le sigue un aviso a los dueños (y al encargado si escribió un dueño).</p>
+      <p><strong>Comentar.</strong> En cada tarea se puede escribir en cualquier momento, aunque esté terminada. Pueden escribir los cuatro dueños y el encargado, y todo queda en la conversación. Cada mensaje les llega en un aviso a todos.</p>
       <div class="aviso ojo">
         <span class="mk">⚠</span>
         <p><strong>Los dueños no resuelven tareas.</strong> No ven los botones de tomar, anotar avances, cargar gastos ni pedir el cierre: eso es trabajo del encargado. Ustedes aprueban, piden algo, rechazan o comentan.</p>
@@ -1292,12 +1293,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
           <thead><tr><th>Aviso</th><th>A quién</th><th>Cuándo</th></tr></thead>
           <tbody>
             <tr><td><em>Reporte del día viernes 09/10 creado</em> — <em>Ventas del día $ 6.597.072. Hacé click para revisarlo.</em></td><td>Dueños y encargado</td><td>Cuando está el Fudo de todos los locales de ese día</td></tr>
-            <tr><td><em>Para aprobar</em> — tarea que pide cierre</td><td>Dueños</td><td>En el momento</td></tr>
-            <tr><td><em>Gasto para aprobar</em> — de $ 100.000 o más</td><td>Dueños</td><td>En el momento</td></tr>
-            <tr><td><em>Martín te cargó una tarea</em></td><td>Encargado (y los dueños se enteran)</td><td>Cuando un dueño carga una tarea con <em>+ Nueva tarea</em></td></tr>
+            <tr><td><em>Martin Muscara (encargado) · 9 de Julio</em> — lo que se escribió o cambió en una tarea: la tomó, avance, fecha nueva, gasto, comprobante, pide el cierre, aprobó, pide más, comentario, tarea nueva</td><td>Los cuatro dueños y el encargado</td><td>En el momento, cada vez</td></tr>
             <tr><td><em>Alertas nuevas</em></td><td>Encargado</td><td>Cuando entra un Fudo y nace alguna alerta</td></tr>
-            <tr><td><em>Te piden más</em>, <em>No la aprobó</em>, <em>Aprobada</em>, respuesta a un gasto</td><td>Encargado</td><td>En el momento</td></tr>
-            <tr><td><em>Martín aprobó una tarea</em>, <em>le pidió más al encargado</em>, <em>no aprobó</em>, respuesta a un gasto</td><td>Todos los dueños, también el que respondió</td><td>En el momento: así todos saben que ya se contestó y qué se dijo</td></tr>
           </tbody>
         </table>
       </div>

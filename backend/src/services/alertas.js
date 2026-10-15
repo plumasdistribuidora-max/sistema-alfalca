@@ -256,19 +256,22 @@ async function generarDia(fecha) {
 
 // ── Los avisos ───────────────────────────────────────────────────────────────
 async function avisarDia(r) {
-  // El reporte del día les llega una sola vez a los dueños, cuando están todos los Fudo.
+  // El reporte del día llega una sola vez, cuando están todos los Fudo: a los dueños y,
+  // desde el 15/10/2026, también al encargado (lo pidió Martín).
   const marcado = await pool.query(
     'INSERT INTO dias_avisados (fecha) VALUES ($1) ON CONFLICT DO NOTHING RETURNING fecha', [r.fecha]
   );
   if (!marcado.rowCount) return;
   // El texto lo eligió Martín (11/10/2026): qué día es, cuánto se vendió, y que hay que entrar.
   const venta = r.dia.totales.ventas_sistema;
-  await avisos.aDuenos({
+  const payload = {
     titulo: `Reporte del día ${diaLargo(r.fecha).toLowerCase()} creado`,
     texto: `Ventas del día ${$(venta)}. Hacé click para revisarlo.`,
     url: `/dia?fecha=${r.fecha}`,
     etiqueta: `dia-${r.fecha}`,
-  });
+  };
+  await avisos.aDuenos(payload);
+  await avisos.aEncargados(payload);
 }
 
 // Después de un import: repasa la última semana. Va en segundo plano; el import ya

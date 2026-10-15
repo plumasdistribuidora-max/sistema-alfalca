@@ -258,12 +258,28 @@ router.get('/plantillas/:codigo', requireAuth, async (req, res) => {
 router.get('/plantillas', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT codigo, nombre, area, version, campos, activo, updated_at FROM reporte_plantillas ORDER BY nombre'
+      'SELECT codigo, nombre, area, version, campos, activo, en_pausa, updated_at FROM reporte_plantillas ORDER BY nombre'
     );
     res.json({ ok: true, data: rows });
   } catch (err) {
     console.error('[reportes/plantillas GET]', err);
     res.status(500).json({ ok: false, error: 'Error al obtener los formularios' });
+  }
+});
+
+// ── PUT /plantillas/:codigo/pausa  { en_pausa } ──────────────────────────────
+// En pausa, el formulario se puede seguir cargando pero si falta no avisa.
+router.put('/plantillas/:codigo/pausa', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'UPDATE reporte_plantillas SET en_pausa = $1, updated_at = NOW() WHERE codigo = $2 RETURNING codigo, en_pausa',
+      [req.body.en_pausa === true, req.params.codigo]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'No existe ese formulario' });
+    res.json({ ok: true, data: rows[0] });
+  } catch (err) {
+    console.error('[reportes/plantillas pausa]', err);
+    res.status(500).json({ ok: false, error: 'No se pudo cambiar la pausa' });
   }
 });
 
@@ -882,7 +898,7 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
     )).rows;
 
     const plantillas = (await pool.query(
-      'SELECT codigo, nombre, area, campos FROM reporte_plantillas WHERE activo = true'
+      'SELECT codigo, nombre, area, campos, en_pausa FROM reporte_plantillas WHERE activo = true'
     )).rows;
 
     const areasPorLocal = (await pool.query(`
@@ -919,6 +935,8 @@ router.get('/dia', requireAuth, requireRol(ROLES.ENCARGADO_GENERAL), async (req,
           const reporte = elegirReporte(
             cargados.filter(r => r.local_id === local.id && r.plantilla_codigo === p.codigo && r.turno === turno)
           );
+          // Un formulario en pausa no se espera: solo aparece si alguien lo cargó igual.
+          if (p.en_pausa && !reporte) continue;
           slots.push({
             plantilla_codigo: p.codigo,
             plantilla_nombre: p.nombre,

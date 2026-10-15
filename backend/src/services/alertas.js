@@ -48,7 +48,7 @@ async function localesCubiertos(fecha) {
 // se esperaba el reporte; si no hay ninguna, el local no abrió y no se espera nada.
 async function slotsDelDia(fecha, abiertos) {
   const plantillas = (await pool.query(
-    'SELECT codigo, nombre, area, campos FROM reporte_plantillas WHERE activo = true'
+    'SELECT codigo, nombre, area, campos, en_pausa FROM reporte_plantillas WHERE activo = true'
   )).rows;
   const areas = (await pool.query(`
     SELECT DISTINCT local_id_principal AS local_id, area
@@ -71,6 +71,8 @@ async function slotsDelDia(fecha, abiertos) {
       const reporte = elegirReporte(
         cargados.filter(r => r.local_id === local_id && r.plantilla_codigo === p.codigo && r.turno === turno)
       );
+      // Un formulario en pausa solo cuenta si alguien lo cargó igual: si falta, no avisa.
+      if (p.en_pausa && !reporte) continue;
       slots.push({ local_id, plantilla: p.codigo, plantilla_nombre: p.nombre, turno, reporte });
     }
   }

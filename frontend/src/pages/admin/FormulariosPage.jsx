@@ -232,6 +232,20 @@ export default function FormulariosPage() {
     }]);
   }
 
+  // En pausa: el formulario sigue, pero si no llega no cuenta como faltante.
+  async function pausar(p) {
+    setError(''); setAviso('');
+    try {
+      await api.put(`/reportes/plantillas/${p.codigo}/pausa`, { en_pausa: !p.en_pausa });
+      setAviso(p.en_pausa
+        ? `${p.nombre}: vuelve a avisar si falta.`
+        : `${p.nombre} quedó en pausa: se puede seguir cargando, pero si falta no avisa.`);
+      cargar();
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cambiar la pausa');
+    }
+  }
+
   async function guardar() {
     setGuardando(true);
     setError('');
@@ -277,16 +291,22 @@ export default function FormulariosPage() {
       ) : !abierta ? (
         <div className="space-y-2">
           {plantillas.map(p => (
-            <button key={p.codigo} onClick={() => abrir(p)}
-                    className="card w-full p-4 text-left hover:border-ahg-primary transition-colors flex items-center gap-4">
-              <div className="flex-1">
-                <p className="font-semibold">{p.nombre}</p>
+            <div key={p.codigo} className="card w-full p-4 flex items-center gap-4 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold">
+                  {p.nombre}
+                  {p.en_pausa && <span className="ml-2 align-middle inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">En pausa</span>}
+                </p>
                 <p className="text-sm text-ahg-text/50">
                   {p.campos.length} pregunta{p.campos.length === 1 ? '' : 's'} · versión {p.version}
+                  {p.en_pausa && ' · se puede cargar, pero si falta no avisa'}
                 </p>
               </div>
-              <span className="text-ahg-primary text-sm font-medium">Editar →</span>
-            </button>
+              <button onClick={() => pausar(p)} className="btn-secondary !py-1.5 text-sm">
+                {p.en_pausa ? 'Volver a avisar' : 'Poner en pausa'}
+              </button>
+              <button onClick={() => abrir(p)} className="text-ahg-primary text-sm font-medium">Editar →</button>
+            </div>
           ))}
         </div>
       ) : (

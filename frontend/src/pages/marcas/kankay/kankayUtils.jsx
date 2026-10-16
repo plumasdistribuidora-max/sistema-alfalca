@@ -27,7 +27,7 @@ export function Chg({ v }) {
 // El mes "en curso" es el que tiene la última venta cargada, si todavía no terminó.
 export function enCurso(D) {
   const p = D.total.hasta.slice(0, 7);
-  return D.hoy.slice(0, 7) === p ? p : null;
+  return D.hoy.slice(0, 7) === p && D.meses[p] ? p : null;
 }
 // Hasta qué día hay ventas en un mes en curso.
 export const diaHasta = (D, p) => Number(D.meses[p].hasta.slice(8));

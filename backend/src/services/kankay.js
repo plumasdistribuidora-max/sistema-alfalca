@@ -25,7 +25,8 @@ const pad = n => String(n).padStart(2, '0');
 // ---------------------------------------------------------------- Excel
 
 // Devuelve los renglones listos para guardar, o tira un error con un mensaje para la pantalla.
-function leerExcel(buffer) {
+// Un día sin ventas no aparece en el Excel: con permitirVacio, un Excel sin renglones vale.
+function leerExcel(buffer, { permitirVacio = false } = {}) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
   const idx = filas.findIndex(f => f.includes('Total Sin IVA') && f.includes('Fecha Registro'));
@@ -68,7 +69,7 @@ function leerExcel(buffer) {
       facturada: !!comprobante && Math.abs(total - (Number(f[C['Total Sin IVA']]) || 0)) > 0.5,
     });
   }
-  if (!out.length) throw new Error('El Excel no tiene ventas.');
+  if (!out.length && !permitirVacio) throw new Error('El Excel no tiene ventas.');
   return out;
 }
 
@@ -86,18 +87,57 @@ function resumir(rs) {
   };
 }
 
-// Guarda el Excel: los días que trae se reemplazan enteros.
-async function importar(buffer, archivo, usuarioId) {
-  const rs = leerExcel(buffer);
+// Hasta qué día está cargado Kankay: el último día con ventas o, si es posterior, el último
+// día que alguien cargó como "sin ventas" (queda en kankay_imports.hasta).
+const SQL_CUBIERTO = `GREATEST((SELECT MAX(fecha) FROM kankay_ventas), (SELECT MAX(hasta) FROM kankay_imports))`;
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const hoyMza = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Mendoza' });
+const sumarDia = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+// Lo que trae el Excel, sin guardar nada: para que la pantalla pregunte por los días que faltan.
+async function revisar(buffer) {
+  const rs = leerExcel(buffer, { permitirVacio: true });
+  const dias = [...new Set(rs.map(r => r.fecha))].sort();
+  const { rows: [c] } = await pool.query(`SELECT to_char(${SQL_CUBIERTO},'YYYY-MM-DD') AS cubierto`);
+  return { desde: dias[0] || null, ultimo: dias.at(-1) || null, renglones: rs.length,
+    cubierto: c.cubierto, ayer: sumarDia(hoyMza(), -1) };
+}
+
+// Guarda el Excel: los días que trae se reemplazan enteros. Con sinVentasHasta, los días
+// entre el último del Excel (o lo ya cargado, si viene vacío) y esa fecha quedan como días
+// sin ventas: Dux no exporta nada de un día en que no se vendió.
+async function importar(buffer, archivo, usuarioId, sinVentasHasta) {
+  if (sinVentasHasta && !ISO.test(sinVentasHasta)) throw new Error('La fecha "hasta" no se entiende.');
+  const rs = leerExcel(buffer, { permitirVacio: !!sinVentasHasta });
   const dias = [...new Set(rs.map(r => r.fecha))].sort();
   const res = resumir(rs);
+  let huecoDesde = null, hasta = dias.at(-1);
+  if (sinVentasHasta) {
+    if (sinVentasHasta > hoyMza()) throw new Error('La fecha "hasta" no puede ser posterior a hoy.');
+    if (dias.length && sinVentasHasta < dias.at(-1)) throw new Error(`El Excel trae ventas del ${dias.at(-1).split('-').reverse().join('/')}, después de la fecha "hasta".`);
+    // El hueco arranca después de lo último que hay: lo que trae el Excel o lo ya cargado.
+    const { rows: [c] } = await pool.query(`SELECT to_char(${SQL_CUBIERTO},'YYYY-MM-DD') AS cubierto`);
+    const base = [dias.at(-1), c.cubierto].filter(Boolean).sort().at(-1);
+    if (!base) throw new Error('El Excel no tiene ventas.');
+    huecoDesde = sumarDia(base, 1);
+    if (!dias.length && huecoDesde > sinVentasHasta) throw new Error(`Kankay ya está cargado hasta el ${base.split('-').reverse().join('/')}.`);
+    if (huecoDesde > sinVentasHasta) huecoDesde = null;
+    hasta = sinVentasHasta;
+  }
+  const desde = dias[0] || huecoDesde;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Si en los días "sin ventas" ya hay ventas cargadas, la fecha está mal: no se borran.
+    if (huecoDesde) {
+      const { rows: [h] } = await client.query(
+        `SELECT to_char(MIN(fecha),'DD/MM') AS f FROM kankay_ventas WHERE fecha BETWEEN $1 AND $2`, [huecoDesde, hasta]);
+      if (h.f) throw new Error(`El ${h.f} ya tiene ventas cargadas y este Excel no las trae. Revisá hasta qué día cubre el Excel.`);
+    }
     const { rows: [imp] } = await client.query(`
       INSERT INTO kankay_imports (archivo, desde, hasta, renglones, ventas, total, neto, cmv, subido_por)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, subido_en
-    `, [archivo, dias[0], dias.at(-1), res.renglones, res.ventas, res.total, res.neto, res.cmv, usuarioId || null]);
+    `, [archivo, desde, hasta, res.renglones, res.ventas, res.total, res.neto, res.cmv, usuarioId || null]);
     const { rows: [borr] } = await client.query(`
       WITH b AS (DELETE FROM kankay_ventas WHERE fecha = ANY($1::date[]) RETURNING fecha)
       SELECT COUNT(DISTINCT fecha)::int AS dias FROM b
@@ -114,8 +154,9 @@ async function importar(buffer, archivo, usuarioId) {
       await client.query(`INSERT INTO kankay_ventas (${campos.join(',')}) VALUES ${ph.join(',')}`, vals);
     }
     await client.query('COMMIT');
-    return { id: imp.id, archivo, desde: dias[0], hasta: dias.at(-1), diasReemplazados: borr.dias,
-      meses: [...new Set(dias.map(d => d.slice(0, 7)))], ...res };
+    const diasSinVentas = huecoDesde ? Math.round((new Date(hasta) - new Date(huecoDesde)) / 864e5) + 1 : 0;
+    return { id: imp.id, archivo, desde, hasta, diasReemplazados: borr.dias, diasSinVentas, sinVentasDesde: huecoDesde,
+      meses: [...new Set([...dias, ...(huecoDesde ? [huecoDesde, hasta] : [])].map(d => d.slice(0, 7)))].sort(), ...res };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -154,7 +195,7 @@ async function datos() {
     FROM kankay_ventas ORDER BY fecha, registrado
   `);
   const { rows: [ult] } = await pool.query(`
-    SELECT i.subido_en, i.archivo, to_char((SELECT MAX(fecha) FROM kankay_ventas),'YYYY-MM-DD') AS hasta,
+    SELECT i.subido_en, i.archivo, to_char(${SQL_CUBIERTO},'YYYY-MM-DD') AS hasta,
            to_char((SELECT MIN(fecha) FROM kankay_ventas),'YYYY-MM-DD') AS desde, u.nombre
     FROM kankay_imports i LEFT JOIN usuarios u ON u.id = i.subido_por ORDER BY i.subido_en DESC LIMIT 1
   `);
@@ -194,6 +235,15 @@ async function datos() {
   for (const v in total.vdias) total.vdias[v] = total.vdias[v].size;
   for (const v in total.vdow) for (const d in total.vdow[v]) total.vdow[v][d].f = total.vdow[v][d].f.size;
   total.desde = rows[0].fecha; total.hasta = rows.at(-1).fecha;
+  // Los días sin ventas cargados después de la última venta también cuentan como cargados.
+  const cub = ult?.hasta;
+  if (cub && cub > total.hasta) {
+    total.hasta = cub;
+    for (const [mes, M] of Object.entries(meses)) {
+      const fin = `${mes}-${pad(ultimoDia(mes))}`;
+      if (M.hasta < cub) M.hasta = cub < fin ? cub : fin;
+    }
+  }
 
   const tk = {};
   for (const r of rows) { const t = (tk[r.ticket] = tk[r.ticket] || { f: r.fecha, h: r.hora, tot: 0 }); t.tot += r.total; }
@@ -294,7 +344,7 @@ async function resultadoMes(periodo, D) {
 async function resumenInicio() {
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Mendoza' });
   const { rows: [r] } = await pool.query(`
-    WITH u AS (SELECT MAX(fecha) AS hasta FROM kankay_ventas)
+    WITH u AS (SELECT ${SQL_CUBIERTO} AS hasta)
     SELECT to_char(u.hasta,'YYYY-MM-DD') AS hasta,
       COALESCE(SUM(v.total) FILTER (WHERE v.fecha = $1::date - 1), 0)::float AS ayer,
       COALESCE(SUM(v.total) FILTER (WHERE v.fecha = $1::date), 0)::float     AS hoy,
@@ -324,4 +374,4 @@ async function resumenInicio() {
   };
 }
 
-module.exports = { resumenInicio, leerExcel, importar, datos, eerrManual, guardarEerr, terminarEerr, comisionPct, resultadoMes, ultimoDia, GASTOS_BASE };
+module.exports = { resumenInicio, leerExcel, revisar, importar, datos, eerrManual, guardarEerr, terminarEerr, comisionPct, resultadoMes, ultimoDia, GASTOS_BASE };

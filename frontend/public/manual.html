@@ -1856,9 +1856,11 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <ol class="pasos">
         <li>En Dux, entrá a <em>Consulta de ventas detallada</em>, elegí las fechas y exportá a Excel.</li>
         <li>En el sistema, <em>Kankay → Ventas de Dux → Subir Excel</em>: arrastrá el archivo o tocá para elegirlo, y después <em>Importar</em>.</li>
+        <li>Apenas lo elegís, te dice hasta qué día trae ventas. Si los últimos días hasta ayer no aparecen, te pregunta <em>¿Esos días no hubo ventas?</em>: tocá <em>Sí, no hubo ventas</em> y quedan cargados en $ 0. Dux no exporta nada de un día sin ventas, así que sin esa respuesta el sistema no sabe que ese día ya está.</li>
         <li>Te muestra cuántas ventas, unidades y productos entraron, la venta sin IVA y el costo.</li>
       </ol>
       <ul class="simple">
+        <li><strong>Si un día no se vendió nada</strong>, el Excel de Dux sale vacío: subilo igual y respondé que no hubo ventas.</li>
         <li><strong>Podés subir un mes entero o una parte.</strong> Si subís de nuevo días que ya estaban, se reemplazan: no se duplica nada.</li>
         <li><strong>Las ventas sin número de comprobante</strong> son facturas que no llegaron a emitirse: cuentan como venta sin factura, completas, aunque el Excel les calcule IVA.</li>
         <li>La solapa <em>Historial</em> lista cada archivo que se subió, quién y cuándo, y si sigue vigente o lo reemplazó otro.</li>

@@ -36,13 +36,23 @@ router.get('/resumen', async (_req, res) => {
   }
 });
 
+// Qué trae el Excel, sin guardar: la pantalla pregunta por los días que no trae.
+router.post('/import/revisar', upload.single('archivo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'Falta el archivo' });
+  try {
+    res.json({ ok: true, data: await kankay.revisar(req.file.buffer) });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message || 'No se pudo leer el Excel' });
+  }
+});
+
 router.post('/import', upload.single('archivo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, error: 'Falta el archivo' });
   const archivo = req.file.originalname;
   if (!/\.xlsx?$/i.test(archivo)) return res.status(400).json({ ok: false, error: 'Tiene que ser un Excel (.xls o .xlsx)' });
   let imp;
   try {
-    imp = await kankay.importar(req.file.buffer, archivo, req.user.id);
+    imp = await kankay.importar(req.file.buffer, archivo, req.user.id, req.body?.sinVentasHasta || null);
   } catch (err) {
     console.error('[kankay/import]', err);
     return res.status(400).json({ ok: false, error: err.message || 'No se pudo leer el Excel' });

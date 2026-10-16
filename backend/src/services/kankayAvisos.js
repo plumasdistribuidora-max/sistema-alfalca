@@ -80,10 +80,14 @@ async function trasImport(imp, usuarioId) {
     if (P && P.tot) cmp = ` ${mesN(p)[0].toUpperCase() + mesN(p).slice(1)} va ${chg(M.tot / P.tot - 1)} contra ${completo ? mesN(meses[meses.indexOf(p) - 1]) : 'los mismos días del mes anterior'}.`;
   }
   const rango = imp.desde === imp.hasta ? `del ${fechaCorta(imp.desde)}` : `del ${fechaCorta(imp.desde)} al ${fechaCorta(imp.hasta)}`;
-  await mandar('kankay_ventas',
-    `Se cargaron las ventas ${rango}: ${fmt(imp.total)} con IVA en ${imp.ventas} ventas.${cmp}`);
+  const sinV = imp.diasSinVentas
+    ? ` ${imp.diasSinVentas === 1 ? `El ${fechaCorta(imp.sinVentasDesde)} no hubo ventas` : `Del ${fechaCorta(imp.sinVentasDesde)} al ${fechaCorta(imp.hasta)} no hubo ventas`}.` : '';
+  await mandar('kankay_ventas', imp.renglones
+    ? `Se cargaron las ventas ${rango}: ${fmt(imp.total)} con IVA en ${imp.ventas} ventas.${sinV}${cmp}`
+    : `Se cargó Kankay ${rango}: no hubo ventas.${cmp}`);
 
   for (const mes of imp.meses) {
+    if (!D.meses[mes]) continue;
     const r = await kankay.resultadoMes(mes, D);
     if (r?.pe && D.meses[mes].neto >= r.pe) {
       await unaVez(`kankay:equilibrio:${mes}`, () => mandar('kankay_equilibrio',

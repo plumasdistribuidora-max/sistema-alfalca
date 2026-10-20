@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
-import { Isotipo } from '../components/Marca';
+import TarjetaIntro from '../components/TarjetaIntro';
 
 export default function Login() {
   const [email, setEmail]       = useState('');
@@ -12,6 +12,17 @@ export default function Login() {
   const { login }               = useAuth();
   const navigate                = useNavigate();
   const [params]                = useSearchParams();
+  // La tarjeta arranca en el medio de la pantalla y sube hasta su lugar: la
+  // distancia depende del alto del formulario, por eso se mide.
+  const [anima, setAnima]       = useState(true);
+  const escenaRef               = useRef(null);
+  const formRef                 = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!escenaRef.current || !formRef.current) return;
+    const baja = (formRef.current.offsetHeight + 40) / 2;
+    escenaRef.current.style.setProperty('--tj-baja', `${baja}px`);
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -31,16 +42,16 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-ahg-bg px-4">
+    <div
+      className={`min-h-screen flex items-center justify-center bg-ahg-bg px-4 overflow-hidden ${anima ? 'tj-anima' : ''}`}
+      onPointerDown={() => setAnima(false)}
+    >
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Isotipo className="w-[72px] h-[72px] mx-auto mb-4 text-ahg-text" />
-          <h1 className="text-5xl font-extrabold text-ahg-text leading-none" style={{ fontFamily: 'Rubik, sans-serif', letterSpacing: '-0.03em' }}>alfalca</h1>
-          <p className="text-ahg-text/55 text-base mt-2">grupo inversor · mendoza</p>
-          <p className="text-ahg-text/50 text-sm mt-4">Ingresá con tu cuenta</p>
+        <div ref={escenaRef} className="tj-escena mb-10">
+          <TarjetaIntro />
         </div>
 
-        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="tj-form card p-6 space-y-4">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
               {error}

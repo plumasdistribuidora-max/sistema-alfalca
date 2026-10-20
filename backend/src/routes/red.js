@@ -9,6 +9,7 @@ const { vendedores } = require('../services/vendedores');
 const { diasHoras } = require('../services/diasHoras');
 const { mesAMes } = require('../services/mesAMes');
 const { crecimiento } = require('../services/crecimiento');
+const { cotizaciones } = require('../services/kankayRecupero');
 
 const router = express.Router();
 const TZ = 'America/Argentina/Mendoza';
@@ -519,7 +520,18 @@ router.get('/inicio', requireAuth, async (req, res) => {
     const anio = anioRes.rows.map(r => ({ anio: r.anio, mes: r.mes, facturacion: n(r.facturacion), hasta_dia: n(r.hasta_dia) }));
     // La inflación cargada en el dashboard: el Inicio la usa para la meta del año (no perder contra 2025).
     const inflacion = await parametrosIpc();
-    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total, mes, anio, inflacion } });
+    // Dólar oficial BNA (el mismo del recupero de Kankay): promedio de cada mes de este año y
+    // el anterior, y el de hoy, para ver el año en dólares. Si no hay cotización, no se manda.
+    let dolar = null;
+    try {
+      const c = await cotizaciones();
+      const anioHoy = Number(fecha.slice(0, 4));
+      const promedio = Object.fromEntries(Object.entries(c.promedio).filter(([p]) => Number(p.slice(0, 4)) >= anioHoy - 1));
+      if (c.hoy) dolar = { promedio, hoy: c.hoy };
+    } catch (err) {
+      console.warn('[red/inicio] dólar:', err.message);
+    }
+    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total, mes, anio, inflacion, dolar } });
   } catch (err) {
     console.error('[red/inicio]', err);
     res.status(500).json({ ok: false, error: 'Error al armar la portada' });

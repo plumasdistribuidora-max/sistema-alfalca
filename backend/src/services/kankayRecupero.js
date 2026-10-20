@@ -141,4 +141,4 @@ async function renombrarDeposito(de, a) {
   await pool.query('UPDATE kankay_stock SET deposito = $2 WHERE deposito = $1', [de, a]);
 }
 
-module.exports = { recupero, leerStock, guardarStock, agregarInversion, borrarInversion, renombrarDeposito };
+module.exports = { recupero, leerStock, guardarStock, agregarInversion, borrarInversion, renombrarDeposito, cotizaciones };

@@ -255,6 +255,7 @@ function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
 // cerrados. Kankay (no existía en 2025) suma lo que vendió en promedio sus meses cerrados.
 function CierreDelAnio({ ventas, kankay }) {
   const [vista, setVista] = useState('grupo');
+  const [moneda, setMoneda] = useState('ars');
   const anio   = Number(ventas.fecha.slice(0, 4));
   const mesHoy = Number(ventas.fecha.slice(5, 7));
   const diaHoy = Number(ventas.fecha.slice(8, 10));
@@ -282,11 +283,22 @@ function CierreDelAnio({ ventas, kankay }) {
   const restoMesKk = kkDia ? kk[mesHoy - 1] / kkDia * diasMes - kk[mesHoy - 1] : kkProm;
   const futurosKk = kkProm * (12 - mesHoy);
 
-  const vendido = ed.reduce((a, v) => a + v, 0) + (conKankay ? kk.reduce((a, v) => a + v, 0) : 0);
-  const cierre  = vendido + restoMesEd + futurosEd + (conKankay ? restoMesKk + futurosKk : 0);
-  const total25 = ant.reduce((a, v) => a + v, 0);
-  const ipc     = ventas.inflacion?.valor;
-  const meta    = ipc != null ? total25 * (1 + ipc / 100) : null;
+  const vendidoArs = ed.reduce((a, v) => a + v, 0) + (conKankay ? kk.reduce((a, v) => a + v, 0) : 0);
+  const cierreArs  = vendidoArs + restoMesEd + futurosEd + (conKankay ? restoMesKk + futurosKk : 0);
+  const total25Ars = ant.reduce((a, v) => a + v, 0);
+  const ipc        = ventas.inflacion?.valor;
+
+  // En dólares (oficial BNA): cada mes al promedio de ese mes, lo que falta del año al dólar
+  // de hoy. La meta en dólares es vender al menos los mismos dólares que el año pasado.
+  const dolar = ventas.dolar;
+  const usd   = moneda === 'usd' && dolar?.hoy;
+  const cot   = (a, i) => dolar?.promedio?.[`${a}-${String(i + 1).padStart(2, '0')}`] ?? dolar?.hoy?.venta;
+  const vendido = usd ? ed.reduce((a, v, i) => a + (v + (conKankay ? kk[i] : 0)) / cot(anio, i), 0) : vendidoArs;
+  const cierre  = usd ? vendido + (cierreArs - vendidoArs) / dolar.hoy.venta : cierreArs;
+  const total25 = usd ? ant.reduce((a, v, i) => a + v / cot(anio - 1, i), 0) : total25Ars;
+  const meta    = usd ? total25 : ipc != null ? total25 * (1 + ipc / 100) : null;
+  const fmt     = v => usd ? `US$ ${Math.round(v).toLocaleString('es-AR')}` : fmtARS(v);
+  const nombreMeta = usd ? `Meta: los mismos dólares que ${anio - 1}` : 'Meta: no perder contra la inflación';
   const falta   = meta != null ? meta - cierre : null;
   const mesesQueFaltan = (diasMes - diaHoy) / diasMes + (12 - mesHoy);
   const necesita = meta != null ? (meta - vendido) / mesesQueFaltan : null;
@@ -325,18 +337,32 @@ function CierreDelAnio({ ventas, kankay }) {
     <section className="card px-5 py-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <p className="text-sm text-ahg-text/55">¿Cómo cerramos {anio}?</p>
-        <div className="inline-flex rounded-lg border border-ahg-accent/60 overflow-hidden text-xs">
-          {[['grupo', 'Todo el grupo'], ['ed', 'Solo Entre Dos']].map(([v, l]) => (
-            <button key={v} onClick={() => setVista(v)}
-              className={`px-3 py-1.5 transition-colors ${vista === v ? 'bg-ahg-primary text-white' : 'text-ahg-text/60 hover:bg-ahg-bg'}`}>{l}</button>
-          ))}
+        <div className="flex gap-2 flex-wrap">
+          {dolar?.hoy && (
+            <div className="inline-flex rounded-lg border border-ahg-accent/60 overflow-hidden text-xs">
+              {[['ars', 'Pesos'], ['usd', 'Dólares']].map(([v, l]) => (
+                <button key={v} onClick={() => setMoneda(v)}
+                  className={`px-3 py-1.5 transition-colors ${moneda === v ? 'bg-ahg-primary text-white' : 'text-ahg-text/60 hover:bg-ahg-bg'}`}>{l}</button>
+              ))}
+            </div>
+          )}
+          <div className="inline-flex rounded-lg border border-ahg-accent/60 overflow-hidden text-xs">
+            {[['grupo', 'Todo el grupo'], ['ed', 'Solo Entre Dos']].map(([v, l]) => (
+              <button key={v} onClick={() => setVista(v)}
+                className={`px-3 py-1.5 transition-colors ${vista === v ? 'bg-ahg-primary text-white' : 'text-ahg-text/60 hover:bg-ahg-bg'}`}>{l}</button>
+            ))}
+          </div>
         </div>
       </div>
       <p className="text-lg sm:text-xl font-bold text-ahg-text mt-1 leading-snug" style={NUNITO}>
-        Si seguimos como venimos, cerramos en {fmtARS(cierre)}.
-        {meta != null && (falta > 0
-          ? <> Para no perder contra la inflación necesitamos {fmtARS(meta)}: <span className="text-red-700">nos faltarían {fmtARS(falta)} ({pctMeta(falta)})</span>.</>
-          : <> <span className="text-green-700">Le ganamos a la inflación por {fmtARS(-falta)} ({pctMeta(-falta)})</span>.</>)}
+        Si seguimos como venimos, cerramos en {fmt(cierre)}.
+        {meta != null && (usd
+          ? (falta > 0
+            ? <> <span className="text-red-700">Son {fmt(falta)} menos que en {anio - 1} ({pctMeta(falta)})</span>.</>
+            : <> <span className="text-green-700">Son {fmt(-falta)} más que en {anio - 1} ({pctMeta(-falta)})</span>.</>)
+          : (falta > 0
+            ? <> Para no perder contra la inflación necesitamos {fmt(meta)}: <span className="text-red-700">nos faltarían {fmt(falta)} ({pctMeta(falta)})</span>.</>
+            : <> <span className="text-green-700">Le ganamos a la inflación por {fmt(-falta)} ({pctMeta(-falta)})</span>.</>))}
       </p>
 
       {/* La barra no la cruza nada: cada marca es un triangulito en el borde con su texto afuera. */}
@@ -351,26 +377,31 @@ function CierreDelAnio({ ventas, kankay }) {
           <div className="absolute inset-y-0 left-0 rounded-lg bg-[#45484c] flex items-center justify-between px-3 text-white text-xs sm:text-sm gap-2 overflow-hidden"
                style={{ width: `${pct(vendVista)}%` }}>
             <span className="truncate text-white/80">1 ene → {fechaCorta(ventas.fecha)} · {diaDelAnio} días</span>
-            <b className="whitespace-nowrap font-semibold tabular-nums">{fmtARS(vendVista)}</b>
+            <b className="whitespace-nowrap font-semibold tabular-nums">{fmt(vendVista)}</b>
           </div>
         </div>
-        {meta != null && <Marca x={pct(meta)} arriba titulo="Meta: no perder contra la inflación" valor={fmtARS(meta)} fuerte visible={proyVista >= meta} />}
-        <Marca x={pct(total25)} titulo={`Todo ${anio - 1}`} valor={fmtARS(total25)} tenue visible={proyVista >= total25} />
-        <Marca x={pct(cierre)} titulo="Cierre si seguimos así" valor={fmtARS(cierre)} visible={terminado} />
+        {meta != null && <Marca x={pct(meta)} arriba titulo={nombreMeta} valor={fmt(meta)} fuerte visible={proyVista >= meta} />}
+        {/* En dólares la meta ya es todo el año pasado: no se repite la marca. */}
+        {!usd && <Marca x={pct(total25)} titulo={`Todo ${anio - 1}`} valor={fmt(total25)} tenue visible={proyVista >= total25} />}
+        <Marca x={pct(cierre)} titulo="Cierre si seguimos así" valor={fmt(cierre)} visible={terminado} />
       </div>
       {/* En el celular no entran los rótulos al lado de cada marca: van en lista. */}
       <ul className="sm:hidden space-y-1 text-xs mb-3 mt-6">
-        {meta != null && <li className="flex justify-between gap-3"><span className="font-semibold text-ahg-text">▏Meta: no perder contra la inflación</span><span className="tabular-nums">{fmtARS(meta)}</span></li>}
-        <li className="flex justify-between gap-3 text-ahg-text/70"><span className="font-semibold">▏Cierre si seguimos así</span><span className="tabular-nums">{fmtARS(cierre)}</span></li>
-        <li className="flex justify-between gap-3 text-ahg-text/45"><span className="font-semibold">▏Todo {anio - 1}</span><span className="tabular-nums">{fmtARS(total25)}</span></li>
+        {meta != null && <li className="flex justify-between gap-3"><span className="font-semibold text-ahg-text">▏{nombreMeta}</span><span className="tabular-nums">{fmt(meta)}</span></li>}
+        <li className="flex justify-between gap-3 text-ahg-text/70"><span className="font-semibold">▏Cierre si seguimos así</span><span className="tabular-nums">{fmt(cierre)}</span></li>
+        {!usd && <li className="flex justify-between gap-3 text-ahg-text/45"><span className="font-semibold">▏Todo {anio - 1}</span><span className="tabular-nums">{fmt(total25)}</span></li>}
       </ul>
 
       <p className="rounded-lg bg-ahg-bg px-4 py-3 text-sm text-ahg-text">
         {necesita != null && necesita > venimos
-          ? <>Para llegar a la meta hay que vender <b>{fmtARS(necesita)} por mes</b> de acá a fin de año. Hoy venimos vendiendo <b>{fmtARS(venimos)}</b> por mes.</>
-          : <>Venimos vendiendo <b>{fmtARS(venimos)}</b> por mes: alcanza con mantenerlo.</>}
+          ? <>Para llegar a la meta hay que vender <b>{fmt(necesita)} por mes</b> de acá a fin de año. Hoy venimos vendiendo <b>{fmt(venimos)}</b> por mes{usd ? ' (al dólar de hoy)' : ''}.</>
+          : <>Venimos vendiendo <b>{fmt(venimos)}</b> por mes{usd ? ' (al dólar de hoy)' : ''}: alcanza con mantenerlo.</>}
       </p>
-      {ipc != null && (
+      {usd ? (
+        <p className="text-[11px] text-ahg-text/45 mt-2">
+          Dólar oficial BNA: cada mes al promedio de ese mes; lo que falta del año, al de hoy ({fmtARS(dolar.hoy.venta)}). Lo de {anio - 1} es solo Entre Dos: Kankay no existía.
+        </p>
+      ) : ipc != null && (
         <p className="text-[11px] text-ahg-text/45 mt-2">
           Meta: lo vendido en {anio - 1} más la inflación de {String(ipc).replace('.', ',')} % (dato de {ventas.inflacion.mes ? `${MESES[Number(ventas.inflacion.mes.slice(5, 7)) - 1]} ${ventas.inflacion.mes.slice(0, 4)}` : ''}). Lo de {anio - 1} es solo Entre Dos: Kankay no existía.
         </p>

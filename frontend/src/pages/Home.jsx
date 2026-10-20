@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
@@ -294,8 +294,30 @@ function CierreDelAnio({ ventas, kankay }) {
 
   const max = Math.max(cierre, meta || 0, total25) * 1.04;
   const pct = v => Math.min(100, v / max * 100);
-  // Las dos marcas de abajo (cierre y 2025) se apilan si quedan muy cerca.
-  const juntas = Math.abs(cierre - total25) / max < 0.22;
+  // Los días que toma en cuenta: del 1 de enero al último día con ventas cargadas.
+  const diaDelAnio = Math.round((Date.UTC(anio, mesHoy - 1, diaHoy) - Date.UTC(anio, 0, 1)) / 86400000) + 1;
+  const diasQueFaltan = (anio % 4 === 0 ? 366 : 365) - diaDelAnio;
+
+  // Al pasar el mouse la venta se carga desde cero (el monto va contando) y después se
+  // completa lo que falta del año. Quieta, la barra queda completa (fase 2).
+  const [fase, setFase] = useState(2);
+  const corriendo = useRef(false);
+  function animar() {
+    if (corriendo.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    corriendo.current = true;
+    const t0 = performance.now();
+    const paso = ahora => {
+      const ms = ahora - t0;   // 1,4 s carga lo vendido, 0,7 s lo que falta del año
+      const f = ms < 1400 ? ms / 1400 : Math.min(2, 1 + (ms - 1400) / 700);
+      setFase(f);
+      if (f < 2) requestAnimationFrame(paso); else setTimeout(() => { corriendo.current = false; }, 500);
+    };
+    requestAnimationFrame(paso);
+  }
+  const suave = x => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+  const vendVista = vendido * suave(fase);
+  const proyVista = fase < 1 ? vendVista : vendido + (cierre - vendido) * suave(fase - 1);
+  const terminado = fase >= 2;
 
   return (
     <section className="card px-5 py-5">
@@ -315,19 +337,24 @@ function CierreDelAnio({ ventas, kankay }) {
           : <> <span className="text-green-700">Le ganamos a la inflación por {fmtARS(-falta)}</span>.</>)}
       </p>
 
-      <div className="relative mt-6 sm:mt-14 mb-3 sm:mb-14">
-        <div className="relative h-10 rounded-lg bg-ahg-bg overflow-hidden">
-          <div className="absolute inset-y-0 left-0 rounded-lg"
-               style={{ width: `${pct(cierre)}%`, backgroundImage: 'repeating-linear-gradient(45deg, #9a9c9e 0 6px, #c3c2bd 6px 12px)' }} />
-          <div className="absolute inset-y-0 left-0 rounded-lg bg-[#45484c] flex items-center justify-between px-3 text-white text-xs sm:text-sm gap-2"
-               style={{ width: `${pct(vendido)}%` }}>
-            <span className="truncate">Vendido hasta el {fechaCorta(ventas.fecha)}</span>
-            <b className="whitespace-nowrap font-semibold">{fmtARS(vendido)}</b>
+      {/* La barra no la cruza nada: cada marca es un triangulito en el borde con su texto afuera. */}
+      <div className="relative mt-5 sm:mt-14 mb-3 sm:mb-14" onMouseEnter={animar} onClick={animar}>
+        <div className="relative h-11 rounded-lg bg-ahg-bg overflow-hidden">
+          <div className="absolute inset-y-0 left-0 rounded-lg flex items-center justify-end pr-3"
+               style={{ width: `${pct(proyVista)}%`, backgroundImage: 'repeating-linear-gradient(45deg, #9a9c9e 0 6px, #c3c2bd 6px 12px)' }}>
+            {terminado && pct(cierre) - pct(vendido) > 12 && (
+              <span className="text-[11px] sm:text-xs font-semibold text-ahg-text bg-white/80 rounded px-1.5 py-0.5 whitespace-nowrap">faltan {diasQueFaltan} días</span>
+            )}
+          </div>
+          <div className="absolute inset-y-0 left-0 rounded-lg bg-[#45484c] flex items-center justify-between px-3 text-white text-xs sm:text-sm gap-2 overflow-hidden"
+               style={{ width: `${pct(vendVista)}%` }}>
+            <span className="truncate text-white/80">1 ene → {fechaCorta(ventas.fecha)} · {diaDelAnio} días</span>
+            <b className="whitespace-nowrap font-semibold tabular-nums">{fmtARS(vendVista)}</b>
           </div>
         </div>
-        {meta != null && <Marca x={pct(meta)} arriba titulo="Meta: no perder contra la inflación" valor={fmtARS(meta)} fuerte />}
-        <Marca x={pct(cierre)} titulo="Cierre si seguimos así" valor={fmtARS(cierre)} />
-        <Marca x={pct(total25)} titulo={`Todo ${anio - 1}`} valor={fmtARS(total25)} tenue bajo={juntas} />
+        {meta != null && <Marca x={pct(meta)} arriba titulo="Meta: no perder contra la inflación" valor={fmtARS(meta)} fuerte visible={proyVista >= meta} />}
+        <Marca x={pct(total25)} titulo={`Todo ${anio - 1}`} valor={fmtARS(total25)} tenue visible={proyVista >= total25} />
+        <Marca x={pct(cierre)} titulo="Cierre si seguimos así" valor={fmtARS(cierre)} visible={terminado} />
       </div>
       {/* En el celular no entran los rótulos al lado de cada marca: van en lista. */}
       <ul className="sm:hidden space-y-1 text-xs mb-3 mt-6">
@@ -350,18 +377,21 @@ function CierreDelAnio({ ventas, kankay }) {
   );
 }
 
-// Una marca vertical sobre la barra del año, con su nombre y su monto escritos al lado.
-function Marca({ x, titulo, valor, arriba, fuerte, tenue, bajo }) {
+// Una marca de la barra del año: un triangulito en el borde (no cruza la barra) y, en
+// computadora, su nombre y su monto afuera. Aparece cuando la carga la alcanza.
+function Marca({ x, titulo, valor, arriba, fuerte, tenue, visible = true }) {
   // Cerca de los bordes el texto se alinea hacia adentro para que no se corte.
   const alinear = x > 82 ? '-translate-x-full text-right' : x < 14 ? '' : '-translate-x-1/2 text-center';
   const color = fuerte ? 'text-ahg-text' : tenue ? 'text-ahg-text/45' : 'text-ahg-text/70';
-  const linea = fuerte ? 'bg-ahg-text' : tenue ? 'bg-ahg-text/30' : 'bg-ahg-text/55';
+  const tri = fuerte ? '#1f2022' : tenue ? '#b8b6b0' : '#7d8085';
   return (
-    <div className="absolute" style={{ left: `${x}%`, top: arriba ? undefined : '100%', bottom: arriba ? '100%' : undefined }}>
-      <span className={`absolute left-0 w-0.5 ${linea}`}
-            style={arriba ? { bottom: -40, height: 48 } : { top: -40, height: bajo ? 76 : 48 }} />
+    <div className="absolute transition-opacity duration-300" style={{ left: `${x}%`, opacity: visible ? 1 : 0,
+         top: arriba ? undefined : '100%', bottom: arriba ? '100%' : undefined }}>
+      <span className="absolute -translate-x-1/2" style={arriba
+        ? { bottom: 2, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: `7px solid ${tri}` }
+        : { top: 2, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: `7px solid ${tri}` }} />
       <div className={`absolute whitespace-nowrap text-xs ${color} ${alinear} hidden sm:block`}
-           style={arriba ? { bottom: 12 } : { top: bajo ? 40 : 12 }}>
+           style={arriba ? { bottom: 12 } : { top: 12 }}>
         <p className="font-semibold">{titulo}</p>
         <p className="tabular-nums">{valor}</p>
       </div>

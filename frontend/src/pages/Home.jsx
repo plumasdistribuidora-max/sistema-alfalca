@@ -290,6 +290,8 @@ function CierreDelAnio({ ventas, kankay }) {
   const falta   = meta != null ? meta - cierre : null;
   const mesesQueFaltan = (diasMes - diaHoy) / diasMes + (12 - mesHoy);
   const necesita = meta != null ? (meta - vendido) / mesesQueFaltan : null;
+  // Cuánto es la diferencia contra la meta, en porcentaje de la meta.
+  const pctMeta = v => `${(v / meta * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
   const venimos  = (cierre - vendido) / mesesQueFaltan;
 
   const max = Math.max(cierre, meta || 0, total25) * 1.04;
@@ -333,8 +335,8 @@ function CierreDelAnio({ ventas, kankay }) {
       <p className="text-lg sm:text-xl font-bold text-ahg-text mt-1 leading-snug" style={NUNITO}>
         Si seguimos como venimos, cerramos en {fmtARS(cierre)}.
         {meta != null && (falta > 0
-          ? <> Para no perder contra la inflación necesitamos {fmtARS(meta)}: <span className="text-red-700">nos faltarían {fmtARS(falta)}</span>.</>
-          : <> <span className="text-green-700">Le ganamos a la inflación por {fmtARS(-falta)}</span>.</>)}
+          ? <> Para no perder contra la inflación necesitamos {fmtARS(meta)}: <span className="text-red-700">nos faltarían {fmtARS(falta)} ({pctMeta(falta)})</span>.</>
+          : <> <span className="text-green-700">Le ganamos a la inflación por {fmtARS(-falta)} ({pctMeta(-falta)})</span>.</>)}
       </p>
 
       {/* La barra no la cruza nada: cada marca es un triangulito en el borde con su texto afuera. */}

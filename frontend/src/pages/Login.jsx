@@ -66,7 +66,6 @@ export default function Login() {
               onChange={e => setEmail(e.target.value)}
               placeholder="usuario@alfalca.com.ar"
               required
-              autoFocus
             />
           </div>
           <div>

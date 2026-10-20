@@ -1,8 +1,8 @@
 // La tarjeta de presentación del grupo que abre el login: entra de espaldas,
 // se da vuelta y muestra el frente con la marca. Después sube y deja lugar al
 // formulario. El papel es una foto real de cartulina de algodón
-// (public/marca/papel-*.jpg); el logo va hundido en el dorso y estampado en
-// tinta en el frente. Los estilos y los tiempos están en index.css, bajo
+// (public/marca/papel-grafito.jpg); el logo va hundido en el dorso y estampado en
+// tinta blanca en el frente. Los estilos y los tiempos están en index.css, bajo
 // "Tarjeta del login".
 
 const PIEZAS = (
@@ -49,12 +49,13 @@ export default function TarjetaIntro() {
         <div className="tj-cara tj-frente">
           <svg viewBox="-4 -4 108 108" className="tj-iso" aria-hidden="true">
             <defs><FiltroRelieve id="tj-tinta" sombra={0.35} brillo={0.5} /></defs>
-            <g fill="#1f2022" className="tj-tinta">{PIEZAS}</g>
+            <g className="tj-tinta">{PIEZAS}</g>
             <g fill="#000" filter="url(#tj-tinta)">{PIEZAS}</g>
           </svg>
           <div>
             <p className="tj-nombre">alfalca</p>
             <p className="tj-bajada">grupo inversor · mendoza</p>
+            <p className="tj-est">Est. 2023</p>
           </div>
         </div>
       </div>

@@ -11,8 +11,9 @@ import { fmtARS, fmtDoc, fmtNum, colorDeTienda, shortName, ordenarTiendas } from
 // Contra el año pasado se muestran dos lecturas de la facturación: sin la inflación
 // del país y sin la suba de nuestros propios precios.
 
-const COBRE = '#8a5a3c';
-const GRIS  = '#45484c';
+const COBRE = '#e8735a';      // coral del Café: barras y gráficos
+const COBRE_TXT = '#b04a35';  // el mismo coral más hondo, para texto o fondo con letra blanca
+const GRIS  = '#8a705e';  // café con leche: tarjetas destacadas de las tiendas
 const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
 const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const pct1 = v => Math.abs(v).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -80,7 +81,7 @@ function SinPrecios({ a, b, inflacion, suba, fmt = fmtARS, oscuro, parcial }) {
 }
 
 function Tarjeta({ tono, titulo, valor, abajo, children, explica }) {
-  const fondo = tono === 'gris' ? { background: GRIS, color: '#fff' } : tono === 'cobre' ? { background: COBRE, color: '#fff' } : {};
+  const fondo = tono === 'gris' ? { background: GRIS, color: '#fff' } : tono === 'cobre' ? { background: COBRE_TXT, color: '#fff' } : {};
   const oscuro = !!tono;
   return (
     <div className={`rounded-2xl p-4 flex flex-col gap-1.5 ${oscuro ? '' : 'bg-white'}`} style={fondo}>
@@ -99,8 +100,8 @@ function Bloque({ titulo, cafe, children }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 px-1 pt-1">
-        <h3 className="text-[17px] font-bold" style={{ fontFamily: 'Nunito, sans-serif', color: cafe ? COBRE : undefined }}>{titulo}</h3>
-        <span className="flex-1 h-px" style={{ background: cafe ? COBRE : '#d6d5cf', opacity: cafe ? 0.4 : 1 }} />
+        <h3 className="text-[17px] font-bold" style={{ fontFamily: 'Nunito, sans-serif', color: cafe ? COBRE_TXT : undefined }}>{titulo}</h3>
+        <span className="flex-1 h-px" style={{ background: cafe ? COBRE : '#e0d7ca', opacity: cafe ? 0.4 : 1 }} />
       </div>
       {children}
     </div>

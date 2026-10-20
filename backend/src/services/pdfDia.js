@@ -22,14 +22,14 @@ Font.register({ family: 'Rubik',  src: path.join(FUENTES, 'Rubik-ExtraBold.ttf')
 Font.registerHyphenationCallback(w => [w]);
 
 const C = {
-  tinta: '#1f2022', gris: '#6b6e72', grisClaro: '#9a9c9e', linea: '#dcdbd6', lineaSuave: '#ecebe7',
-  fondo: '#f4f4f2', oscuro: '#45484c', verde: '#15803D', verdeSuave: '#f0fdf4', verdeBorde: '#a7e9be',
-  verdeOscuro: '#166534', rojo: '#B3261E', ambar: '#A45A09', cobre: '#8a5a3c',
+  tinta: '#241a16', gris: '#75665a', grisClaro: '#a8998a', linea: '#e6dccb', lineaSuave: '#f7f2ea',
+  fondo: '#faf6ef', oscuro: '#8a705e', verde: '#15803D', verdeSuave: '#f0fdf4', verdeBorde: '#a7e9be',
+  verdeOscuro: '#166534', rojo: '#B3261E', ambar: '#A45A09', cobre: '#e8735a',
 };
 const COLOR_TIENDA = {
-  'Peatonal Tienda de Alfajores': '#26282a', '9 de Julio Tienda de Alfajores': '#5c5f63',
-  'Amigorena Tienda de Alfajores': '#989a9f', 'Sheraton Tienda de Alfajores': '#cfceca',
-  'Café Peatonal Cafetería': '#8a5a3c',
+  'Peatonal Tienda de Alfajores': '#3b2a24', '9 de Julio Tienda de Alfajores': '#8a705e',
+  'Amigorena Tienda de Alfajores': '#c9a273', 'Sheraton Tienda de Alfajores': '#7d8a74',
+  'Café Peatonal Cafetería': '#e8735a',
 };
 
 const S = StyleSheet.create({
@@ -383,7 +383,7 @@ function Documento({ r }) {
           ? h(Text, { style: { color: C.rojo } }, 'Falta un pesaje: sin los dos no se sabe cuánto se usó.')
           : h(View, null,
               h(BarraCafe, { etiqueta: 'Se usó', valor: cafe.consumo, max: Math.max(cafe.consumo, cafe.teorico || 0), color: C.cobre }),
-              cafe.teorico != null ? h(BarraCafe, { etiqueta: 'Según lo vendido', valor: cafe.teorico, max: Math.max(cafe.consumo, cafe.teorico), color: '#c8c7c2' }) : null,
+              cafe.teorico != null ? h(BarraCafe, { etiqueta: 'Según lo vendido', valor: cafe.teorico, max: Math.max(cafe.consumo, cafe.teorico), color: '#d3c8ba' }) : null,
               cafe.teorico ? h(Text, { style: { fontSize: 8, color: C.gris, marginTop: 2 } },
                 `${kg(Math.abs(cafe.consumo - cafe.teorico))} ${cafe.consumo < cafe.teorico ? 'menos' : 'más'} que lo vendido (${Math.round(Math.abs(cafe.consumo - cafe.teorico) / cafe.teorico * 100)} %) · quedan ${kg(cafe.queda)}`) : null),
       ) : null,

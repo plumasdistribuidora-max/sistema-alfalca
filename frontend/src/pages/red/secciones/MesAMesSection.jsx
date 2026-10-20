@@ -7,7 +7,8 @@ import { fmtARS, fmtDoc, fmtNum, colorDeTienda, shortName, ordenarTiendas } from
 // mes fuera de lo normal, como julio por las vacaciones, no la mueve). El mes en curso
 // se muestra a medias y con su proyección.
 
-const COBRE = '#8a5a3c';
+const COBRE = '#e8735a';      // coral del Café: barras y gráficos
+const COBRE_TXT = '#b04a35';  // el mismo coral más hondo, para texto o fondo con letra blanca
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MESES_L = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const VERDE = '#1f7a4d', ROJO = '#b23a2e';
@@ -60,20 +61,20 @@ function Barras({ series, valor, mesActual, formatoCorto, formatoLargo, titulo }
         {ticks.map(v => (
           <g key={v}>
             <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#efeee9" />
-            <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#6b6e72">{formatoCorto(v)}</text>
+            <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#75665a">{formatoCorto(v)}</text>
           </g>
         ))}
         {tot.map((t, i) => {
           const x = L + i * slot + (slot - bw) / 2;
           const parcial = i === n - 1 && !mesActual.completo;
           let acc = 0;
-          const color = parcial ? '#6b6e72' : (t >= ref ? VERDE : ROJO);
+          const color = parcial ? '#75665a' : (t >= ref ? VERDE : ROJO);
           return (
             <g key={i}>
               {parcial && proy != null && (
                 <>
                   <rect x={x} y={y(proy)} width={bw} height={y(0) - y(proy)} fill="none" stroke="#a3a5a8" strokeDasharray="4 3" rx="3" />
-                  <text x={x + bw / 2} y={y(proy) - 6} textAnchor="middle" fontSize="10.5" fill="#6b6e72">proy. {formatoCorto(proy)}</text>
+                  <text x={x + bw / 2} y={y(proy) - 6} textAnchor="middle" fontSize="10.5" fill="#75665a">proy. {formatoCorto(proy)}</text>
                 </>
               )}
               {series.map(sx => {
@@ -87,7 +88,7 @@ function Barras({ series, valor, mesActual, formatoCorto, formatoLargo, titulo }
                 acc += h;
                 return r;
               })}
-              <text x={x + bw / 2} y={H - B + 16} textAnchor="middle" fontSize="11.5" fill="#1f2022">
+              <text x={x + bw / 2} y={H - B + 16} textAnchor="middle" fontSize="11.5" fill="#241a16">
                 {MESES[i]}{parcial ? ` (1–${mesActual.n_dias})` : ''}
               </text>
               <text x={x + bw / 2} y={H - B + 31} textAnchor="middle" fontSize="10.5" fontWeight="700" fill={color}>{formatoCorto(t)}</text>
@@ -96,9 +97,9 @@ function Barras({ series, valor, mesActual, formatoCorto, formatoLargo, titulo }
         })}
         {completos.length > 0 && (
           <>
-            <line x1={L} x2={W - R} y1={y(ref)} y2={y(ref)} stroke="#1f2022" strokeWidth="1.5" strokeDasharray="6 4" />
-            <text x={W - R + 6} y={y(ref) - 3} fontSize="10.5" fontWeight="700" fill="#1f2022">mediana</text>
-            <text x={W - R + 6} y={y(ref) + 10} fontSize="10.5" fill="#1f2022">{formatoCorto(ref)}</text>
+            <line x1={L} x2={W - R} y1={y(ref)} y2={y(ref)} stroke="#241a16" strokeWidth="1.5" strokeDasharray="6 4" />
+            <text x={W - R + 6} y={y(ref) - 3} fontSize="10.5" fontWeight="700" fill="#241a16">mediana</text>
+            <text x={W - R + 6} y={y(ref) + 10} fontSize="10.5" fill="#241a16">{formatoCorto(ref)}</text>
           </>
         )}
       </svg>
@@ -108,7 +109,7 @@ function Barras({ series, valor, mesActual, formatoCorto, formatoLargo, titulo }
 
 // Una celda del totalizador: el valor y, debajo, el cambio contra el mes anterior
 function Celda({ v, prev, fmt, parcial, total }) {
-  let fondo = '#f5f4f1', texto = ' ', color = '#6b6e72';
+  let fondo = '#f8f3eb', texto = ' ', color = '#75665a';
   if (parcial) texto = 'a medias';
   else if (prev) {
     const p = (v / prev - 1) * 100;
@@ -246,7 +247,7 @@ export default function MesAMesSection({ selId = null }) {
         <div className="card p-4 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="font-semibold" style={{ fontFamily: 'Nunito, sans-serif', color: COBRE }}>
+              <h3 className="font-semibold" style={{ fontFamily: 'Nunito, sans-serif', color: COBRE_TXT }}>
                 Café · {modoC === 'p' ? 'personas' : 'facturación'} por mes
               </h3>
               <p className="text-xs text-stone-500">Personas según los comensales que cargan los mozos en Fudo.</p>
@@ -278,7 +279,7 @@ export default function MesAMesSection({ selId = null }) {
         {verCafe && (
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-semibold text-sm" style={{ color: COBRE }}>Café</h4>
+              <h4 className="font-semibold text-sm" style={{ color: COBRE_TXT }}>Café</h4>
               <Segmento opciones={[['f', 'Facturación'], ['p', 'Personas'], ['g', 'Gasto por persona']]} valor={totC} onChange={setTotC} />
             </div>
             <Totalizador

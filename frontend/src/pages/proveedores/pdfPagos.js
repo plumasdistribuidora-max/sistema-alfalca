@@ -6,9 +6,10 @@ import { plata, medioLabel, listaDias, hoyStr, fechaLarga } from './comunes';
 // proveedores con sus facturas y el total. El individual va a cada proveedor para
 // que sepa qué facturas se le pagan. Los dos salen solo con las facturas tildadas.
 
-const GRIS   = [69, 72, 76];     // #45484c, el gris de las cabeceras del sistema
-const SUAVE  = [107, 110, 114];  // #6b6e72
-const FONDO  = [236, 235, 231];  // #ecebe7
+const GRIS   = [59, 42, 36];      // #3b2a24, espresso para texto
+const CAFE  = [138, 112, 94];    // #8a705e, café con leche: fondo de las cabeceras
+const SUAVE  = [117, 102, 90];    // #75665a
+const FONDO  = [247, 242, 234];  // #f7f2ea
 
 const fechaNum = iso => {
   if (!iso) return '—';
@@ -18,7 +19,7 @@ const fechaNum = iso => {
 
 function encabezado(doc, titulo, bajada) {
   const ancho = doc.internal.pageSize.getWidth();
-  doc.setFillColor(...GRIS);
+  doc.setFillColor(...CAFE);
   doc.rect(0, 0, ancho, 26, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');

@@ -102,7 +102,7 @@ export function Vendedores({ D }) {
         <div className="sx"><table className="t vg">
           <thead><tr><th>Vendedor</th>{ord.map(d => <th key={d}>{DW[d].slice(0, 3)}</th>)}</tr></thead>
           <tbody>
-            <tr style={{ background: '#fafaf9' }}><td><b>Promedio del local</b></td>{ord.map(d => <Celda key={d} t={loc[d]?.t || 0} n={loc[d]?.n || 0} />)}</tr>
+            <tr style={{ background: '#fbf8f3' }}><td><b>Promedio del local</b></td>{ord.map(d => <Celda key={d} t={loc[d]?.t || 0} n={loc[d]?.n || 0} />)}</tr>
             {vs.map(v => <tr key={v}><td>{nom(v)}</td>{ord.map(d => { const x = T.vdow[v]?.[d];
               return <Celda key={d} t={x?.tot || 0} n={x?.f || 0} prom={loc[d] ? loc[d].t / loc[d].n : null} />; })}</tr>)}
           </tbody>
@@ -264,7 +264,7 @@ function Terminado({ e, onTerminar }) {
       {e.terminado_en && <span style={{ fontSize: 11, fontWeight: 600, color: cambiado ? '#92400e' : '#047857' }}>
         {cambiado ? 'Cambió después de terminado' : `✓ Terminado ${cuandoCorto(e.terminado_en)}`}</span>}
       {(!e.terminado_en || cambiado) && <button type="button" onClick={onTerminar}
-        style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: '#45484c', border: 0, borderRadius: 7, padding: '4px 9px', cursor: 'pointer' }}>
+        style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: '#8a705e', border: 0, borderRadius: 7, padding: '4px 9px', cursor: 'pointer' }}>
         {cambiado ? 'Avisar de nuevo' : 'Terminé, avisar'}</button>}
     </div>
   );

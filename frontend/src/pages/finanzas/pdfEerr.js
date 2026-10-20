@@ -5,10 +5,11 @@ import { fmtARS, fmtPct } from '../red/redUtils';
 // El PDF del estado de resultados de un local en un mes. Arriba, la banda gris con el
 // isotipo y cuatro tarjetas con los números clave; debajo, la misma tabla de la pantalla.
 
-const GRIS  = [69, 72, 76];      // #45484c
-const SUAVE = [107, 110, 114];   // #6b6e72
+const GRIS  = [59, 42, 36];       // #3b2a24
+const CAFE  = [138, 112, 94];    // #8a705e, café con leche: fondo de las cabeceras
+const SUAVE = [117, 102, 90];     // #75665a
 const CLARO = [168, 162, 158];
-const FONDO = [244, 244, 242];   // tarjetas y filas de subtotal
+const FONDO = [250, 246, 239];   // tarjetas y filas de subtotal
 const COBRE = [176, 111, 45];    // el resultado neto
 const LINEA = [220, 219, 214];
 const TINTA = [28, 25, 23];
@@ -42,7 +43,7 @@ export function pdfEerr({ filas, ventaNeta, local, mesLabel, aviso }) {
   const ancho = doc.internal.pageSize.getWidth();
 
   // ── Banda de arriba ──
-  doc.setFillColor(...GRIS);
+  doc.setFillColor(...CAFE);
   doc.rect(0, 0, ancho, 34, 'F');
   isotipo(doc, 14, 9, 16, [255, 255, 255]);
   doc.setTextColor(255, 255, 255);
@@ -114,7 +115,7 @@ export function pdfEerr({ filas, ventaNeta, local, mesLabel, aviso }) {
       if (tipo === 'sub') { d.cell.styles.fontStyle = 'bold'; d.cell.styles.fillColor = FONDO; }
       if (tipo === 'fin') {
         d.cell.styles.fontStyle = 'bold'; d.cell.styles.fontSize = 10.5;
-        d.cell.styles.fillColor = GRIS; d.cell.styles.textColor = [255, 255, 255];
+        d.cell.styles.fillColor = CAFE; d.cell.styles.textColor = [255, 255, 255];
       }
       if (d.column.index === 2 && tipo !== 'fin') d.cell.styles.textColor = CLARO;
     },

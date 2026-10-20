@@ -7,7 +7,7 @@ import { fmtARS, fmtDoc, shortName } from '../redUtils';
 // lo mismo separado en mañana y tarde. Todo se mide "por turno trabajado", así no
 // gana el que más días hizo. Las tiendas se miden en docenas; el Café, en pesos.
 
-const COBRE = '#8a5a3c';
+const COBRE = '#e8735a';      // coral del Café: barras y gráficos
 const VERDE = '#1f7a4d';
 const MIN_TURNOS = 10;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -61,7 +61,7 @@ export default function VendedoresSection({ selId = null, locales = [] }) {
   const cafe = local?.tipo === 'cafeteria';
   const med = o => (cafe ? o.f : o.d);
   const fmt = cafe ? fmtARS : fmtDoc;
-  const color = cafe ? COBRE : '#45484c';
+  const color = cafe ? COBRE : '#3b2a24';
 
   // Totales por persona, por turno y por mes
   const gente = useMemo(() => {

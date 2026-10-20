@@ -122,18 +122,18 @@ function Grafico({ cerrados, local, prom, n }) {
   const line = a => a.map(q => q.join(',')).join(' ');
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', marginBottom: 10 }} role="img" aria-label="Acumulado contra lo que costó el local">
-      {ticks.map(v => <g key={v}><line x1={L} x2={W - Rm} y1={y(v)} y2={y(v)} stroke="#f5f5f4" />
-        <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#78716c">{`US$ ${Math.round(v).toLocaleString('es-AR')}`}</text></g>)}
+      {ticks.map(v => <g key={v}><line x1={L} x2={W - Rm} y1={y(v)} y2={y(v)} stroke="#f6f1e9" />
+        <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#7d7066">{`US$ ${Math.round(v).toLocaleString('es-AR')}`}</text></g>)}
       <line x1={L} x2={W - Rm} y1={y(local)} y2={y(local)} stroke="#a0522d" strokeWidth="2" strokeDasharray="6 4" />
       <text x={W - Rm} y={y(local) - 6} textAnchor="end" fontSize="11" fontWeight="700" fill="#a0522d">local {usd(local)}</text>
       {pp.length > 0 && <>
-        <polyline points={line(pp)} fill="none" stroke="#a8a29e" strokeWidth="1.5" strokeDasharray="3 4" />
-        <text x={pp.at(-1)[0]} y={H - 8} textAnchor="end" fontSize="11" fill="#78716c">+{n} meses</text>
+        <polyline points={line(pp)} fill="none" stroke="#ab9f93" strokeWidth="1.5" strokeDasharray="3 4" />
+        <text x={pp.at(-1)[0]} y={H - 8} textAnchor="end" fontSize="11" fill="#7d7066">+{n} meses</text>
       </>}
       <polygon points={`${x(0)},${y(0)} ${line(pr)} ${pr.at(-1)[0]},${y(0)}`} fill="#047857" opacity=".1" />
       <polyline points={line(pr)} fill="none" stroke="#047857" strokeWidth="2.5" />
       {pts.map((p, i) => <g key={i}><circle cx={x(i)} cy={y(p.acc)} r="4" fill="#047857" />
-        <text x={x(i)} y={H - 8} textAnchor={i ? 'middle' : 'start'} fontSize="11" fill="#78716c">{p.p ? MES[Number(p.p.slice(5)) - 1].slice(0, 3) : 'apertura'}</text></g>)}
+        <text x={x(i)} y={H - 8} textAnchor={i ? 'middle' : 'start'} fontSize="11" fill="#7d7066">{p.p ? MES[Number(p.p.slice(5)) - 1].slice(0, 3) : 'apertura'}</text></g>)}
     </svg>
   );
 }

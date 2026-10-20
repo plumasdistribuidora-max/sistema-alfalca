@@ -7,7 +7,8 @@ import { fmtARS } from '../redUtils';
 // y cuánto subimos cada uno contra los mismos días del año pasado, al lado de la
 // inflación. Los que no existían el año pasado (o ya no se venden) solo muestran precio.
 
-const COBRE = '#8a5a3c';
+const COBRE = '#e8735a';      // coral del Café: barras y gráficos
+const COBRE_TXT = '#b04a35';  // el mismo coral más hondo, para texto o fondo con letra blanca
 const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const pct1 = v => Math.abs(v).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fecha = iso => { const [, m, d] = iso.split('-').map(Number); return `${d} de ${MES[m - 1]}`; };
@@ -27,7 +28,7 @@ function Pareto({ grupo, cafe }) {
           <div key={p.nombre} className="grid grid-cols-[22px_minmax(0,1.4fr)_minmax(50px,1fr)_100px_56px] gap-2.5 items-center text-[12.5px] py-0.5 border-b border-stone-50">
             <span className="text-stone-400 font-semibold">{i + 1}</span>
             <span className="truncate" title={p.nombre}>{p.nombre}</span>
-            <span className="h-2 rounded" style={{ width: `${p.venta / max * 100}%`, background: cafe ? COBRE : '#45484c' }} />
+            <span className="h-2 rounded" style={{ width: `${p.venta / max * 100}%`, background: cafe ? COBRE : '#3b2a24' }} />
             <span className="text-right tabular-nums">{fmtARS(p.venta)}</span>
             <span className="text-right tabular-nums text-stone-500">{Math.round(acc / grupo.total * 100)} %</span>
           </div>
@@ -80,7 +81,7 @@ export default function ProductosSection() {
       {grupos.map(({ key, titulo, g, cafe }) => (
         <div key={key} className="card p-4 space-y-3">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <h3 className="font-semibold" style={{ fontFamily: 'Nunito, sans-serif', color: cafe ? COBRE : undefined }}>{titulo}</h3>
+            <h3 className="font-semibold" style={{ fontFamily: 'Nunito, sans-serif', color: cafe ? COBRE_TXT : undefined }}>{titulo}</h3>
             <p className="text-xs text-stone-500">
               <b className="text-stone-900">{g.top.length} productos</b> de {g.productos} hacen el 80 % de la venta ({fmtARS(g.total)})
             </p>
@@ -101,12 +102,12 @@ export default function ProductosSection() {
         <div className="grid sm:grid-cols-3 gap-3">
           {grupos.map(({ key, titulo, suba, cafe }) => (
             <div key={key} className="rounded-2xl border border-stone-100 p-4 space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: cafe ? COBRE : '#6b6e72' }}>{titulo}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: cafe ? COBRE_TXT : '#75665a' }}>{titulo}</p>
               <p className="text-2xl font-extrabold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{suba ? `+${pct1(suba.pct)} %` : 'sin dato'}</p>
               <ChipInflacion suba={suba?.pct} inflacion={inf} />
             </div>
           ))}
-          <div className="rounded-2xl p-4 space-y-1.5 text-white" style={{ background: '#45484c' }}>
+          <div className="rounded-2xl p-4 space-y-1.5 text-white" style={{ background: '#8a705e' }}>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/65">Inflación (INDEC)</p>
             <p className="text-2xl font-extrabold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{inf != null ? `+${pct1(inf)} %` : 'sin cargar'}</p>
             <p className="text-xs text-white/65">interanual, se cambia en "Cómo venimos"</p>
@@ -125,7 +126,7 @@ export default function ProductosSection() {
             </thead>
             <tbody>
               {grupos.map(({ key, titulo, g, cafe }) => [
-                <tr key={`${key}-t`}><td colSpan={5} className="pt-3 pb-1 px-2 font-bold" style={{ color: cafe ? COBRE : undefined }}>{titulo}</td></tr>,
+                <tr key={`${key}-t`}><td colSpan={5} className="pt-3 pb-1 px-2 font-bold" style={{ color: cafe ? COBRE_TXT : undefined }}>{titulo}</td></tr>,
                 ...g.top.map(p => {
                   const s = p.hoy && p.antes ? (p.hoy / p.antes - 1) * 100 : null;
                   const dif = s != null && inf != null ? s - inf : null;

@@ -89,7 +89,7 @@ export default function Reportes() {
 
   return (
     <div className="space-y-5 max-w-4xl">
-      <div className="rounded-2xl px-6 py-5" style={{ background: '#45484c' }}>
+      <div className="rounded-2xl px-6 py-5" style={{ background: '#8a705e' }}>
         <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>
           Alfalca · Reportes
         </p>

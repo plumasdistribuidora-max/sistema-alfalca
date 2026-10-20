@@ -36,7 +36,7 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
           <div className="px-6 py-4 border-t border-stone-100 flex-shrink-0">
             <button onClick={onSave} disabled={saving}
               className="w-full py-2.5 rounded-xl font-semibold text-white transition-colors disabled:opacity-50"
-              style={{ background: '#45484c' }}>
+              style={{ background: '#8a705e' }}>
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </div>

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
@@ -17,11 +18,18 @@ export default function Login() {
   const [anima, setAnima]       = useState(true);
   const escenaRef               = useRef(null);
   const formRef                 = useRef(null);
-  // Safari abre solo el cartel de contraseñas guardadas apenas ve un login, y
-  // tapa la tarjeta. Los campos arrancan de solo lectura (así no hay nada que
-  // autocompletar) y se habilitan cuando la persona los toca.
-  const [habilitado, setHabilitado] = useState(false);
-  const habilitar               = () => setHabilitado(true);
+  // Safari abre solo el cartel de contraseñas guardadas apenas ve un campo de
+  // login (aunque esté bloqueado, y también en navegación privada) y tapa la
+  // tarjeta. Hasta que la persona toca, en vez de campos hay recuadros con el
+  // mismo aspecto; al tocar uno se ponen los campos de verdad y se le da el foco
+  // en el mismo toque, así en el celular se abre el teclado.
+  const [campos, setCampos]     = useState(false);
+  const emailRef                = useRef(null);
+  const claveRef                = useRef(null);
+  function activar(cual) {
+    flushSync(() => setCampos(true));
+    (cual === 'clave' ? claveRef : emailRef).current?.focus();
+  }
 
   useLayoutEffect(() => {
     if (!escenaRef.current || !formRef.current) return;
@@ -64,35 +72,46 @@ export default function Login() {
           )}
           <div>
             <label className="label">Email</label>
-            <input
-              type="email"
-              className="input"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="usuario@alfalca.com.ar"
-              autoComplete="username"
-              readOnly={!habilitado}
-              onPointerDown={habilitar}
-              onFocus={habilitar}
-              required
-            />
+            {campos ? (
+              <input
+                ref={emailRef}
+                type="email"
+                className="input"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="usuario@alfalca.com.ar"
+                autoComplete="username"
+                required
+              />
+            ) : (
+              <div role="textbox" tabIndex={0} className="input text-ahg-text/40 cursor-text"
+                onClick={() => activar('email')} onFocus={() => activar('email')}>
+                usuario@alfalca.com.ar
+              </div>
+            )}
           </div>
           <div>
             <label className="label">Contraseña</label>
-            <input
-              type="password"
-              className="input"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              readOnly={!habilitado}
-              onPointerDown={habilitar}
-              onFocus={habilitar}
-              required
-            />
+            {campos ? (
+              <input
+                ref={claveRef}
+                type="password"
+                className="input"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+            ) : (
+              <div role="textbox" tabIndex={0} className="input text-ahg-text/40 cursor-text"
+                onClick={() => activar('clave')} onFocus={() => activar('clave')}>
+                ••••••••
+              </div>
+            )}
           </div>
-          <button type="submit" className="btn-primary w-full" disabled={loading}>
+          <button type="submit" className="btn-primary w-full" disabled={loading}
+            onClick={e => { if (!campos) { e.preventDefault(); activar('email'); } }}>
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>

@@ -517,7 +517,9 @@ router.get('/inicio', requireAuth, async (req, res) => {
     };
     const mes = { facturacion: n(mesRes.rows[0].facturacion), facturacion_aa: n(mesRes.rows[0].facturacion_aa) };
     const anio = anioRes.rows.map(r => ({ anio: r.anio, mes: r.mes, facturacion: n(r.facturacion), hasta_dia: n(r.hasta_dia) }));
-    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total, mes, anio } });
+    // La inflación cargada en el dashboard: el Inicio la usa para la meta del año (no perder contra 2025).
+    const inflacion = await parametrosIpc();
+    res.json({ ok: true, data: { fecha, parcial, importado_at: ult.importado_at, locales, total, mes, anio, inflacion } });
   } catch (err) {
     console.error('[red/inicio]', err);
     res.status(500).json({ ok: false, error: 'Error al armar la portada' });

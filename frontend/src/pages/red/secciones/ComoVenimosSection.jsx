@@ -11,9 +11,9 @@ import { fmtARS, fmtDoc, fmtNum, colorDeTienda, shortName, ordenarTiendas } from
 // Contra el año pasado se muestran dos lecturas de la facturación: sin la inflación
 // del país y sin la suba de nuestros propios precios.
 
-const COBRE = '#e8735a';      // coral del Café: barras y gráficos
-const COBRE_TXT = '#b04a35';  // el mismo coral más hondo, para texto o fondo con letra blanca
-const GRIS  = '#8a705e';  // café con leche: tarjetas destacadas de las tiendas
+const COBRE = '#8a5a3c';      // cobre mate del Café: barras y gráficos
+const COBRE_TXT = '#7a4c33';  // el mismo cobre más hondo, para texto o fondo con letra blanca
+const GRIS  = '#55585c';  // gris de la barra: tarjetas destacadas de las tiendas
 const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
 const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const pct1 = v => Math.abs(v).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -101,7 +101,7 @@ function Bloque({ titulo, cafe, children }) {
     <div className="space-y-3">
       <div className="flex items-center gap-3 px-1 pt-1">
         <h3 className="text-[17px] font-bold" style={{ fontFamily: 'Nunito, sans-serif', color: cafe ? COBRE_TXT : undefined }}>{titulo}</h3>
-        <span className="flex-1 h-px" style={{ background: cafe ? COBRE : '#e0d7ca', opacity: cafe ? 0.4 : 1 }} />
+        <span className="flex-1 h-px" style={{ background: cafe ? COBRE : '#d6d5cf', opacity: cafe ? 0.4 : 1 }} />
       </div>
       {children}
     </div>

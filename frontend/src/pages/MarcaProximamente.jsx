@@ -15,7 +15,7 @@ export function Proximamente({ marca }) {
   return (
     <div className="card max-w-md mx-auto mt-10 px-8 py-10 text-center">
       <div className="h-24 rounded-xl flex items-center justify-center overflow-hidden mb-6" style={{ background: marca.fondo }}>
-        <img src={marca.logo} alt={marca.nombre} className="w-auto max-w-[90%] object-contain" style={{ height: marca.alto || 84 }} />
+        <img src={marca.logo} alt={marca.nombre} className="w-auto max-w-[90%] object-contain mix-blend-screen" style={{ height: marca.alto || 84 }} />
       </div>
       <h1 className="text-xl font-bold text-ahg-text" style={{ fontFamily: 'Nunito, sans-serif' }}>
         {marca.nombre} · Próximamente

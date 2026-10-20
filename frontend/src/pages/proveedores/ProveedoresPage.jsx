@@ -39,7 +39,7 @@ export default function ProveedoresPage() {
 
   return (
     <div className="space-y-0 -mt-2">
-      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#8a705e' }}>
+      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: '#55585c' }}>
         <div className="flex items-center gap-4 px-6 pt-5 pb-3">
           <Isotipo className="w-10 h-10 text-white flex-shrink-0" />
           <div>

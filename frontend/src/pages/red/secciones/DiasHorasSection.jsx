@@ -6,8 +6,8 @@ import { fmtARS, fmtNum, colorDeTienda, shortName, ordenarTiendas } from '../red
 // hace ese día), las últimas 12 semanas contra la semana típica (mediana), y cuánto
 // de la venta del día entra en cada hora.
 
-const COBRE = '#e8735a';      // coral del Café: barras y gráficos
-const COBRE_TXT = '#b04a35';  // el mismo coral más hondo, para texto o fondo con letra blanca
+const COBRE = '#8a5a3c';      // cobre mate del Café: barras y gráficos
+const COBRE_TXT = '#7a4c33';  // el mismo cobre más hondo, para texto o fondo con letra blanca
 const VERDE = '#1f7a4d', ROJO = '#b23a2e';
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -42,7 +42,7 @@ function Semanas({ valores, fechas, color, fmt, fmtEje, titulo }) {
         {ticks.map(v => (
           <g key={v}>
             <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#efeee9" />
-            <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#75665a">{fmtEje(v)}</text>
+            <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#6b6e72">{fmtEje(v)}</text>
           </g>
         ))}
         {ult.map((v, i) => {
@@ -53,13 +53,13 @@ function Semanas({ valores, fechas, color, fmt, fmtEje, titulo }) {
                 <title>{`Semana del ${diaMes(keys[i])}: ${fmt(v)}`}</title>
               </rect>
               <text x={x + bw / 2} y={y(v) - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={v >= ref ? VERDE : ROJO}>{fmt(v)}</text>
-              <text x={x + bw / 2} y={H - B + 16} textAnchor="middle" fontSize="11" fill="#241a16">{diaMes(keys[i])}</text>
+              <text x={x + bw / 2} y={H - B + 16} textAnchor="middle" fontSize="11" fill="#1f2022">{diaMes(keys[i])}</text>
             </g>
           );
         })}
-        <line x1={L} x2={W - R} y1={y(ref)} y2={y(ref)} stroke="#241a16" strokeWidth="1.5" strokeDasharray="6 4" />
-        <text x={W - R + 6} y={y(ref) - 3} fontSize="10.5" fontWeight="700" fill="#241a16">mediana</text>
-        <text x={W - R + 6} y={y(ref) + 10} fontSize="10.5" fill="#241a16">{fmt(ref)}</text>
+        <line x1={L} x2={W - R} y1={y(ref)} y2={y(ref)} stroke="#1f2022" strokeWidth="1.5" strokeDasharray="6 4" />
+        <text x={W - R + 6} y={y(ref) - 3} fontSize="10.5" fontWeight="700" fill="#1f2022">mediana</text>
+        <text x={W - R + 6} y={y(ref) + 10} fontSize="10.5" fill="#1f2022">{fmt(ref)}</text>
       </svg>
     </div>
   );
@@ -88,7 +88,7 @@ function HoraPorHora({ local }) {
       <div className="grid grid-flow-col auto-cols-fr gap-[3px] items-end h-32">
         {p.map((v, i) => (
           <div key={horas[i]} className="flex flex-col justify-end h-full gap-0.5" title={`De ${horas[i]} a ${horas[i] + 1} h: ${pct1(v)} %`}>
-            <span className="text-[11px] font-semibold text-center tabular-nums" style={{ color: i === iMax ? VERDE : i === iMin ? ROJO : '#241a16' }}>{Math.round(v)}</span>
+            <span className="text-[11px] font-semibold text-center tabular-nums" style={{ color: i === iMax ? VERDE : i === iMin ? ROJO : '#1f2022' }}>{Math.round(v)}</span>
             <i className="block rounded-t" style={{ height: `${Math.max(v / max * 100, 2)}%`, background: i === iMax ? VERDE : i === iMin ? ROJO : '#b9b8b3' }} />
           </div>
         ))}
@@ -180,7 +180,7 @@ export default function DiasHorasSection({ selId = null }) {
         <div className="card p-4 space-y-2">
           <h3 className="font-semibold text-stone-800" style={{ fontFamily: 'Nunito, sans-serif' }}>{sel ? shortName(sel.nombre) : 'Tiendas'} · docenas de las últimas 12 semanas</h3>
           <p className="text-xs text-stone-500">Cada barra es una semana de lunes a domingo; abajo, la fecha del lunes. La línea punteada es la mediana de las semanas del año (la semana típica): en verde las semanas arriba, en rojo las de abajo.</p>
-          <Semanas valores={docSem} fechas={data.semanas} color="#3b2a24" titulo="Docenas por semana"
+          <Semanas valores={docSem} fechas={data.semanas} color="#1f2022" titulo="Docenas por semana"
                    fmt={v => fmtNum(Math.round(v))} fmtEje={v => fmtNum(Math.round(v))} />
         </div>
       )}

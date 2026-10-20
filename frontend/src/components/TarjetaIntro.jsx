@@ -49,7 +49,7 @@ export default function TarjetaIntro() {
         <div className="tj-cara tj-frente">
           <svg viewBox="-4 -4 108 108" className="tj-iso" aria-hidden="true">
             <defs><FiltroRelieve id="tj-tinta" sombra={0.35} brillo={0.5} /></defs>
-            <g fill="#3b2a24" className="tj-tinta">{PIEZAS}</g>
+            <g fill="#1f2022" className="tj-tinta">{PIEZAS}</g>
             <g fill="#000" filter="url(#tj-tinta)">{PIEZAS}</g>
           </svg>
           <div>

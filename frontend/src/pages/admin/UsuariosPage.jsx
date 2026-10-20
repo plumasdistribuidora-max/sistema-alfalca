@@ -174,7 +174,7 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="rounded-2xl px-6 py-5" style={{ background: '#8a705e' }}>
+      <div className="rounded-2xl px-6 py-5" style={{ background: '#55585c' }}>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Nunito, sans-serif' }}>

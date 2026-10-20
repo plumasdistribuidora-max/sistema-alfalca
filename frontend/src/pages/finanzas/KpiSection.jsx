@@ -38,7 +38,7 @@ const SEM = {
   verde:     { dot: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', text: '#14532d' },
   ambar:     { dot: '#d97706', bg: '#fffbeb', border: '#fde68a', text: '#78350f' },
   rojo:      { dot: '#dc2626', bg: '#fef2f2', border: '#fecaca', text: '#7f1d1d' },
-  sin_datos: { dot: '#ab9f93', bg: '#fbf8f3', border: '#e9e2d7', text: '#7d7066' },
+  sin_datos: { dot: '#a8a29e', bg: '#fafaf9', border: '#e7e5e4', text: '#78716c' },
 };
 
 const SEM_ICON = { verde: '✓ Verde', ambar: '⚠ Ámbar', rojo: '✗ Rojo', sin_datos: '—' };
@@ -389,7 +389,7 @@ function UmbralesModal({ kpis, onClose, onSaved }) {
         <div className="px-6 py-4 border-t border-stone-100 flex-shrink-0">
           <button onClick={save} disabled={saving}
             className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-50 transition-opacity"
-            style={{ background: '#8a705e' }}>
+            style={{ background: '#55585c' }}>
             {saving ? 'Guardando…' : 'Guardar umbrales'}
           </button>
         </div>

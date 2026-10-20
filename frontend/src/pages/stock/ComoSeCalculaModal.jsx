@@ -9,7 +9,7 @@ const SITUACIONES   = { normal: 'Normal', sube: 'Sube', finde_largo: 'Finde larg
 function barColor(indice) {
   if (indice >= 1.12) return '#059669';
   if (indice <= 0.88) return '#DC2626';
-  return '#75665a';
+  return '#6b6e72';
 }
 
 function fmtNum(v) {
@@ -63,7 +63,7 @@ export default function ComoSeCalculaModal({ proyeccion, onClose }) {
           {/* 4 Factor cards */}
           <div className="grid grid-cols-2 gap-3">
             {/* 1. Velocidad base */}
-            <div className="rounded-xl p-4 border-l-4" style={{ borderColor: '#75665a', background: '#faf6ef' }}>
+            <div className="rounded-xl p-4 border-l-4" style={{ borderColor: '#6b6e72', background: '#f4f4f2' }}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
                 <p className="text-xs font-bold text-violet-900 uppercase tracking-wide">Velocidad base</p>
@@ -104,15 +104,15 @@ export default function ComoSeCalculaModal({ proyeccion, onClose }) {
             </div>
 
             {/* 4. Ajuste propio */}
-            <div className="rounded-xl p-4 border-l-4" style={{ borderColor: '#3b2a24', background: '#f7f2ea' }}>
+            <div className="rounded-xl p-4 border-l-4" style={{ borderColor: '#1f2022', background: '#ecebe7' }}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: '#8a705e' }}>4</span>
-                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#3b2a24' }}>Tu ajuste</p>
+                <span className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: '#55585c' }}>4</span>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#1f2022' }}>Tu ajuste</p>
               </div>
-              <p className="text-2xl font-bold mb-1" style={{ fontFamily: 'Nunito, sans-serif', color: '#3b2a24' }}>
+              <p className="text-2xl font-bold mb-1" style={{ fontFamily: 'Nunito, sans-serif', color: '#1f2022' }}>
                 ×{f.multiplicador}
               </p>
-              <p className="text-xs" style={{ color: '#5a4a40' }}>
+              <p className="text-xs" style={{ color: '#55585c' }}>
                 Marcaste "{SITUACIONES[p.situacion] || p.situacion}".
               </p>
             </div>

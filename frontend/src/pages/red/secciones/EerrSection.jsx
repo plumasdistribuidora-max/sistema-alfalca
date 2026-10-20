@@ -59,7 +59,7 @@ function ModalShell({ title, onClose, onSave, saving, children }) {
               onClick={onSave}
               disabled={saving}
               className="w-full py-2.5 rounded-xl font-semibold text-white transition-colors disabled:opacity-50"
-              style={{ background: '#8a705e' }}
+              style={{ background: '#55585c' }}
             >
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
@@ -77,14 +77,14 @@ function FormulaRows({ rows }) {
         <div
           key={i}
           className="flex items-center justify-between px-4 py-3 border-b border-stone-50 last:border-0"
-          style={{ background: r.highlight ? '#faf6ef' : i % 2 === 0 ? '#fff' : '#fbf8f3' }}
+          style={{ background: r.highlight ? '#f4f4f2' : i % 2 === 0 ? '#fff' : '#fafaf9' }}
         >
           <span style={{ fontWeight: r.highlight ? 700 : 500, color: r.highlight ? '#3b0764' : '#44403c' }}>
             {r.label}
           </span>
           <div className="text-right">
             <span style={{ fontWeight: 700, color: r.highlight ? '#3b0764' : '#1c1917' }}>{fmt$(r.value)}</span>
-            <span className="ml-2 text-xs" style={{ color: r.highlight ? '#5a4a40' : '#ab9f93' }}>{fmtP(r.pct)}</span>
+            <span className="ml-2 text-xs" style={{ color: r.highlight ? '#55585c' : '#a8a29e' }}>{fmtP(r.pct)}</span>
           </div>
         </div>
       ))}
@@ -490,7 +490,7 @@ export default function EerrSection() {
               key={id}
               onClick={() => { setVista(id); setOpenModal(null); }}
               className={`px-3.5 py-1.5 rounded-[10px] text-sm font-semibold transition-colors ${vista === id ? 'text-white' : 'text-stone-500 hover:text-stone-800'}`}
-              style={vista === id ? { background: '#8a705e' } : undefined}
+              style={vista === id ? { background: '#55585c' } : undefined}
             >
               {label}
             </button>

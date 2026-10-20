@@ -53,7 +53,7 @@
 .tj-sombra {
   position: absolute; left: 50%; bottom: -14px; width: min(320px, 78vw); height: 30px;
   transform: translateX(-50%); border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(59, 42, 36, .38), rgba(59, 42, 36, 0));
+  background: radial-gradient(closest-side, rgba(31, 32, 34, .35), rgba(31, 32, 34, 0));
   filter: blur(6px);
 }
 .tj-cara {
@@ -72,10 +72,10 @@
 }
 .tj-dorso {
   display: grid; place-items: center;
-  background-image: url('/marca/papel-espresso.jpg');
+  background-image: url('/marca/papel-grafito.jpg');
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07),
-    0 1px 0 #2e201b, 0 2px 0 #2a1d18, 0 3px 0 #261a15, 0 4px 0 #22170f,
-    0 22px 40px -18px rgba(36, 24, 18, .55);
+    0 1px 0 #4b4e52, 0 2px 0 #45484c, 0 3px 0 #3f4245, 0 4px 0 #393b3e,
+    0 22px 40px -18px rgba(20, 22, 24, .5);
 }
 .tj-hundido { width: 31%; overflow: visible; }
 .tj-frente {
@@ -84,17 +84,17 @@
   background-image: url('/marca/papel-crema.jpg');
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6),
     0 1px 0 #e6dccc, 0 2px 0 #ddd2c0, 0 3px 0 #d3c7b4, 0 4px 0 #c9bca8,
-    0 22px 40px -18px rgba(59, 42, 36, .45);
+    0 22px 40px -18px rgba(31, 32, 34, .4);
 }
 .tj-iso { width: 21%; flex: none; overflow: visible; }
 .tj-tinta { mix-blend-mode: multiply; }
 .tj-nombre, .tj-bajada { mix-blend-mode: multiply; }
 .tj-nombre {
   font-family: Rubik, sans-serif; font-weight: 800; letter-spacing: -.03em; line-height: 1;
-  color: #3b2a24; font-size: clamp(30px, 9.5vw, 39px);
+  color: #1f2022; font-size: clamp(30px, 9.5vw, 39px);
   text-shadow: 0 1px 0 rgba(255, 255, 255, .55), 0 -.5px 0 rgba(0, 0, 0, .2);
 }
-.tj-bajada { margin-top: 6px; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: #75665a; }
+.tj-bajada { margin-top: 6px; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: #6b6e72; }
 
 @media (prefers-reduced-motion: no-preference) {
   .tj-anima .tj-escena       { animation: tj-sube 4.2s both; }

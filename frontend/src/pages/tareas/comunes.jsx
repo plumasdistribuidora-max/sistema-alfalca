@@ -160,7 +160,7 @@ export function MensajeError({ texto }) {
 
 export function Titulo({ eyebrow, children, derecha }) {
   return (
-    <div className="rounded-2xl px-5 py-4 flex items-end justify-between gap-3 flex-wrap" style={{ background: '#8a705e' }}>
+    <div className="rounded-2xl px-5 py-4 flex items-end justify-between gap-3 flex-wrap" style={{ background: '#55585c' }}>
       <div>
         <p className="text-white/50 uppercase tracking-widest" style={{ fontSize: '10px', fontWeight: 600 }}>{eyebrow}</p>
         <h1 className="text-xl font-bold text-white mt-0.5" style={{ fontFamily: 'Nunito, sans-serif' }}>{children}</h1>

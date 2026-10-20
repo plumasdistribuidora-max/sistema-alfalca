@@ -1,13 +1,12 @@
 // ── Paleta por tienda (consistente en todos los gráficos) ───────────────────
-// Paleta "espresso + coral" que eligió Martín el 20/10/2026 para todo el
-// sistema: las tiendas de alfajores van en marrones (espresso, café con leche,
-// caramelo) más un salvia, y el Café, que es el único negocio distinto, en
-// coral. Así los gráficos usan los mismos tonos que el menú y las tarjetas.
+// Paleta "gris mate de autos" que eligió Martín el 20/10/2026: las cuatro
+// tiendas de alfajores van en la escala de gris mate del sistema (grafito,
+// nardo, gris medio) más un salvia, y el Café, que es el único negocio
+// distinto, en cobre mate. Así los gráficos usan los mismos tonos que el menú.
 //
-// Los pasos se separaron para que cada par contiguo del apilado se distinga
-// (ΔE2000 ≥ 19). El caramelo y el coral tienen poco contraste contra el blanco:
-// por eso el apilado lleva un hilo blanco entre segmentos y la leyenda +
-// tooltip siempre nombran la tienda.
+// Los pasos se separaron para que cada par contiguo del apilado se distinga.
+// Los claros tienen poco contraste contra el blanco: por eso el apilado lleva
+// un hilo blanco entre segmentos y la leyenda + tooltip siempre nombran la tienda.
 //
 // El ORDEN es fijo y no por ranking: el color identifica a la tienda, nunca a
 // su puesto.
@@ -20,11 +19,11 @@ export const TIENDA_ORDEN = [
 ];
 
 export const TIENDA_COLORS = {
-  'Peatonal Tienda de Alfajores':   '#3b2a24', // espresso
-  '9 de Julio Tienda de Alfajores': '#8a705e', // café con leche
-  'Amigorena Tienda de Alfajores':  '#c9a273', // caramelo
-  'Sheraton Tienda de Alfajores':   '#7d8a74', // salvia
-  'Café Peatonal Cafetería':        '#e8735a', // coral
+  'Peatonal Tienda de Alfajores':   '#26282a', // grafito
+  '9 de Julio Tienda de Alfajores': '#5c5f63', // nardo
+  'Amigorena Tienda de Alfajores':  '#989a9f', // gris medio
+  'Sheraton Tienda de Alfajores':   '#9aa08a', // salvia
+  'Café Peatonal Cafetería':        '#8a5a3c', // cobre mate
 };
 
 // Slots libres para una tienda que todavía no esté en el mapa: tonos apagados

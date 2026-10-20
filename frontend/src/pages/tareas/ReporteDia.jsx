@@ -128,7 +128,7 @@ function TarjetaProveedor({ p }) {
         {p.medio ? ` · ${MEDIO[p.medio] || p.medio}` : ''}{p.dias_pago?.length ? ` · cobra ${p.dias_pago.map(d => DIA_CORTO[d]).join(', ')}` : ''}
       </p>
       <span className="flex h-1.5 rounded-full overflow-hidden bg-ahg-bg" title="Gris: hasta 15 días · ámbar: 16 a 30 · rojo: más de 30">
-        <i style={{ width: `${resto / p.deuda * 100}%`, background: '#a8998a' }} />
+        <i style={{ width: `${resto / p.deuda * 100}%`, background: '#9a9c9e' }} />
         <i style={{ width: `${p.mas_15 / p.deuda * 100}%`, background: '#a45a09' }} />
         <i style={{ width: `${p.mas_30 / p.deuda * 100}%`, background: '#b3261e' }} />
       </span>
@@ -173,7 +173,7 @@ function PanelDeuda({ deuda, fecha, onCerrar }) {
             {deuda.tramos.map((t, i) => (
               <div key={t.label} className="grid grid-cols-[92px_1fr_auto] gap-2 items-center text-xs">
                 <span>{t.label}</span>
-                <span className="h-2 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${t.monto / max * 100}%`, background: i === 3 ? '#b3261e' : i === 2 ? '#a45a09' : '#a8998a' }} /></span>
+                <span className="h-2 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${t.monto / max * 100}%`, background: i === 3 ? '#b3261e' : i === 2 ? '#a45a09' : '#9a9c9e' }} /></span>
                 <span className="tabular-nums font-semibold text-right">{pesos(t.monto)} <span className="text-ahg-text/45 font-normal">· {t.facturas}</span></span>
               </div>
             ))}
@@ -214,7 +214,7 @@ export default function ReporteDia() {
 
   return (
     <div className="space-y-3 max-w-5xl">
-      <header className="rounded-2xl px-4 py-3.5 text-white flex items-center justify-between gap-3 flex-wrap" style={{ background: '#8a705e' }}>
+      <header className="rounded-2xl px-4 py-3.5 text-white flex items-center justify-between gap-3 flex-wrap" style={{ background: '#55585c' }}>
         <div>
           <p className="text-white/55 uppercase tracking-widest" style={{ fontSize: 10, fontWeight: 700 }}>Reporte del día</p>
           <h1 className="text-xl font-bold first-letter:uppercase" style={{ fontFamily: 'Nunito, sans-serif' }}>{d.fecha_larga}</h1>
@@ -381,8 +381,8 @@ export default function ReporteDia() {
               const p = dif != null ? Math.abs(dif) / d.cafe.teorico * 100 : null;
               return (
                 <div className="grid gap-1.5 text-sm">
-                  <div className="grid grid-cols-[110px_1fr_64px] gap-2 items-center"><span>Se usó</span><span className="h-3 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${d.cafe.consumo / max * 100}%`, background: '#e8735a' }} /></span><b className="text-right">{n1(d.cafe.consumo)} kg</b></div>
-                  {d.cafe.teorico != null && <div className="grid grid-cols-[110px_1fr_64px] gap-2 items-center"><span>Según lo vendido</span><span className="h-3 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${d.cafe.teorico / max * 100}%`, background: '#d3c8ba' }} /></span><b className="text-right">{n1(d.cafe.teorico)} kg</b></div>}
+                  <div className="grid grid-cols-[110px_1fr_64px] gap-2 items-center"><span>Se usó</span><span className="h-3 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${d.cafe.consumo / max * 100}%`, background: '#8a5a3c' }} /></span><b className="text-right">{n1(d.cafe.consumo)} kg</b></div>
+                  {d.cafe.teorico != null && <div className="grid grid-cols-[110px_1fr_64px] gap-2 items-center"><span>Según lo vendido</span><span className="h-3 rounded-full bg-ahg-bg overflow-hidden"><i className="block h-full rounded-full" style={{ width: `${d.cafe.teorico / max * 100}%`, background: '#c9c8c4' }} /></span><b className="text-right">{n1(d.cafe.teorico)} kg</b></div>}
                   {dif != null && <p className="text-xs"><Chip tono={p <= 10 ? 'verde' : p <= 25 ? 'ambar' : 'rojo'}>{n1(Math.abs(dif))} kg {dif < 0 ? 'menos' : 'más'} · {Math.round(p)} %</Chip> <span className="text-ahg-text/55">quedan {n1(d.cafe.queda)} kg</span></p>}
                 </div>
               );

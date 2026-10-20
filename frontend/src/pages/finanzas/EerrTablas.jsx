@@ -249,7 +249,7 @@ export function EstadoResultados({ filas, ventaNeta, mesLabel, local, aviso }) {
             const fin = f.tipo === 'fin';
             const vacio = f.sinCargar ? 'Sin cargar' : f.incompleto ? 'Incompleto' : null;
             return (
-              <tr key={i} className={cls} style={fin ? { background: '#8a705e' } : undefined}>
+              <tr key={i} className={cls} style={fin ? { background: '#55585c' } : undefined}>
                 <td className={`px-4 ${pad} text-left ${f.tipo === 'det' ? 'pl-9' : ''}`}>
                   {f.label}
                   {f.onEditar && (
@@ -284,7 +284,7 @@ export function EstadoResultados({ filas, ventaNeta, mesLabel, local, aviso }) {
         <button
           onClick={() => pdfEerr({ filas, ventaNeta, local, mesLabel, aviso })}
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ background: '#8a705e' }}
+          style={{ background: '#55585c' }}
         >
           Descargar PDF
         </button>
@@ -376,7 +376,7 @@ export function EditarTarjeta({ localId, mes, mesLabel, pct, ventaBruta, onClose
           </div>
         </div>
         <div className="px-6 py-4 border-t border-stone-100">
-          <button onClick={guardar} disabled={guardando} className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-50" style={{ background: '#8a705e' }}>
+          <button onClick={guardar} disabled={guardando} className="w-full py-2.5 rounded-xl font-semibold text-white disabled:opacity-50" style={{ background: '#55585c' }}>
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
         </div>

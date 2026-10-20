@@ -126,9 +126,9 @@ function Acumulado({ D, sel, prevK, esCurso, hasta, pe, estimado, G, netoFin }) 
   const path = a => a.map((v, i) => `${i ? 'L' : 'M'}${x(i + 1).toFixed(1)},${y(v).toFixed(1)}`).join('');
   const labs = [];
   if (pe) labs.push([y(pe), `${estimado ? 'Equilibrio estimado' : 'Equilibrio'} ${fmt(pe)}`, '#a0522d', 700]);
-  if (prv) labs.push([y(prv.at(-1)), `${cap(mesN(prevK))} ${fmt(prv.at(-1))}`, '#7d7066', 500]);
-  if (esCurso) labs.push([y(netoFin), `A este ritmo ${fmt(netoFin)}`, '#241a16', 600]);
-  else labs.push([y(cur.at(-1)), `${cap(mesN(sel))} ${fmt(cur.at(-1))}`, '#241a16', 800]);
+  if (prv) labs.push([y(prv.at(-1)), `${cap(mesN(prevK))} ${fmt(prv.at(-1))}`, '#78716c', 500]);
+  if (esCurso) labs.push([y(netoFin), `A este ritmo ${fmt(netoFin)}`, '#1f2022', 600]);
+  else labs.push([y(cur.at(-1)), `${cap(mesN(sel))} ${fmt(cur.at(-1))}`, '#1f2022', 800]);
   labs.sort((a, b) => a[0] - b[0]);
   for (let j = 1; j < labs.length; j++) if (labs[j][0] - labs[j - 1][0] < 14) labs[j][0] = labs[j - 1][0] + 14;
   const cruce = pe ? cur.findIndex(v => v >= pe) : -1;
@@ -143,21 +143,21 @@ function Acumulado({ D, sel, prevK, esCurso, hasta, pe, estimado, G, netoFin }) 
         {pe ? (cruce >= 0 ? `El día ${cruce + 1} se pasó el punto de equilibrio (círculo verde).` : esCurso ? 'Todavía no llegó al punto de equilibrio.' : 'No llegó al punto de equilibrio.') : ''}
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Venta acumulada del mes" style={{ fontVariantNumeric: 'tabular-nums' }}>
-        {ticks.map(v => <g key={v}><line x1={L} x2={W - Rr} y1={y(v)} y2={y(v)} stroke="#eeedeb" /><text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="10.5" fill="#7d7066">$ {(v / 1e6).toLocaleString('es-AR')} M</text></g>)}
-        {[1, 5, 10, 15, 20, 25, 30].map(d => <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="10.5" fill="#7d7066">{d}</text>)}
+        {ticks.map(v => <g key={v}><line x1={L} x2={W - Rr} y1={y(v)} y2={y(v)} stroke="#eeedeb" /><text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="10.5" fill="#78716c">$ {(v / 1e6).toLocaleString('es-AR')} M</text></g>)}
+        {[1, 5, 10, 15, 20, 25, 30].map(d => <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="10.5" fill="#78716c">{d}</text>)}
         {pe && <line x1={L} x2={W - Rr} y1={y(pe)} y2={y(pe)} stroke="#a0522d" strokeWidth="1.5" strokeDasharray="5 4" />}
-        {prv && <path d={path(prv)} fill="none" stroke="#c4b8aa" strokeWidth="2" />}
-        {esCurso && <path d={`M${x(cur.length)},${y(cur.at(-1))}L${x(n)},${y(netoFin)}`} fill="none" stroke="#241a16" strokeWidth="2" strokeDasharray="2 4" />}
-        <path d={path(cur)} fill="none" stroke="#241a16" strokeWidth="2.6" />
-        <circle cx={x(cur.length)} cy={y(cur.at(-1))} r="4" fill="#241a16" />
-        {esCurso && <text x={x(cur.length)} y={y(cur.at(-1)) - 10} textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#241a16">{fmt(cur.at(-1))}</text>}
+        {prv && <path d={path(prv)} fill="none" stroke="#b8b6b0" strokeWidth="2" />}
+        {esCurso && <path d={`M${x(cur.length)},${y(cur.at(-1))}L${x(n)},${y(netoFin)}`} fill="none" stroke="#1f2022" strokeWidth="2" strokeDasharray="2 4" />}
+        <path d={path(cur)} fill="none" stroke="#1f2022" strokeWidth="2.6" />
+        <circle cx={x(cur.length)} cy={y(cur.at(-1))} r="4" fill="#1f2022" />
+        {esCurso && <text x={x(cur.length)} y={y(cur.at(-1)) - 10} textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#1f2022">{fmt(cur.at(-1))}</text>}
         {cruce >= 0 && <circle cx={x(cruce + 1)} cy={y(cur[cruce])} r="5" fill="none" stroke="#047857" strokeWidth="2" />}
         {labs.map(([yy, t, col, w]) => <text key={t} x={W - Rr + 8} y={yy + 4} fontSize="10.5" fill={col} fontWeight={w}>{t}</text>)}
       </svg>
       <div className="legend">
-        <span><i style={{ background: '#241a16' }} />{cap(mesN(sel))}</span>
-        {prv && <span><i style={{ background: '#c4b8aa' }} />{cap(mesN(prevK))}</span>}
-        {esCurso && <span><i style={{ background: 'repeating-linear-gradient(90deg,#241a16 0 2px,transparent 2px 5px)' }} />a este ritmo</span>}
+        <span><i style={{ background: '#1f2022' }} />{cap(mesN(sel))}</span>
+        {prv && <span><i style={{ background: '#b8b6b0' }} />{cap(mesN(prevK))}</span>}
+        {esCurso && <span><i style={{ background: 'repeating-linear-gradient(90deg,#1f2022 0 2px,transparent 2px 5px)' }} />a este ritmo</span>}
         {pe && <span><i style={{ background: '#a0522d' }} />punto de equilibrio</span>}
       </div>
     </div>
@@ -208,8 +208,8 @@ function Calendario({ M, sel, esCurso, hasta }) {
   const off = (new Date(Number(sel.slice(0, 4)), Number(sel.slice(5)) - 1, 1).getDay() + 6) % 7;
   const mx = Math.max(...Object.values(M.porDia));
   const best = Object.entries(M.porDia).sort((a, b) => b[1] - a[1])[0];
-  const shade = v => { if (v <= 0) return ['#f6f1e9', false]; const t = v / mx;
-    return t < .2 ? ['#ebe3d6', false] : t < .4 ? ['#d3c8ba', false] : t < .6 ? ['#8e7f71', true] : t < .8 ? ['#3b2a24', true] : ['#241a16', true]; };
+  const shade = v => { if (v <= 0) return ['#f5f5f4', false]; const t = v / mx;
+    return t < .2 ? ['#e3e2de', false] : t < .4 ? ['#c9c8c4', false] : t < .6 ? ['#7d8085', true] : t < .8 ? ['#1f2022', true] : ['#1f2022', true]; };
   const sinV = Array.from({ length: hasta }, (_, i) => i + 1).filter(d => !(M.porDia[d] > 0)).length;
   const celdas = [];
   for (let k = 0; k < off; k++) celdas.push(<div key={`e${k}`} className="d empty" />);
@@ -228,7 +228,7 @@ function Calendario({ M, sel, esCurso, hasta }) {
         {celdas}
       </div></div>
       <div className="scale">
-        <span>menos</span>{['#f6f1e9', '#d3c8ba', '#8e7f71', '#3b2a24', '#241a16'].map(c => <span key={c} className="sw" style={{ background: c }} />)}<span>más</span>
+        <span>menos</span>{['#f5f5f4', '#c9c8c4', '#7d8085', '#1f2022', '#1f2022'].map(c => <span key={c} className="sw" style={{ background: c }} />)}<span>más</span>
         <span style={{ marginLeft: 12 }}><span className="sw" style={{ outline: '2px solid #a0522d', background: 'none', verticalAlign: -2 }} /> mejor día</span>
       </div>
     </div>

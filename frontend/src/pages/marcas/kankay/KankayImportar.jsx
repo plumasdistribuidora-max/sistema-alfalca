@@ -97,7 +97,7 @@ export function KankayImportar() {
                 ? `El Excel trae ventas del ${fecha(info.desde)} al ${fecha(info.ultimo)}.`
                 : 'El Excel no trae ninguna venta.'}</span></div>
               {h && (
-                <div className="card" style={{ background: '#fbf8f3', padding: 14, display: 'grid', gap: 10 }}>
+                <div className="card" style={{ background: '#fafaf9', padding: 14, display: 'grid', gap: 10 }}>
                   <b style={{ fontSize: 14 }}>{h.desde === h.hasta
                     ? `Del ${corta(h.desde)} no trae nada. ¿Ese día no hubo ventas?`
                     : `Del ${corta(h.desde)} al ${corta(h.hasta)} no trae nada. ¿Esos días no hubo ventas?`}</b>

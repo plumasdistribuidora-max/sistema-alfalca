@@ -278,7 +278,7 @@ function ElAnio({ ventas, kankay }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ahg-text/60">
-          <Ley color="#3b2a24">Entre Dos</Ley>
+          <Ley color="#45484c">Entre Dos</Ley>
           <Ley color="#a9abae">Kankay</Ley>
           <span className="inline-flex items-center gap-1.5"><b className="inline-block w-3 border-t-2 border-dashed border-ahg-text/40" />{anio - 1}</span>
         </div>
@@ -290,7 +290,7 @@ function ElAnio({ ventas, kankay }) {
             <div key={m} className="relative h-full flex flex-col justify-end group" title={`${capital(m)}: ${fmtARS(tot)}${ant[i] ? ` · ${anio - 1}: ${fmtARS(ant[i])}` : ''}`}>
               {ant[i] > 0 && <div className="absolute inset-x-0 border-t-2 border-dashed border-ahg-text/35" style={{ bottom: `${ant[i] / max * 100}%` }} />}
               {kk[i] > 0 && <div className="rounded-t-[3px]" style={{ height: `${kk[i] / max * 100}%`, background: '#a9abae' }} />}
-              {ed[i] > 0 && <div className={kk[i] > 0 ? '' : 'rounded-t-[3px]'} style={{ height: `${ed[i] / max * 100}%`, background: '#8a705e', opacity: i + 1 === mesHoy ? 0.75 : 1 }} />}
+              {ed[i] > 0 && <div className={kk[i] > 0 ? '' : 'rounded-t-[3px]'} style={{ height: `${ed[i] / max * 100}%`, background: '#45484c', opacity: i + 1 === mesHoy ? 0.75 : 1 }} />}
             </div>
           );
         })}
@@ -313,7 +313,7 @@ function TarjetaMarca({ m, children }) {
       <div className="h-28 rounded-xl flex items-center justify-center overflow-hidden" style={{ background: m.fondo }}>
         <img
           src={m.logo} alt={m.nombre}
-          className="w-auto max-w-[80%] object-contain transition-transform duration-500 ease-out motion-safe:group-hover:scale-110 motion-safe:group-hover:-rotate-1"
+          className="w-auto max-w-[80%] object-contain mix-blend-screen transition-transform duration-500 ease-out motion-safe:group-hover:scale-110 motion-safe:group-hover:-rotate-1"
           style={{ height: m.alto || 84 }}
         />
       </div>
@@ -431,7 +431,7 @@ function Cuadro({ label, value, sub, color }) {
   return (
     <div className="card p-4">
       <p className="text-xs font-medium text-ahg-text/60">{label}</p>
-      <p className="text-2xl font-bold mt-0.5" style={{ ...NUNITO, color: color || '#241a16' }}>{value}</p>
+      <p className="text-2xl font-bold mt-0.5" style={{ ...NUNITO, color: color || '#1f2022' }}>{value}</p>
       <p className="text-xs text-ahg-text/50 mt-0.5 min-h-[16px]">{sub}</p>
     </div>
   );

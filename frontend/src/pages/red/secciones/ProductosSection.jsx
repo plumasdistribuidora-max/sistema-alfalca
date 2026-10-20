@@ -7,8 +7,8 @@ import { fmtARS } from '../redUtils';
 // y cuánto subimos cada uno contra los mismos días del año pasado, al lado de la
 // inflación. Los que no existían el año pasado (o ya no se venden) solo muestran precio.
 
-const COBRE = '#e8735a';      // coral del Café: barras y gráficos
-const COBRE_TXT = '#b04a35';  // el mismo coral más hondo, para texto o fondo con letra blanca
+const COBRE = '#8a5a3c';      // cobre mate del Café: barras y gráficos
+const COBRE_TXT = '#7a4c33';  // el mismo cobre más hondo, para texto o fondo con letra blanca
 const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const pct1 = v => Math.abs(v).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fecha = iso => { const [, m, d] = iso.split('-').map(Number); return `${d} de ${MES[m - 1]}`; };
@@ -28,7 +28,7 @@ function Pareto({ grupo, cafe }) {
           <div key={p.nombre} className="grid grid-cols-[22px_minmax(0,1.4fr)_minmax(50px,1fr)_100px_56px] gap-2.5 items-center text-[12.5px] py-0.5 border-b border-stone-50">
             <span className="text-stone-400 font-semibold">{i + 1}</span>
             <span className="truncate" title={p.nombre}>{p.nombre}</span>
-            <span className="h-2 rounded" style={{ width: `${p.venta / max * 100}%`, background: cafe ? COBRE : '#3b2a24' }} />
+            <span className="h-2 rounded" style={{ width: `${p.venta / max * 100}%`, background: cafe ? COBRE : '#1f2022' }} />
             <span className="text-right tabular-nums">{fmtARS(p.venta)}</span>
             <span className="text-right tabular-nums text-stone-500">{Math.round(acc / grupo.total * 100)} %</span>
           </div>
@@ -102,12 +102,12 @@ export default function ProductosSection() {
         <div className="grid sm:grid-cols-3 gap-3">
           {grupos.map(({ key, titulo, suba, cafe }) => (
             <div key={key} className="rounded-2xl border border-stone-100 p-4 space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: cafe ? COBRE_TXT : '#75665a' }}>{titulo}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: cafe ? COBRE_TXT : '#6b6e72' }}>{titulo}</p>
               <p className="text-2xl font-extrabold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{suba ? `+${pct1(suba.pct)} %` : 'sin dato'}</p>
               <ChipInflacion suba={suba?.pct} inflacion={inf} />
             </div>
           ))}
-          <div className="rounded-2xl p-4 space-y-1.5 text-white" style={{ background: '#8a705e' }}>
+          <div className="rounded-2xl p-4 space-y-1.5 text-white" style={{ background: '#55585c' }}>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/65">Inflación (INDEC)</p>
             <p className="text-2xl font-extrabold tabular-nums" style={{ fontFamily: 'Nunito, sans-serif' }}>{inf != null ? `+${pct1(inf)} %` : 'sin cargar'}</p>
             <p className="text-xs text-white/65">interanual, se cambia en "Cómo venimos"</p>

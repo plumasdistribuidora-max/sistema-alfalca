@@ -62,7 +62,14 @@ const RUTAS = {
   grupo:    ['/usuarios', '/locales', '/formularios', '/admin'],
 };
 
-function NavItem({ to, icon, label, rutas, end, onClick }) {
+const GRUPO_RUTAS = {
+  operacion: ['/dia', '/tareas', '/tablero', '/reportes'],
+  numeros:   ['/red', '/finanzas'],
+  compras:   ['/stock', '/proveedores'],
+  equipo:    ['/empleados', '/calendario'],
+};
+
+function NavItem({ to, icon, label, rutas, end, onClick, sub }) {
   const { pathname } = useLocation();
   const marcado = rutas ? enRutas(pathname, rutas) : null;
   return (
@@ -71,15 +78,42 @@ function NavItem({ to, icon, label, rutas, end, onClick }) {
       end={end}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+        `flex items-center gap-2.5 rounded-lg font-medium transition-colors
+         ${sub ? 'pl-9 pr-3 py-1.5 text-[13px]' : 'px-3 py-2 text-sm'}
          ${(marcado ?? isActive)
            ? 'bg-white/20 text-white'
            : 'text-white/70 hover:bg-white/10 hover:text-white'}`
       }
     >
-      <Icono name={icon} />
+      {icon && <Icono name={icon} />}
       <span className="flex-1">{label}</span>
     </NavLink>
+  );
+}
+
+// Un grupo dentro de una marca (Operación, Números…): se despliega en el mismo menú y
+// muestra sus pantallas debajo, sin solapas arriba. Se abre uno por vez; el de la
+// pantalla en la que estás queda abierto.
+function Grupo({ id, icon, label, rutas, abierto, onToggle, children }) {
+  const { pathname } = useLocation();
+  const aca = enRutas(pathname, rutas);
+  return (
+    <div>
+      <button
+        onClick={() => onToggle(id)}
+        aria-expanded={abierto}
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/10
+          ${abierto || aca ? 'text-white' : 'text-white/70 hover:text-white'}`}
+      >
+        <Icono name={icon} />
+        <span className="flex-1 text-left">{label}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+             className={`w-3.5 h-3.5 transition-transform duration-200 ${abierto ? 'rotate-90' : 'rotate-0'}`} aria-hidden="true">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+      {abierto && <div className="space-y-0.5 pb-1">{children}</div>}
+    </div>
   );
 }
 
@@ -128,12 +162,18 @@ function LinkExterno({ href, icon, label }) {
   );
 }
 
-// El menú va por marca, como se mira el grupo: cada negocio con su bloque y el mismo
-// formato (Dashboard y sus ventas), y abajo lo que es de todo el grupo. Dentro de Entre
-// Dos el orden sigue el día: lo que pasó, los números, y al final lo que se carga.
+// El menú va por marca, como se mira el grupo: cada negocio con su bloque y abajo lo
+// que es de todo el grupo. Dentro de Entre Dos las pantallas hermanas van en grupos que
+// se despliegan en el mismo menú (Martín no quiere solapas arriba ni un menú largo).
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
   const dueno = esDueno(user);
+  const { pathname } = useLocation();
+  const grupoDeAca = Object.keys(GRUPO_RUTAS).find(g => enRutas(pathname, GRUPO_RUTAS[g])) || null;
+  const [grupo, setGrupo] = useState(grupoDeAca);
+  useEffect(() => { if (grupoDeAca) setGrupo(grupoDeAca); }, [grupoDeAca]);
+  const alternar = g => setGrupo(actual => (actual === g ? null : g));
+  const grupoProps = g => ({ id: g, rutas: GRUPO_RUTAS[g], abierto: grupo === g, onToggle: alternar });
 
   return (
     <>
@@ -173,24 +213,34 @@ export default function Sidebar({ open, onClose }) {
               <NavItem to="/" icon="inicio" label="Inicio" end />
 
               <Bloque icon="alfajor" label="Entre Dos" rutas={RUTAS.entreDos}>
-                <NavItem to="/dia"         icon="dia"         label="Reporte del día" />
-                <NavItem to="/tareas"      icon="tareas"      label="Tareas" rutas={rutasDe('tareas')} />
-                <NavItem to="/reportes"    icon="reportes"    label="Reportes de los turnos" />
-                {/* El dashboard y Finanzas son de los dueños: el Encargado General no ve ventas ni plata. */}
-                {dueno && <NavItem to="/red"      icon="dashboard" label="Dashboard" />}
-                {dueno && <NavItem to="/finanzas" icon="finanzas"  label="Finanzas" />}
-                <NavItem to="/stock"       icon="stock"       label="Stock inteligente" />
-                <NavItem to="/proveedores" icon="proveedores" label="Proveedores" />
-                <NavItem to="/empleados"   icon="personal"    label="Empleados y horas" />
-                <NavItem to="/calendario"  icon="calendario"  label="Calendario de trabajo" />
-                <NavItem to="/ventas/importar" icon="importar" label="Ventas de Fudo" rutas={rutasDe('fudo')} />
+                <Grupo {...grupoProps('operacion')} icon="dia" label="Operación">
+                  <NavItem sub to="/dia"      label="Resumen" />
+                  <NavItem sub to="/tareas"   label="Tareas" rutas={rutasDe('tareas')} />
+                  <NavItem sub to="/reportes" label="Turnos" />
+                </Grupo>
+                {/* Números es de los dueños: el Encargado General no ve ventas ni plata. */}
+                {dueno && (
+                  <Grupo {...grupoProps('numeros')} icon="finanzas" label="Números">
+                    <NavItem sub to="/red"      label="Dashboard" />
+                    <NavItem sub to="/finanzas" label="Finanzas" />
+                  </Grupo>
+                )}
+                <Grupo {...grupoProps('compras')} icon="stock" label="Stock y compras">
+                  <NavItem sub to="/stock"       label="Stock" />
+                  <NavItem sub to="/proveedores" label="Proveedores" />
+                </Grupo>
+                <Grupo {...grupoProps('equipo')} icon="personal" label="Equipo">
+                  <NavItem sub to="/empleados"  label="Empleados" />
+                  <NavItem sub to="/calendario" label="Calendario" />
+                </Grupo>
+                <NavItem to="/ventas/importar" icon="importar" label="Fudo" rutas={rutasDe('fudo')} />
               </Bloque>
 
               {dueno && (
                 <>
                   <Bloque icon="sarten" label="Kankay" rutas={RUTAS.kankay}>
-                    <NavItem to="/marcas/kankay" icon="dashboard" label="Dashboard" end />
-                    <NavItem to="/marcas/kankay/importar" icon="importar" label="Ventas de Dux" rutas={rutasDe('dux')} />
+                    <NavItem to="/marcas/kankay" icon="finanzas" label="Números" end />
+                    <NavItem to="/marcas/kankay/importar" icon="importar" label="Dux" rutas={rutasDe('dux')} />
                   </Bloque>
                   <Bloque icon="limpieza" label="Senzen" rutas={RUTAS.senzen}
                           extra={<span className="text-[10px] font-semibold normal-case tracking-normal px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>}>
@@ -200,7 +250,7 @@ export default function Sidebar({ open, onClose }) {
               )}
 
               <Bloque icon="usuarios" label="El grupo" rutas={RUTAS.grupo}>
-                <NavItem to="/usuarios" icon="usuarios" label="Usuarios y accesos" />
+                <NavItem to="/usuarios" icon="usuarios" label="Usuarios" />
                 {dueno && (
                   <>
                     <NavItem to="/locales"                icon="locales"     label="Locales" />

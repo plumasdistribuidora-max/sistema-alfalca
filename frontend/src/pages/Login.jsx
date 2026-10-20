@@ -17,6 +17,11 @@ export default function Login() {
   const [anima, setAnima]       = useState(true);
   const escenaRef               = useRef(null);
   const formRef                 = useRef(null);
+  // Safari abre solo el cartel de contraseñas guardadas apenas ve un login, y
+  // tapa la tarjeta. Los campos arrancan de solo lectura (así no hay nada que
+  // autocompletar) y se habilitan cuando la persona los toca.
+  const [habilitado, setHabilitado] = useState(false);
+  const habilitar               = () => setHabilitado(true);
 
   useLayoutEffect(() => {
     if (!escenaRef.current || !formRef.current) return;
@@ -65,6 +70,10 @@ export default function Login() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="usuario@alfalca.com.ar"
+              autoComplete="username"
+              readOnly={!habilitado}
+              onPointerDown={habilitar}
+              onFocus={habilitar}
               required
             />
           </div>
@@ -76,6 +85,10 @@ export default function Login() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete="current-password"
+              readOnly={!habilitado}
+              onPointerDown={habilitar}
+              onFocus={habilitar}
               required
             />
           </div>

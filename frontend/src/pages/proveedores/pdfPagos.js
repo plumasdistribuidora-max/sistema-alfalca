@@ -28,7 +28,7 @@ function encabezado(doc, titulo, bajada) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(bajada, 14, 20);
-  doc.text('Alfalca Holding Group', ancho - 14, 13, { align: 'right' });
+  doc.text('alfalca', ancho - 14, 13, { align: 'right' });
   doc.text(`Emitido el ${fechaNum(hoyStr())}`, ancho - 14, 20, { align: 'right' });
   doc.setTextColor(0, 0, 0);
   return 36;

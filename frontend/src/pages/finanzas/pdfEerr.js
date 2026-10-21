@@ -55,7 +55,7 @@ export function pdfEerr({ filas, ventaNeta, local, mesLabel, aviso }) {
   doc.setTextColor(215, 214, 210);
   doc.text(`${local}  ·  ${mesLabel}`, 36, 23);
   doc.setFontSize(8);
-  doc.text('Alfalca Holding Group', ancho - 14, 16, { align: 'right' });
+  doc.text('alfalca', ancho - 14, 16, { align: 'right' });
   doc.text(`Emitido el ${hoy()}`, ancho - 14, 23, { align: 'right' });
 
   // ── Cuatro tarjetas: venta neta, margen bruto, EBITDA y resultado neto ──
@@ -140,7 +140,7 @@ export function pdfEerr({ filas, ventaNeta, local, mesLabel, aviso }) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...CLARO);
-    doc.text('Alfalca Holding Group · Estado de resultados generado desde el sistema', 14, alto - 8);
+    doc.text('alfalca · Estado de resultados generado desde el sistema', 14, alto - 8);
     doc.text(`Página ${i} de ${n}`, ancho - 14, alto - 8, { align: 'right' });
   }
   doc.save(`eerr-${archivo(local)}-${archivo(mesLabel)}.pdf`);

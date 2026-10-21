@@ -1,6 +1,6 @@
 {
-  "name": "Alfalca",
-  "short_name": "Alfalca",
+  "name": "alfalca",
+  "short_name": "alfalca",
   "description": "Reportes, tareas y avisos del grupo",
   "start_url": "/",
   "scope": "/",

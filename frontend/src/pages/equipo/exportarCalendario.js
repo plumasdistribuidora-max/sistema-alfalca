@@ -199,7 +199,7 @@ export function dibujarCalendario(d, dias, titulo) {
   c.fillStyle = COLOR.tintaSuave;
   c.font = '400 11px Inter, system-ui, sans-serif';
   c.textAlign = 'right';
-  c.fillText('Alfalca Holding Group', ancho - 16, y + 27);
+  c.fillText('alfalca', ancho - 16, y + 27);
 
   return canvas;
 }

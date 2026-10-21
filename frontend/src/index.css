@@ -59,6 +59,7 @@
 .tj-cara {
   position: absolute; inset: 0; border-radius: 7px; overflow: hidden;
   backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  background-color: #595a5c; /* el tono del papel, mientras baja la foto */
   background-size: cover; background-position: center;
 }
 .tj-cara::before { /* luz de estudio desde arriba a la izquierda */
@@ -98,15 +99,20 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .tj-anima .tj-escena       { animation: tj-sube 4.2s both; }
-  .tj-anima .tj-entra        { animation: tj-entra 4.2s both; }
+  .tj-anima .tj-entra        { animation: tj-entra 4.2s both, tj-aparece .25s ease-out both; }
   .tj-anima .tj-tarjeta      { animation: tj-gira 4.2s both; }
   .tj-anima .tj-sombra       { animation: tj-sombra 4.2s both; }
   .tj-anima .tj-cara::after  { animation: tj-brillo 4.2s both; }
   .tj-anima .tj-form         { animation: tj-form 4.2s both; }
+  /* Hasta que baja la foto del papel, todo queda quieto en el primer cuadro
+     (tarjeta invisible): así nunca se ve sin su papel. */
+  .tj-espera, .tj-espera *, .tj-espera *::after { animation-play-state: paused !important; }
 }
+/* Aparece rápido: un fundido largo deja ver el gris lavado sobre el fondo claro. */
+@keyframes tj-aparece { from { opacity: 0; } }
 @keyframes tj-entra {
-  0%   { opacity: 0; transform: translateY(50px) rotateX(28deg); animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
-  24%  { opacity: 1; transform: translateY(0) rotateX(14deg); }
+  0%   { transform: translateY(50px) rotateX(28deg); animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+  24%  { transform: translateY(0) rotateX(14deg); }
   76%  { transform: rotateX(14deg); animation-timing-function: cubic-bezier(.5, 0, .2, 1); }
   100% { transform: rotateX(0); }
 }

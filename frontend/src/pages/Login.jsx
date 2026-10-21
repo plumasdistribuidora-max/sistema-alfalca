@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,6 +31,19 @@ export default function Login() {
     (cual === 'clave' ? claveRef : emailRef).current?.focus();
   }
 
+  // La animación espera a que esté la foto del papel (si tarda más de 1,5 s,
+  // arranca igual con el gris de fondo).
+  const [papel, setPapel]       = useState(false);
+  useEffect(() => {
+    const img = new Image();
+    const listo = () => setPapel(true);
+    img.onload = listo; img.onerror = listo;
+    img.src = '/marca/papel-grafito.jpg';
+    if (img.complete) listo();
+    const t = setTimeout(listo, 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   useLayoutEffect(() => {
     if (!escenaRef.current || !formRef.current) return;
     const baja = (formRef.current.offsetHeight + 40) / 2;
@@ -56,7 +69,7 @@ export default function Login() {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center bg-ahg-bg px-4 overflow-hidden ${anima ? 'tj-anima' : ''}`}
+      className={`min-h-screen flex items-center justify-center bg-ahg-bg px-4 overflow-hidden ${anima ? 'tj-anima' : ''} ${papel ? '' : 'tj-espera'}`}
       onPointerDown={() => setAnima(false)}
     >
       <div className="w-full max-w-sm">

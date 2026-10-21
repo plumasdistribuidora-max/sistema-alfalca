@@ -325,7 +325,8 @@ function CierreDelAnio({ ventas, kankay }) {
   const necesita = meta != null ? (meta - vendido) / mesesQueFaltan : null;
   // Cuánto es la diferencia contra la meta, en porcentaje de la meta.
   const pctMeta = v => `${(v / meta * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
-  const venimos  = (cierre - vendido) / mesesQueFaltan;
+  // Lo que venimos vendiendo: el promedio real por mes de lo vendido en el año, no la proyección.
+  const venimos  = vendido / (mesHoy - 1 + diaHoy / diasMes);
 
   const max = Math.max(cierre, meta || 0, total25) * 1.04;
   const pct = v => Math.min(100, v / max * 100);
@@ -415,8 +416,8 @@ function CierreDelAnio({ ventas, kankay }) {
 
       <p className="rounded-lg bg-ahg-bg px-4 py-3 text-sm text-ahg-text">
         {necesita != null && necesita > venimos
-          ? <>Para llegar a la meta hay que vender <b>{fmt(necesita)} por mes</b> de acá a fin de año. Hoy venimos vendiendo <b>{fmt(venimos)}</b> por mes{usd ? ' (al dólar de hoy)' : ''}.</>
-          : <>Venimos vendiendo <b>{fmt(venimos)}</b> por mes{usd ? ' (al dólar de hoy)' : ''}: alcanza con mantenerlo.</>}
+          ? <>Para llegar a la meta hay que vender <b>{fmt(necesita)} por mes</b> de acá a fin de año. Hoy venimos vendiendo <b>{fmt(venimos)}</b> por mes.</>
+          : <>Venimos vendiendo <b>{fmt(venimos)}</b> por mes: alcanza con mantenerlo.</>}
       </p>
       {usd ? (
         <p className="text-[11px] text-ahg-text/45 mt-2">

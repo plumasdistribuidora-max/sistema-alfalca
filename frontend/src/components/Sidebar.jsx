@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { esDueno, esDeRed, esDeTurno, rolLabel } from '../utils/roles';
+import { esDueno, esDeRed, esDeTurno, esVendedora, rolLabel } from '../utils/roles';
 import { Logotipo } from './Marca';
 import { rutasDe } from './Solapas';
 
@@ -58,7 +58,7 @@ const RUTAS = {
   entreDos: ['/dia', '/tareas', '/tablero', '/reportes', '/red', '/finanzas', '/stock', '/proveedores',
              '/empleados', '/calendario', '/ventas', '/historial-imports'],
   kankay:   ['/marcas/kankay'],
-  senzen:   ['/marcas/senzen'],
+  senzen:   ['/marcas/senzen', '/senzen'],
   grupo:    ['/usuarios', '/locales', '/formularios', '/admin'],
 };
 
@@ -208,6 +208,15 @@ export default function Sidebar({ open, onClose }) {
             <NavItem to="/" icon="reportes" label="Mi reporte de hoy" end />
           )}
 
+          {/* Pepa, la vendedora de Senzen: su semana, cargar contactos y sus comercios. */}
+          {esVendedora(user) && (
+            <>
+              <NavItem to="/" icon="tareas" label="Mi semana" end />
+              <NavItem to="/senzen/contacto" icon="reportes" label="Cargar visita o llamada" />
+              <NavItem to="/senzen/comercios" icon="locales" label="Comercios" />
+            </>
+          )}
+
           {esDeRed(user) && (
             <>
               <NavItem to="/" icon="inicio" label="Inicio" end />
@@ -242,9 +251,10 @@ export default function Sidebar({ open, onClose }) {
                     <NavItem to="/marcas/kankay" icon="finanzas" label="Números" end />
                     <NavItem to="/marcas/kankay/importar" icon="importar" label="Dux" rutas={rutasDe('dux')} />
                   </Bloque>
-                  <Bloque icon="limpieza" label="Senzen" rutas={RUTAS.senzen}
-                          extra={<span className="text-[10px] font-semibold normal-case tracking-normal px-1.5 rounded-full bg-white/10 text-white/50">pronto</span>}>
-                    <NavItem to="/marcas/senzen" icon="dashboard" label="Próximamente" />
+                  <Bloque icon="limpieza" label="Senzen" rutas={RUTAS.senzen}>
+                    <NavItem to="/marcas/senzen" icon="finanzas" label="Números" end />
+                    <NavItem to="/senzen/comercios" icon="locales" label="Comercios" />
+                    <NavItem to="/senzen/contacto" icon="reportes" label="Cargar contacto" />
                   </Bloque>
                 </>
               )}

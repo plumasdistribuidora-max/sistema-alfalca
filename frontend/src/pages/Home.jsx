@@ -122,8 +122,12 @@ export default function Home() {
 function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
   const [ventas, setVentas] = useState(undefined);
   const [kankay, setKankay] = useState(undefined);
+  const [senzen, setSenzen] = useState(undefined);
 
   useEffect(() => {
+    api.get('/senzen/resumen')
+      .then(r => setSenzen(r.data.data))
+      .catch(() => setSenzen(null));
     api.get('/red/inicio')
       .then(r => setVentas(r.data.data))
       .catch(() => setVentas(null));
@@ -139,7 +143,8 @@ function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
   // El mes del grupo: Entre Dos hasta su último día cargado, Kankay hasta el suyo.
   const edMes = ventas?.mes?.facturacion || 0;
   const kkMes = kankay?.hasta?.slice(0, 7) === ventas?.fecha?.slice(0, 7) ? (kankay?.mes || 0) : 0;
-  const totalMes = edMes + kkMes;
+  const szMes = senzen?.mes || 0;
+  const totalMes = edMes + kkMes + szMes;
   const mesNombre = ventas ? MESES[Number(ventas.fecha.slice(5, 7)) - 1] : '';
 
   const atencion = [];
@@ -159,7 +164,8 @@ function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
 
   const ed = MARCAS.find(m => m.slug === 'entre-dos');
   const kk = MARCAS.find(m => m.slug === 'kankay');
-  const otras = MARCAS.filter(m => m.slug !== 'entre-dos' && m.slug !== 'kankay');
+  const sz = MARCAS.find(m => m.slug === 'senzen');
+  const otras = MARCAS.filter(m => !['entre-dos', 'kankay', 'senzen'].includes(m.slug));
   const t = ventas?.total;
 
   return (
@@ -171,7 +177,7 @@ function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
         <div>
           <p className="text-xs text-white/65">El grupo en {mesNombre || 'el mes'}</p>
           <p className="text-4xl font-extrabold tracking-tight mt-1" style={NUNITO}>
-            {ventas === undefined || kankay === undefined ? '…' : fmtARS(totalMes)}
+            {ventas === undefined || kankay === undefined || senzen === undefined ? '…' : fmtARS(totalMes)}
           </p>
           <p className="text-[13px] text-white/65 mt-1">Ventas con IVA de las marcas que ya venden</p>
         </div>
@@ -180,10 +186,12 @@ function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
             <div className="flex h-2.5 rounded-full overflow-hidden bg-white/20">
               <i className="block h-full" style={{ width: `${edMes / totalMes * 100}%`, background: '#f1efe9' }} />
               <i className="block h-full" style={{ width: `${kkMes / totalMes * 100}%`, background: '#a9abae' }} />
+              <i className="block h-full" style={{ width: `${szMes / totalMes * 100}%`, background: '#5fb8b2' }} />
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2.5 text-xs text-white/80">
               <Ley color="#f1efe9">Entre Dos · {Math.round(edMes / totalMes * 100)} %</Ley>
               <Ley color="#a9abae">Kankay · {Math.round(kkMes / totalMes * 100)} %</Ley>
+              {szMes > 0 && <Ley color="#5fb8b2">Senzen · {Math.round(szMes / totalMes * 100)} %</Ley>}
               {otras.map(m => <Ley key={m.slug} color="rgba(255,255,255,.25)">{m.nombre} · próximamente</Ley>)}
             </div>
           </div>
@@ -216,6 +224,19 @@ function PortadaGrupo({ hoy, nombre, dia, bandeja }) {
             <Estado tono={kankay.hasta >= sumarDias(hoy, -2) ? 'verde' : 'ambar'}>Ventas cargadas hasta el {fechaCorta(kankay.hasta)}</Estado>
             <Pie izq={plural(kankay.ventas_mes, 'venta en el mes', 'ventas en el mes')} />
           </> : <Vacio>{kankay === undefined ? 'Cargando…' : 'Sin ventas cargadas'}</Vacio>}
+        </TarjetaMarca>
+
+        {/* Senzen es solo de los dueños: el encargado general la ve como "próximamente". */}
+        <TarjetaMarca m={senzen === null ? { ...sz, proximamente: true } : sz}>
+          {senzen ? <>
+            <Datos
+              a={{ l: `${capital(MESES[Number(hoy.slice(5, 7)) - 1])} en Dux`, v: fmtARS(senzen.mes),
+                   c: senzen.mes_ant ? `${capital(MESES[(Number(hoy.slice(5, 7)) + 10) % 12])} entero: ${fmtARS(senzen.mes_ant)}` : plural(senzen.clientes, 'comercio', 'comercios') }}
+              b={{ l: 'Pepa esta semana', v: plural(senzen.contactos, 'contacto', 'contactos'),
+                   c: senzen.tareas ? `${plural(senzen.tareas, 'comercio pendiente', 'comercios pendientes')} hoy` : 'nada pendiente hoy' }}
+            />
+            <Estado tono={senzen.sync ? 'verde' : 'ambar'}>{senzen.sync ? 'Se lee sola de Dux de Plumas' : 'Todavía no se leyó Dux'}</Estado>
+          </> : <Vacio>{senzen === undefined ? 'Cargando…' : <span className="text-xs px-3 py-1 rounded-full bg-ahg-bg text-ahg-text/55">Próximamente</span>}</Vacio>}
         </TarjetaMarca>
 
         {otras.map(m => (

@@ -24,12 +24,16 @@ import ProveedoresPage        from './pages/proveedores/ProveedoresPage';
 import MarcaProximamente      from './pages/MarcaProximamente';
 import KankayDashboard        from './pages/marcas/kankay/KankayDashboard';
 import { KankayImportar, KankayHistorial } from './pages/marcas/kankay/KankayImportar';
+import SenzenDashboard       from './pages/marcas/senzen/SenzenDashboard';
+import MiSemana              from './pages/marcas/senzen/MiSemana';
+import RegistrarContacto     from './pages/marcas/senzen/RegistrarContacto';
+import SenzenComercios       from './pages/marcas/senzen/Comercios';
 import Bandeja               from './pages/tareas/Bandeja';
 import DetalleTarea          from './pages/tareas/DetalleTarea';
 import Tablero               from './pages/tareas/Tablero';
 import ReporteDia            from './pages/tareas/ReporteDia';
 import Solapas from './components/Solapas';
-import { esDueno, esDeRed, esDeTurno } from './utils/roles';
+import { esDueno, esDeRed, esDeTurno, esVendedora } from './utils/roles';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -52,10 +56,13 @@ function RolRoute({ permitido, children }) {
 
 const soloRed   = children => <RolRoute permitido={esDeRed}>{children}</RolRoute>;
 const soloDueno = children => <RolRoute permitido={esDueno}>{children}</RolRoute>;
+// Lo de Senzen que usa Pepa: también lo ven los dueños.
+const deSenzen  = children => <RolRoute permitido={u => esVendedora(u) || esDueno(u)}>{children}</RolRoute>;
 
 // Quien solo carga su reporte de turno entra directo a su formulario del día.
 function Inicio() {
   const { user } = useAuth();
+  if (esVendedora(user)) return <MiSemana />;
   return esDeTurno(user) ? <MiReporte /> : <Home />;
 }
 
@@ -93,6 +100,9 @@ export default function App() {
             <Route path="marcas/kankay"                  element={soloRed(<KankayDashboard />)} />
             <Route path="marcas/kankay/importar"         element={soloDueno(<Solapas grupo="dux"><KankayImportar /></Solapas>)} />
             <Route path="marcas/kankay/historial"        element={soloDueno(<Solapas grupo="dux"><KankayHistorial /></Solapas>)} />
+            <Route path="marcas/senzen"                  element={soloRed(<SenzenDashboard />)} />
+            <Route path="senzen/contacto"                element={deSenzen(<RegistrarContacto />)} />
+            <Route path="senzen/comercios"               element={deSenzen(<SenzenComercios />)} />
             <Route path="marcas/:slug"                   element={soloRed(<MarcaProximamente />)} />
             <Route path="stock"                          element={soloRed(<StockInteligente />)} />
             <Route path="finanzas"                       element={soloDueno(<FinanzasPage />)} />

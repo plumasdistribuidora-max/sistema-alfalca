@@ -9,6 +9,7 @@ const ROLES = {
   ENCARGADO_CAFE:    'encargado_cafe',
   ENCARGADO_COCINA:  'encargado_cocina',
   BARISTA:           'barista',
+  VENDEDORA:         'vendedora',
 };
 
 // Los que ven la red entera y no solo su propio local.

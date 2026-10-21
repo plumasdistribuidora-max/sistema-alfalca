@@ -50,6 +50,7 @@ app.use('/api/maestros',  soloRed, require('./routes/maestros'));
 app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
 app.use('/api/eerr-manual', soloDueno, require('./routes/eerrManual'));
 app.use('/api/kankay',    soloDueno, require('./routes/kankay'));
+app.use('/api/senzen',    [requireAuth, requireRol(ROLES.VENDEDORA)], require('./routes/senzen'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));
 
@@ -62,6 +63,11 @@ require('./services/maestroDocenas').loadMaestro()
 const kankayAvisos = require('./services/kankayAvisos');
 setInterval(() => kankayAvisos.revisarProgramados()
   .catch(err => console.warn('[kankay avisos]', err.message)), 60 * 60 * 1000).unref();
+
+// Senzen: cada hora trae Dux de Plumas, arma las tareas de Pepa y manda sus avisos.
+const senzenAvisos = require('./services/senzenAvisos');
+setInterval(() => senzenAvisos.revisar()
+  .catch(err => console.warn('[senzen]', err.message)), 60 * 60 * 1000).unref();
 
 if (isProd) {
   const distPath = path.join(__dirname, '../../frontend/dist');

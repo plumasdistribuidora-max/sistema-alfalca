@@ -28,6 +28,10 @@ function validarRol(rol, actor) {
   if (rol === ROLES.ADMIN && actor !== ROLES.ADMIN) {
     return 'Solo un dueño puede crear o asignar el rol de dueño';
   }
+  // La vendedora es de Senzen, que el encargado general no maneja.
+  if (rol === ROLES.VENDEDORA && actor !== ROLES.ADMIN) {
+    return 'Solo un dueño puede crear el usuario de la vendedora de Senzen';
+  }
   return null;
 }
 

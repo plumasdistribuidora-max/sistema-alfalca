@@ -7,6 +7,7 @@ export const ROLES = {
   ENCARGADO_CAFE:    'encargado_cafe',
   ENCARGADO_COCINA:  'encargado_cocina',
   BARISTA:           'barista',
+  VENDEDORA:         'vendedora',
 };
 
 export const ROL_LABEL = {
@@ -16,6 +17,7 @@ export const ROL_LABEL = {
   [ROLES.ENCARGADO_CAFE]:    'Encargada de café',
   [ROLES.ENCARGADO_COCINA]:  'Encargada de cocina',
   [ROLES.BARISTA]:           'Barista',
+  [ROLES.VENDEDORA]:         'Vendedora de Senzen',
 };
 
 export const ROL_DESCRIPCION = {
@@ -25,6 +27,7 @@ export const ROL_DESCRIPCION = {
   [ROLES.ENCARGADO_CAFE]:    'Carga el reporte del turno del sector café',
   [ROLES.ENCARGADO_COCINA]:  'Carga el reporte del turno de cocina',
   [ROLES.BARISTA]:           'Carga el reporte de barista: máquina, tolva y stock de café',
+  [ROLES.VENDEDORA]:         'Ve su semana, sus tareas y sus comercios de Senzen, y carga cada visita o llamada',
 };
 
 export const AREAS = ['tienda', 'cafe', 'cocina', 'barista', 'general'];
@@ -76,5 +79,6 @@ export const ROLES_DE_TURNO = [
 export const esDueno    = user => user?.rol === ROLES.ADMIN;
 export const esDeRed    = user => ROLES_RED.includes(user?.rol);
 export const esDeTurno  = user => ROLES_DE_TURNO.includes(user?.rol);
+export const esVendedora = user => user?.rol === ROLES.VENDEDORA;
 
 export const rolLabel = rol => ROL_LABEL[rol] || rol || '—';

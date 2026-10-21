@@ -8,8 +8,9 @@ import logoSenzen   from './assets/marcas/senzen-blanco.png';
 // versión blanca para que las tres queden parejas.
 // Cada una lleva a su dashboard; las que todavía no tienen uno van a "Próximamente" (/marcas/:slug).
 // Kankay tiene su dashboard con las ventas de Dux y el estado de resultados (/marcas/kankay).
+// Senzen, el suyo con lo que lee de Dux de Plumas y el seguimiento de Pepa (/marcas/senzen).
 export const MARCAS = [
   { slug: 'entre-dos', nombre: 'Entre Dos', rubro: 'Tiendas y cafetería', logo: logoEntreDos, fondo: '#55585c', to: '/red' },
   { slug: 'kankay',    nombre: 'Kankay',    rubro: 'Retail',              logo: logoKankay,   fondo: '#55585c', to: '/marcas/kankay', cta: 'Ver dashboard →' },
-  { slug: 'senzen',    nombre: 'Senzen',    rubro: 'Hogar',               logo: logoSenzen,   fondo: '#55585c', to: '/marcas/senzen', proximamente: true, alto: 68 },
+  { slug: 'senzen',    nombre: 'Senzen',    rubro: 'Distribución',        logo: logoSenzen,   fondo: '#55585c', to: '/marcas/senzen', cta: 'Ver dashboard →', alto: 68 },
 ];

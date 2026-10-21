@@ -19,6 +19,7 @@ function Badge({ rol }) {
     [ROLES.ENCARGADO_CAFE]:    'bg-amber-100 text-amber-800',
     [ROLES.ENCARGADO_COCINA]:  'bg-emerald-100 text-emerald-800',
     [ROLES.BARISTA]:           'bg-orange-100 text-orange-800',
+    [ROLES.VENDEDORA]:         'bg-teal-100 text-teal-800',
   }[rol] || 'bg-gray-100 text-gray-600';
 
   return (
@@ -47,8 +48,9 @@ export default function UsuariosPage() {
   const [resetId,   setResetId]   = useState(null);
   const [resetPass, setResetPass] = useState('');
 
+  // El dueño y la vendedora de Senzen solo los da de alta un dueño.
   const rolesDisponibles = Object.values(ROLES)
-    .filter(r => r !== ROLES.ADMIN || esDueno(user));
+    .filter(r => (r !== ROLES.ADMIN && r !== ROLES.VENDEDORA) || esDueno(user));
 
   async function cargar() {
     setLoading(true);
@@ -326,7 +328,7 @@ export default function UsuariosPage() {
               <p className="text-xs text-ahg-text/50 mt-1">{ROL_DESCRIPCION[form.rol]}</p>
             </div>
 
-            <div>
+            {form.rol !== ROLES.VENDEDORA && <div>
               <label className="label">Locales a los que accede</label>
               <div className="space-y-1.5">
                 {locales.map(l => (
@@ -341,7 +343,7 @@ export default function UsuariosPage() {
               <p className="text-xs text-ahg-text/50 mt-1">
                 Los dueños y el encargado general ven los cinco sin importar lo que marques acá.
               </p>
-            </div>
+            </div>}
 
             <div className="flex gap-2 justify-end pt-2">
               <button type="button" onClick={() => setAbierto(false)} className="btn-secondary">Cancelar</button>

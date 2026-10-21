@@ -9,7 +9,7 @@ self.addEventListener('push', event => {
   try { d = event.data ? event.data.json() : {}; } catch { d = { titulo: 'Alfalca', texto: event.data && event.data.text() }; }
   event.waitUntil(self.registration.showNotification(d.titulo || 'Alfalca', {
     body: d.texto || '',
-    icon: '/marca/app-192.png',
+    icon: '/marca/icono/app-192.png',
     badge: '/marca/badge-96.png',
     tag: d.etiqueta || undefined,
     renotify: !!d.etiqueta,

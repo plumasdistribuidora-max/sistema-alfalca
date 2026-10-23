@@ -1,8 +1,9 @@
 // Asistente de los dueños: Claude responde preguntas del negocio consultando la base.
 //
-// Claude no ve la base entera: tiene una sola herramienta, consultar_sql, que corre un
+// Claude no ve la base entera: para leer tiene una sola herramienta, consultar_sql, que corre un
 // SELECT adentro de una transacción READ ONLY con el rol asistente_lectura (migración 076),
 // con timeout y tope de filas. Aunque escriba algo mal, no puede borrar ni cambiar nada.
+// La otra, armar_tabla, solo le pasa al sistema los números de la respuesta para el Excel y el PDF.
 
 const pool = require('../config/db');
 const { hoyStr } = require('../utils/fechas');
@@ -79,7 +80,13 @@ const REGLAS = `Te llamás Claudia y sos la asistente del Sistema ALFALCA, el si
 - En castellano rioplatense, corto y directo, como un socio que sabe de números. Primero la respuesta, después el detalle.
 - Montos exactos con punto de miles y coma decimal: $ 5.646.160, 105,5 docenas. Nunca abrevies ($ 5,6M no).
 - Para comparar locales, una línea por local con un guion adelante. No uses tablas ni títulos con #. Podés usar **negrita** para el número principal.
-- Terminá con una línea corta que diga de dónde sale el número (período, qué contaste y qué dejaste afuera).`;
+- Terminá con una línea corta que diga de dónde sale el número (período, qué contaste y qué dejaste afuera).
+
+## Excel y PDF
+- Cuando la respuesta trae números para comparar (locales, productos, variantes, meses, vendedores), llamá a armar_tabla una sola vez, después de tus consultas y antes de escribir la respuesta. De ahí salen los botones Descargar Excel y Descargar PDF que ve el dueño.
+- Si la respuesta es un solo número, un sí o un no, o no tiene números, no la llames.
+- Los números de la tabla tienen que ser los mismos de tu respuesta. Si ayuda, sumá una hoja con más detalle (por ejemplo, por mes).
+- Si te piden un Excel o un PDF, es esto: armá la tabla y decí que lo bajan con los botones de abajo de la respuesta.`;
 
 let esquemaCache = null;
 async function esquema() {
@@ -113,7 +120,86 @@ const HERRAMIENTAS = [{
     required: ['sql', 'para_que'],
     additionalProperties: false,
   },
+}, {
+  name: 'armar_tabla',
+  description: 'Le pasa al sistema la tabla con los números de tu respuesta, para que el dueño la baje en Excel y en PDF. Una sola vez por respuesta, con los mismos números que vas a escribir.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      titulo:     { type: 'string', description: 'Corto, con el período. Ej.: "Menús del Café · 23/07 al 23/10/2026".' },
+      conclusion: { type: 'string', description: 'Una o dos frases con lo principal.' },
+      destacados: {
+        type: 'array', maxItems: 3,
+        description: 'Hasta tres números principales, ya escritos como se leen. Ej.: { etiqueta: "Facturado", valor: "$ 15.187.500" }.',
+        items: { type: 'object', properties: { etiqueta: { type: 'string' }, valor: { type: 'string' } }, required: ['etiqueta', 'valor'] },
+      },
+      hojas: {
+        type: 'array', minItems: 1, maxItems: 5,
+        description: 'Cada hoja es una tabla. La primera es la principal y es la que va al PDF.',
+        items: {
+          type: 'object',
+          properties: {
+            nombre:   { type: 'string', description: 'Nombre corto de la hoja. Ej.: "Por variante".' },
+            columnas: {
+              type: 'array', minItems: 1, maxItems: 10,
+              items: {
+                type: 'object',
+                properties: {
+                  nombre: { type: 'string' },
+                  tipo:   { type: 'string', enum: ['texto', 'numero', 'decimal', 'pesos', 'porcentaje'],
+                            description: 'numero: entero. decimal: con dos decimales (docenas). pesos: monto. porcentaje: en puntos (28.1 es 28,1 %).' },
+                },
+                required: ['nombre', 'tipo'],
+              },
+            },
+            filas: { type: 'array', description: 'Cada fila, un valor por columna. Los números van como número, sin formato.', items: { type: 'array' } },
+            total: { type: 'array', description: 'Opcional: la fila de total, un valor por columna (vacío donde no va nada).' },
+          },
+          required: ['nombre', 'columnas', 'filas'],
+        },
+      },
+      fuente: { type: 'string', description: 'De dónde salen los números: período, qué contaste y qué dejaste afuera.' },
+    },
+    required: ['titulo', 'hojas', 'fuente'],
+  },
 }];
+
+const TIPOS = ['texto', 'numero', 'decimal', 'pesos', 'porcentaje'];
+const corto = (v, n) => String(v ?? '').slice(0, n);
+
+// Revisa lo que manda Claude antes de guardarlo: si algo no cierra, se lo devuelve para que lo arregle.
+function limpiarTabla(t) {
+  if (!t || typeof t !== 'object') return { error: 'Falta la tabla.' };
+  const hojas = Array.isArray(t.hojas) ? t.hojas.slice(0, 5) : [];
+  if (!hojas.length) return { error: 'Tiene que haber al menos una hoja.' };
+  const limpias = [];
+  for (const h of hojas) {
+    const columnas = (Array.isArray(h.columnas) ? h.columnas : []).slice(0, 10)
+      .map(c => ({ nombre: corto(c?.nombre, 60), tipo: TIPOS.includes(c?.tipo) ? c.tipo : 'texto' }));
+    if (!columnas.length) return { error: `La hoja "${h.nombre}" no tiene columnas.` };
+    const valor = (v, c) => (c.tipo === 'texto' ? corto(v, 200) : (v === '' || v == null ? null : Number(v)));
+    const filas = (Array.isArray(h.filas) ? h.filas : []).slice(0, 2000);
+    if (filas.some(f => !Array.isArray(f) || f.length !== columnas.length)) {
+      return { error: `En la hoja "${h.nombre}" cada fila tiene que tener ${columnas.length} valores, uno por columna.` };
+    }
+    const filasL = filas.map(f => f.map((v, i) => valor(v, columnas[i])));
+    if (filasL.some(f => f.some(v => typeof v === 'number' && !Number.isFinite(v)))) {
+      return { error: `En la hoja "${h.nombre}" hay un valor que no es un número en una columna de números.` };
+    }
+    const total = Array.isArray(h.total) && h.total.length === columnas.length ? h.total.map((v, i) => valor(v, columnas[i])) : null;
+    limpias.push({ nombre: corto(h.nombre, 31) || 'Hoja', columnas, filas: filasL, total });
+  }
+  return {
+    tabla: {
+      titulo: corto(t.titulo, 120) || 'Respuesta de Claudia',
+      conclusion: corto(t.conclusion, 600),
+      destacados: (Array.isArray(t.destacados) ? t.destacados : []).slice(0, 3)
+        .map(d => ({ etiqueta: corto(d?.etiqueta, 40), valor: corto(d?.valor, 40) })).filter(d => d.valor),
+      hojas: limpias,
+      fuente: corto(t.fuente, 800),
+    },
+  };
+}
 
 // ── La consulta ──────────────────────────────────────────────────────────────
 
@@ -183,6 +269,7 @@ async function preguntar({ usuario, pregunta, historial = [], charla = null }) {
 
   const uso = { in: 0, cacheW: 0, cacheR: 0, out: 0 };
   const consultas = [];
+  let tabla = null;
   let respuesta = null;
   let error = null;
 
@@ -218,6 +305,16 @@ async function preguntar({ usuario, pregunta, historial = [], charla = null }) {
 
       const resultados = [];
       for (const p of pedidos) {
+        if (p.name === 'armar_tabla') {
+          const t = limpiarTabla(p.input);
+          if (t.tabla) tabla = t.tabla;
+          resultados.push({
+            type: 'tool_result', tool_use_id: p.id,
+            content: t.error ? `Error: ${t.error}` : 'Listo: abajo de tu respuesta van a aparecer Descargar Excel y Descargar PDF con esta tabla. Ahora escribí la respuesta.',
+            ...(t.error ? { is_error: true } : {}),
+          });
+          continue;
+        }
         const sql = typeof p.input?.sql === 'string' ? p.input.sql : '';
         const res = await consultar(sql);
         consultas.push({ para_que: String(p.input?.para_que || ''), sql, filas: res.filas ?? null, error: res.error || null });
@@ -241,13 +338,16 @@ async function preguntar({ usuario, pregunta, historial = [], charla = null }) {
 
   const costo = (uso.in * PRECIO.in + uso.cacheW * PRECIO.cacheW + uso.cacheR * PRECIO.cacheR + uso.out * PRECIO.out) / 1e6;
   const segundos = (Date.now() - inicio) / 1000;
-  await pool.query(`
-    INSERT INTO asistente_preguntas (usuario_id, pregunta, respuesta, consultas, tokens_in, tokens_cache, tokens_out, costo_usd, segundos, error, charla)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-    [usuario.id, pregunta, respuesta, JSON.stringify(consultas), uso.in + uso.cacheW, uso.cacheR, uso.out, costo, segundos, error, charla])
-    .catch(err => console.warn('[asistente] no se pudo registrar la pregunta:', err.message));
+  if (!respuesta) tabla = null;
+  const id = await pool.query(`
+    INSERT INTO asistente_preguntas (usuario_id, pregunta, respuesta, consultas, tokens_in, tokens_cache, tokens_out, costo_usd, segundos, error, charla, tabla)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+    [usuario.id, pregunta, respuesta, JSON.stringify(consultas), uso.in + uso.cacheW, uso.cacheR, uso.out, costo, segundos, error, charla,
+     tabla && JSON.stringify(tabla)])
+    .then(r => r.rows[0].id)
+    .catch(err => { console.warn('[asistente] no se pudo registrar la pregunta:', err.message); return null; });
 
-  return { respuesta, error, consultas, costo_usd: Number(costo.toFixed(4)), segundos: Number(segundos.toFixed(1)) };
+  return { id, respuesta, error, consultas, con_tabla: Boolean(tabla && id), costo_usd: Number(costo.toFixed(4)), segundos: Number(segundos.toFixed(1)) };
 }
 
 // Lo gastado desde que arrancó y en el mes calendario, en total y por dueño, para mostrarlo
@@ -299,11 +399,20 @@ async function charlas(usuarioId) {
 
 async function charla(usuarioId, id) {
   const { rows } = await pool.query(`
-    SELECT pregunta, respuesta, consultas, error, creado_en
+    SELECT id, pregunta, respuesta, consultas, error, creado_en, tabla IS NOT NULL AS con_tabla
     FROM asistente_preguntas
     WHERE usuario_id = $1 AND ${CHARLA} = $2
     ORDER BY id`, [usuarioId, id]);
   return rows;
 }
 
-module.exports = { preguntar, gasto, charlas, charla, validarSql, consultar };
+// La pregunta con su tabla, para armar el Excel o el PDF. Solo la del dueño que la hizo.
+async function preguntaConTabla(usuarioId, id) {
+  const { rows: [p] } = await pool.query(`
+    SELECT p.id, p.pregunta, p.tabla, p.consultas, p.creado_en, u.nombre
+    FROM asistente_preguntas p LEFT JOIN usuarios u ON u.id = p.usuario_id
+    WHERE p.id = $1 AND p.usuario_id = $2 AND p.tabla IS NOT NULL`, [id, usuarioId]);
+  return p || null;
+}
+
+module.exports = { preguntar, gasto, charlas, charla, preguntaConTabla, limpiarTabla, validarSql, consultar };

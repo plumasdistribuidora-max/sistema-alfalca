@@ -76,6 +76,47 @@ function Gasto({ gasto }) {
   );
 }
 
+// Los botones para bajar la respuesta en Excel o PDF. El archivo lo arma el sistema con la
+// tabla que pasó Claudia; se pide con el token, por eso no es un link común.
+function Descargas({ id }) {
+  const [bajando, setBajando] = useState(null);
+  const [error, setError] = useState('');
+  async function bajar(tipo) {
+    setBajando(tipo);
+    setError('');
+    try {
+      const r = await api.get(`/asistente/preguntas/${id}/${tipo}`, { responseType: 'blob' });
+      const nombre = decodeURIComponent((r.headers['content-disposition'] || '').match(/filename\*=UTF-8''([^;]+)/)?.[1] || `Claudia.${tipo === 'excel' ? 'xlsx' : 'pdf'}`);
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch {
+      setError('No se pudo bajar. Probá de nuevo.');
+    } finally {
+      setBajando(null);
+    }
+  }
+  const boton = 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-ahg-accent/60 text-ahg-text hover:border-ahg-primary/60 disabled:opacity-50';
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <button onClick={() => bajar('excel')} disabled={!!bajando} className={boton}>
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
+        {bajando === 'excel' ? 'Armando…' : 'Descargar Excel'}
+      </button>
+      <button onClick={() => bajar('pdf')} disabled={!!bajando} className={boton}>
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
+        {bajando === 'pdf' ? 'Armando…' : 'Descargar PDF'}
+      </button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
+  );
+}
+
 export default function AsistenteChat() {
   const { user } = useAuth();
   const [abierto, setAbierto]     = useState(false);
@@ -126,7 +167,7 @@ export default function AsistenteChat() {
       setMensajes(r.data.data.flatMap(p => [
         { rol: 'usuario', texto: p.pregunta },
         p.respuesta
-          ? { rol: 'asistente', texto: p.respuesta, consultas: p.consultas }
+          ? { rol: 'asistente', texto: p.respuesta, consultas: p.consultas, id: p.con_tabla ? p.id : null }
           : { rol: 'asistente', error: true, texto: p.error || 'No se pudo responder.' },
       ]));
       setCharlaId(id);
@@ -149,7 +190,7 @@ export default function AsistenteChat() {
     try {
       const r = await api.post('/asistente/preguntar', { pregunta: q, historial, charla: id });
       const d = r.data.data;
-      setMensajes(ms => [...ms, { rol: 'asistente', texto: d.respuesta, consultas: d.consultas }]);
+      setMensajes(ms => [...ms, { rol: 'asistente', texto: d.respuesta, consultas: d.consultas, id: d.con_tabla ? d.id : null }]);
     } catch (err) {
       setMensajes(ms => [...ms, { rol: 'asistente', error: true, texto: err.response?.data?.error || 'No se pudo responder. Probá de nuevo.' }]);
     } finally {
@@ -218,6 +259,7 @@ export default function AsistenteChat() {
               <div key={i} className="flex justify-start">
                 <div className={`max-w-[92%] px-3 py-2 rounded-2xl rounded-bl-md text-sm leading-relaxed ${m.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-white text-ahg-text border border-ahg-accent/40'}`}>
                   <Texto texto={m.texto} />
+                  {m.id && <Descargas id={m.id} />}
                   <Consultas consultas={m.consultas} />
                 </div>
               </div>

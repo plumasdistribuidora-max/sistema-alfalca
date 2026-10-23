@@ -9,6 +9,7 @@ const senzen = require('./senzen');
 const { sincronizar } = require('./senzenDux');
 const { enviarAUsuarios, aDuenos } = require('./avisos');
 const { TZ, hoyStr } = require('../utils/fechas');
+const { SIMBOLO } = require('./tareasAvisos');
 
 const horaMza = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
 
@@ -29,13 +30,19 @@ async function revisar() {
   await senzen.generarTareas();
 
   const tareas = (await senzen.tareasAbiertas()).filter(t => t.vence <= hoy);
-  if (tareas.length) {
+  // Lo que le falta de comercios nuevos en la semana, si los dueños pusieron cuántos.
+  const desde = senzen.lunes(hoy);
+  const meta = await senzen.metaNuevos(desde);
+  const { rows: [{ n: hechos }] } = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM senzen_contactos WHERE tipo = 'nuevo' AND fecha BETWEEN $1 AND $2`, [desde, senzen.sumarDias(desde, 6)]);
+  const faltan = meta ? Math.max(0, meta - hechos) : 0;
+  if (tareas.length || faltan) {
     await unaVez(`senzen:hoy:${hoy}`, async () => {
-      const { rows } = await pool.query(`SELECT id FROM usuarios WHERE rol = 'vendedora' AND activo`);
       const atrasadas = tareas.filter(t => t.vence < hoy).length;
-      await enviarAUsuarios(rows.map(r => r.id), {
-        titulo: 'Senzen · Para hoy',
-        texto: `Tenés ${plural(tareas.length, 'comercio', 'comercios')} para hablar hoy${atrasadas ? ` (${atrasadas} de días anteriores)` : ''}.`,
+      await enviarAUsuarios(await vendedoras(), {
+        titulo: `${SIMBOLO.hoy} Tus tareas de hoy`,
+        texto: [tareas.length && `Tenés ${plural(tareas.length, 'cliente', 'clientes')} para contactar hoy${atrasadas ? ` (${atrasadas} de días anteriores)` : ''}.`,
+                faltan && `Te ${faltan === 1 ? 'falta 1 comercio nuevo' : `faltan ${faltan} comercios nuevos`} para visitar esta semana.`].filter(Boolean).join(' '),
         url: '/', etiqueta: 'senzen_hoy',
       });
     });
@@ -58,4 +65,51 @@ async function revisar() {
   }
 }
 
-module.exports = { revisar };
+// ── Los reportes de Pepa ─────────────────────────────────────────────────────
+// Mismos símbolos que las tareas (Martín, 23/10/2026) y nada de 22 a 8 h.
+const vendedoras = async () => (await pool.query(`SELECT id FROM usuarios WHERE rol = 'vendedora' AND activo`)).rows.map(r => r.id);
+const duenos = async () => (await pool.query(`SELECT id FROM usuarios WHERE rol = 'admin' AND activo`)).rows.map(r => r.id);
+const deNoche = () => { const h = horaMza(); return h < 8 || h >= 22; };
+const nombre = u => String(u?.nombre || '').replace(/\s*\(.*\)\s*$/, '');
+const ddmm = f => (f ? String(f).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '');
+
+function enFondo(promesa, ctx) { promesa.catch(err => console.warn(`[senzen avisos] ${ctx}:`, err.message)); }
+
+// Pepa cargó un reporte: a los dueños, un solo aviso con todo lo que espera, que se va actualizando.
+function paraAprobar(quien) {
+  enFondo((async () => {
+    if (deNoche()) return;
+    const { rows } = await pool.query(`
+      SELECT c.nombre FROM senzen_contactos k JOIN senzen_comercios c ON c.id = k.comercio_id
+      WHERE k.aprobacion = 'pendiente' ORDER BY k.creado_en`);
+    if (!rows.length) return;
+    await enviarAUsuarios(await duenos(), {
+      titulo: `${SIMBOLO.cerrar} Para aprobar · ${nombre(quien)} cargó ${plural(rows.length, 'reporte', 'reportes')}`,
+      texto: rows.slice(0, 3).map(r => r.nombre).join(' · ') + (rows.length > 3 ? ` y ${rows.length - 3} más` : ''),
+      url: '/senzen/semana', etiqueta: 'senzen_aprobar',
+    });
+  })(), 'para aprobar');
+}
+
+// Un dueño aprobó o devolvió un reporte: a quien lo cargó.
+function respuesta(k, quien, accion, texto) {
+  enFondo((async () => {
+    if (deNoche()) return;
+    await enviarAUsuarios([k.usuario_id], accion === 'aprobar'
+      ? { titulo: `${SIMBOLO.cerrar} ${nombre(quien)} aprobó · ${k.nombre}`, texto: texto || 'Tu reporte quedó aprobado.', url: '/', etiqueta: `senzen_k${k.id}` }
+      : { titulo: `${SIMBOLO.pedido} ${nombre(quien)} te pidió más · ${k.nombre}`, texto, url: '/', etiqueta: `senzen_k${k.id}` });
+  })(), 'respuesta');
+}
+
+// Un dueño le encargó contactar a un cliente.
+function encargo(comercio, vence, nota, quien) {
+  enFondo((async () => {
+    if (deNoche()) return;
+    await enviarAUsuarios(await vendedoras(), {
+      titulo: `${SIMBOLO.hoy} ${nombre(quien)} te encargó · ${comercio}`,
+      texto: `Para el ${ddmm(vence)}${nota ? `: ${nota}` : ''}.`, url: '/', etiqueta: 'senzen_encargo',
+    });
+  })(), 'encargo');
+}
+
+module.exports = { revisar, paraAprobar, respuesta, encargo };

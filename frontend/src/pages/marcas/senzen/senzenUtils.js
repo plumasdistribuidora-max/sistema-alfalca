@@ -6,9 +6,20 @@ export const TIPOS = [
   ['casa_limpieza', 'Casa de limpieza'], ['bazar', 'Bazar'], ['ferreteria', 'Ferretería'], ['otro', 'Otro'],
 ];
 export const MEDIOS = [['visita', 'Visita'], ['llamada', 'Llamada'], ['whatsapp', 'WhatsApp']];
-export const RESULTADOS = [
-  ['pedido', 'Hizo pedido'], ['va_a_comprar', 'Va a comprar'], ['volver', 'Volver a hablarle'], ['no_compro', 'No compró'],
+// Qué pasó al contactar a un cliente que ya compró, y cómo le fue en la visita a un comercio
+// nuevo (23/10/2026). RESULTADOS junta todos para mostrar contactos viejos y nuevos.
+export const RESULTADOS_CONTACTO = [
+  ['sin_respuesta', 'No tuve respuesta'], ['pedido', 'Me pasó un pedido'], ['va_a_comprar', 'Va a comprar'],
+  ['volver', 'Volver a hablarle'], ['no_quiere', 'No quiere comprar más'],
 ];
+export const RESULTADOS_NUEVO = [
+  ['le_intereso', 'Le interesó'], ['pedido', 'Hizo un pedido'], ['volver', 'Volver a pasar'], ['no_le_interesa', 'No le interesa'],
+];
+export const RESULTADOS = [
+  ...RESULTADOS_CONTACTO, ['le_intereso', 'Le interesó'], ['no_le_interesa', 'No le interesa'], ['no_compro', 'No compró'],
+];
+export const PIDEN_FECHA = ['va_a_comprar', 'volver'];
+export const SENZEN = '#4f7a58';
 export const MOTIVOS = [
   ['tiene_stock', 'Tiene stock'], ['precio', 'Precio'], ['no_estaba', 'No estaba el dueño'],
   ['otra_marca', 'Trabaja otra marca'], ['no_le_interesa', 'No le interesa'],

@@ -762,7 +762,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
               <strong>Operación</strong>: Resumen (el reporte del día), Tareas y Turnos. <strong>Números</strong>: Dashboard y Finanzas.
               <strong>Stock y compras</strong>: Stock y Proveedores. <strong>Equipo</strong>: Empleados y Calendario. <strong>Fudo</strong> va suelto: es subir el Excel de ventas.</li>
             <li><strong>Kankay</strong> — sus <em>Números</em> y <em>Dux</em> (subir el Excel de ventas) (ver <a href="#kankay">Kankay</a>). </li>
-            <li><strong>Senzen</strong> — <em>Números</em> (el tablero), <em>Comercios</em> y <em>Cargar contacto</em> (ver <a href="#senzen">Senzen</a>).</li>
+            <li><strong>Senzen</strong> — <em>Números</em> (el tablero), <em>Semana de Pepa</em>, <em>Comercios</em> y <em>Cargar contacto</em> (ver <a href="#senzen">Senzen</a>).</li>
             <li><strong>El grupo</strong> — lo que se toca poco: usuarios, locales, formularios, maestros y este manual, que se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
           </ul>
           <p style="margin-top:16px">
@@ -1979,28 +1979,37 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         para revenderlo. Toda venta de la sucursal Senzen cuenta como de Pepa, aunque el pedido lo haya cargado un dueño.</p>
       </div>
 
-      <h3>Lo que ve Pepa</h3>
+      <h3>Lo que ve Pepa: su semana como calendario</h3>
       <figure class="figura dos">
-        <div class="mock" style="max-width:220px">
+        <div class="mock" style="max-width:230px">
           <div class="m-main" style="padding:12px;display:grid;gap:8px">
-            <div style="font-size:8px;color:#0f766e;font-weight:700;letter-spacing:.08em">SENZEN</div>
+            <div style="font-size:8px;color:#4f7a58;font-weight:700;letter-spacing:.08em">SENZEN</div>
             <div style="font-family:var(--display);font-weight:800;font-size:14px">Hola, Pepa</div>
-            <div style="background:#55585c;color:#fff;border-radius:8px;padding:8px;text-align:center;font-size:9px;font-weight:600">Cargar visita o llamada</div>
-            <div class="m-card" style="padding:8px;font-size:8.5px;display:grid;gap:4px"><b>Esta semana</b><span>Contactos <b style="float:right">12 de 40</b></span><span>Clientes nuevos <b style="float:right">1 de 5</b></span></div>
-            <div style="font-size:9px;font-weight:600">Para hoy</div>
-            <div class="m-card" style="padding:8px;font-size:8.5px;display:grid;gap:2px"><b>Bazar Ejemplo</b><span style="color:var(--m-txt3)">Dijo que iba a comprar · Godoy Cruz</span><span>Para hoy</span></div>
-            <div class="m-card" style="padding:8px;font-size:8.5px;display:grid;gap:2px"><b>Almacén Ejemplo</b><span style="color:var(--m-txt3)">Segunda visita después de su primera compra</span><span>Para hoy</span></div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:7px;text-align:center;color:var(--m-txt3)"><span>L<br><b style="color:#1f2022">19</b></span><span>M<br><b style="color:#1f2022">20</b></span><span>M<br><b style="color:#1f2022">21</b><br><span style="color:#b03a2a">●</span></span><span>J<br><b style="color:#1f2022">22</b></span><span style="background:#fff;border-radius:5px">V<br><b style="color:#4f7a58">23</b></span><span>S<br><b style="color:#1f2022">24</b><br><span style="color:#4f7a58">●</span></span><span>D<br><b style="color:#1f2022">25</b></span></div>
+            <div class="m-card" style="padding:8px;font-size:8.5px;display:grid;gap:4px"><b>Comercios nuevos para visitar</b><span><b style="font-size:13px">1</b> de 4 · te faltan 3</span><div style="height:4px;border-radius:2px;background:#ecebe7"><i style="display:block;width:25%;height:100%;background:#4f7a58;border-radius:2px"></i></div><span style="background:#4f7a58;color:#fff;border-radius:6px;padding:5px;text-align:center;font-weight:600">Cargar visita · 2 de 4</span></div>
+            <div class="m-card" style="padding:8px;font-size:8.5px;display:grid;gap:3px"><b>Clientes para contactar hoy</b><span><b>Almacén Ejemplo</b> <span style="color:#b03a2a">· Era para el 21/10</span></span><span style="color:var(--m-txt3)">Segunda visita después de su primera compra</span><span style="background:#4f7a58;color:#fff;border-radius:6px;padding:4px;text-align:center;font-weight:600;width:60%">Contar cómo fue</span></div>
           </div>
         </div>
         <div>
           <ul class="simple">
-            <li><strong>Mi semana</strong> es su inicio: cuántos contactos y clientes nuevos lleva (contra la meta, si los socios la cargaron), y la lista de <strong>a quién hablarle hoy</strong> y en los próximos días, con el botón <em>Cargar</em> y, si hay teléfono, <em>Llamar</em>.</li>
-            <li><strong>Cargar visita o llamada</strong>: elige el comercio (o carga uno nuevo), si fue visita, llamada o WhatsApp, y cómo terminó: <em>hizo pedido</em>, <em>va a comprar</em>, <em>volver a hablarle</em> o <em>no compró</em> (con el motivo de una lista). Si va a comprar o hay que volver, elige cuándo y ese día le aparece. <strong>En una visita la foto de cómo quedó el producto es obligatoria.</strong> La ubicación se toma sola si el celular la da.</li>
-            <li><strong>Comercios</strong>: la lista para buscar y cargar comercios nuevos. Los que compraron llegan solos desde Dux.</li>
+            <li><strong>Mi semana</strong> es su inicio, y se ve como <strong>Calendario</strong> o como <strong>Tablero</strong>. Arriba están los días de la semana, con un punto por cada cliente a contactar ese día (rojo si quedó atrasado). Lo atrasado y lo que le devolvieron aparece en el día de hoy.</li>
+            <li><strong>Comercios nuevos para visitar</strong>: cuántos tiene que visitar en la semana (lo ponen los dueños) y cuántos lleva, "1 de 4". El botón <em>Cargar visita a un comercio nuevo · 2 de 4</em> abre el formulario: <strong>la foto de la puerta del local es obligatoria</strong>; además pide el nombre, el tipo, la localidad, la dirección, con quién habló, el teléfono, <strong>cómo le fue</strong> (le interesó, hizo un pedido, volver a pasar o no le interesa) y <strong>un comentario</strong>. El comercio queda cargado en la misma visita.</li>
+            <li><strong>Clientes para contactar</strong>: los que ya compraron y le toca contactar, cada uno con el motivo y la última compra. <em>Contar cómo fue</em> abre el formulario: cómo se comunicó, qué pasó (<em>no tuve respuesta</em>, <em>me pasó un pedido</em>, <em>va a comprar</em>, <em>volver a hablarle</em>, <em>no quiere comprar más</em>), la fecha si quedó en comprar o en volver a hablar, y un comentario. Si fue una visita, la foto de cómo quedó el producto es obligatoria. Si el cliente tiene teléfono cargado, arriba del formulario están <em>Llamar</em> y <em>Abrir WhatsApp</em>.</li>
+            <li><strong>Cada reporte lo aprueba un dueño.</strong> En el tablero se ve en qué está cada tarea: <em>Para hacer</em>, <em>Esperando aprobación</em> o <em>Aprobadas</em>. Si un dueño le pide más, la tarea vuelve con <em>Te pidieron más</em> y lo que le pidieron, y la corrige con <em>Corregir</em>.</li>
+            <li><strong>Cargar visita o llamada</strong>, en el menú, es para un contacto que no estaba en el calendario. También lo aprueba un dueño.</li>
+            <li>Todos los días desde las 8 le llega <em>📋 Tus tareas de hoy</em>, con a cuántos clientes tiene que contactar y cuántos comercios nuevos le faltan.</li>
             <li>No ve montos, márgenes ni ventas del negocio.</li>
           </ul>
         </div>
       </figure>
+
+      <h3>Semana de Pepa, para los dueños</h3>
+      <p>En el menú de Senzen, <strong>Semana de Pepa</strong> tiene tres partes:</p>
+      <ul class="simple">
+        <li><strong>Para aprobar</strong>: cada reporte con la foto (se agranda al tocarla), el resultado y el comentario. <em>Aprobar</em> o <em>Pedirle más</em>, escribiendo qué falta. Cuando Pepa carga algo les llega <em>✅ Para aprobar</em>; cuando ustedes responden, le llega a ella.</li>
+        <li><strong>Plan de la semana</strong>: con <strong>−</strong> y <strong>+</strong> se elige cuántos comercios nuevos tiene que visitar esta semana y la que viene. Con <em>Encargarle que contacte a un cliente</em> se elige el cliente, el día y qué tiene que averiguar: le aparece en el calendario ese día y le llega un aviso.</li>
+        <li><strong>Cómo va la semana</strong>: comercios nuevos y clientes contactados, cuántos hizo, cuántos se aprobaron y cuántos están atrasados.</li>
+      </ul>
 
       <h3>Las tareas que arma el sistema</h3>
       <ul class="simple">

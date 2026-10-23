@@ -3,10 +3,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../../api';
 import { comprimir } from '../../../utils/fotos';
 import { NuevoComercio } from './Comercios';
-import { MEDIOS, RESULTADOS, MOTIVOS, sumarDias, hoyLocal, cuando, NUNITO } from './senzenUtils';
+import { MEDIOS, RESULTADOS_CONTACTO, MOTIVOS, sumarDias, hoyLocal, cuando, NUNITO } from './senzenUtils';
 
-// Cargar una visita, llamada o WhatsApp. Todo se elige de listas; en una visita la foto
-// de cómo quedó el producto es obligatoria. La ubicación se toma sola si el celular la da.
+// Cargar una visita, llamada o WhatsApp que no estaba en el calendario. Se elige de listas y
+// se cuenta cómo fue; en una visita la foto de cómo quedó el producto es obligatoria. Como
+// todo reporte de Pepa, lo aprueba un dueño. La ubicación se toma sola si el celular la da.
+// Las visitas a comercios nuevos se cargan desde Mi semana, con la foto de la puerta.
 export default function RegistrarContacto() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -14,7 +16,7 @@ export default function RegistrarContacto() {
   const [comercios, setComercios] = useState(null);
   const [buscar, setBuscar] = useState('');
   const [nuevo, setNuevo] = useState(false);
-  const [f, setF] = useState({ comercio_id: params.get('comercio') || '', medio: 'visita', resultado: '', motivo: '', volver_el: '' });
+  const [f, setF] = useState({ comercio_id: params.get('comercio') || '', medio: 'visita', resultado: '', motivo: '', volver_el: '', comentario: '' });
   const [foto, setFoto] = useState(null);
   const [geo, setGeo] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -47,8 +49,8 @@ export default function RegistrarContacto() {
     setError('');
     if (!f.comercio_id) return setError('Elegí el comercio.');
     if (!f.resultado) return setError('Elegí cómo terminó.');
-    if (f.resultado === 'no_compro' && !f.motivo) return setError('Elegí por qué no compró.');
     if (pideFecha && !f.volver_el) return setError('Elegí cuándo volver a hablarle.');
+    if (f.comentario.trim().length < 5) return setError('Contá cómo fue.');
     if (f.medio === 'visita' && !foto) return setError('Sacale una foto a cómo quedó el producto en el comercio.');
     const fd = new FormData();
     Object.entries(f).forEach(([k, v]) => v && fd.append(k, v));
@@ -68,9 +70,10 @@ export default function RegistrarContacto() {
   if (listo) return (
     <div className="max-w-md mx-auto card p-8 text-center space-y-4 mt-6">
       <p className="text-xl font-extrabold" style={NUNITO}>Listo, quedó cargado</p>
+      <p className="text-sm text-ahg-text/60">Lo tiene que aprobar un dueño.</p>
       <p className="text-sm text-ahg-text/60">{elegido?.nombre}{f.volver_el ? ` · te lo recordamos ${cuando(f.volver_el, hoy)}` : ''}</p>
       <div className="flex gap-2 justify-center">
-        <button className="btn-secondary" onClick={() => { setF({ comercio_id: '', medio: 'visita', resultado: '', motivo: '', volver_el: '' }); setFoto(null); setListo(false); cargar(); }}>Cargar otro</button>
+        <button className="btn-secondary" onClick={() => { setF({ comercio_id: '', medio: 'visita', resultado: '', motivo: '', volver_el: '', comentario: '' }); setFoto(null); setListo(false); cargar(); }}>Cargar otro</button>
         <button className="btn-primary" onClick={() => navigate('/')}>Volver a mi semana</button>
       </div>
     </div>
@@ -111,15 +114,19 @@ export default function RegistrarContacto() {
         <Chips opciones={MEDIOS} valor={f.medio} onChange={v => set('medio', v)} />
       </Paso>
 
-      <Paso n="¿Cómo terminó?">
-        <Chips opciones={RESULTADOS} valor={f.resultado} onChange={v => setF(x => ({ ...x, resultado: v, motivo: '', volver_el: '' }))} />
+      <Paso n="¿Qué pasó?">
+        <Chips opciones={RESULTADOS_CONTACTO} valor={f.resultado} onChange={v => setF(x => ({ ...x, resultado: v, motivo: '', volver_el: '' }))} />
       </Paso>
 
-      {f.resultado === 'no_compro' && (
-        <Paso n="¿Por qué no compró?">
+      {f.resultado === 'no_quiere' && (
+        <Paso n="¿Por qué? (opcional)">
           <Chips opciones={MOTIVOS} valor={f.motivo} onChange={v => set('motivo', v)} />
         </Paso>
       )}
+
+      <Paso n="Contá cómo fue">
+        <textarea id="comentario" className="input" rows={3} maxLength={1000} value={f.comentario} onChange={e => set('comentario', e.target.value)} placeholder="Qué le dijiste, qué te contestó, qué quedó en hacer" />
+      </Paso>
 
       {f.resultado && (
         <Paso n={pideFecha ? '¿Cuándo le volvés a hablar?' : '¿Querés que te lo recordemos? (opcional)'}>

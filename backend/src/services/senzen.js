@@ -70,24 +70,34 @@ async function generarTareas() {
 }
 
 // Un contacto cierra lo pendiente con ese comercio y, si quedó en volver, abre la próxima.
+// Es el reporte de esa tarea: queda esperando que un dueño lo apruebe (23/10/2026).
+// c.comercio (opcional): los datos de un comercio nuevo, que se crea en la misma visita.
 async function registrarContacto(c, usuarioId) {
   const cli = await pool.connect();
   try {
     await cli.query('BEGIN');
+    if (c.comercio) {
+      const { rows: [n] } = await cli.query(`
+        INSERT INTO senzen_comercios (nombre, tipo, localidad, direccion, contacto, telefono, creado_por)
+        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [c.comercio.nombre, c.comercio.tipo || null, c.comercio.localidad, c.comercio.direccion, c.comercio.contacto, c.comercio.telefono, usuarioId]);
+      c.comercio_id = n.id;
+    }
     const { rows: [k] } = await cli.query(`
-      INSERT INTO senzen_contactos (comercio_id, usuario_id, fecha, medio, resultado, motivo, volver_el, lat, lng, foto_key, foto_mime)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      INSERT INTO senzen_contactos (comercio_id, usuario_id, fecha, medio, resultado, motivo, volver_el, lat, lng, foto_key, foto_mime, tipo, comentario)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
       [c.comercio_id, usuarioId, hoyStr(), c.medio, c.resultado, c.motivo || null, c.volver_el || null,
-       c.lat ?? null, c.lng ?? null, c.foto_key || null, c.foto_mime || null]);
-    await cli.query(`
+       c.lat ?? null, c.lng ?? null, c.foto_key || null, c.foto_mime || null, c.tipo || 'seguimiento', c.comentario || null]);
+    const { rows: cerradas } = await cli.query(`
       UPDATE senzen_tareas SET estado = 'hecha', contacto_id = $2, cerrada_en = NOW()
-      WHERE comercio_id = $1 AND estado = 'pendiente'`, [c.comercio_id, k.id]);
+      WHERE comercio_id = $1 AND estado = 'pendiente' RETURNING id`, [c.comercio_id, k.id]);
+    if (cerradas.length) await cli.query('UPDATE senzen_contactos SET tarea_id = $2 WHERE id = $1', [k.id, cerradas[0].id]);
     if (c.volver_el) {
       await cli.query(`INSERT INTO senzen_tareas (comercio_id, tipo, vence, creada_por) VALUES ($1,$2,$3,$4)`,
         [c.comercio_id, c.resultado === 'va_a_comprar' ? 'va_a_comprar' : 'volver', c.volver_el, usuarioId]);
     }
     await cli.query('COMMIT');
-    return k.id;
+    return { id: k.id, comercio_id: c.comercio_id };
   } catch (err) {
     await cli.query('ROLLBACK');
     throw err;
@@ -97,17 +107,18 @@ async function registrarContacto(c, usuarioId) {
 }
 
 // Encargo de un dueño. Si ya había algo pendiente con ese comercio, se adelanta la fecha.
-async function encargar(comercioId, vence, usuarioId) {
+async function encargar(comercioId, vence, usuarioId, nota = null) {
   await pool.query(`
-    INSERT INTO senzen_tareas (comercio_id, tipo, vence, creada_por) VALUES ($1,'visitar',$2,$3)
+    INSERT INTO senzen_tareas (comercio_id, tipo, vence, creada_por, nota) VALUES ($1,'visitar',$2,$3,$4)
     ON CONFLICT (comercio_id) WHERE estado = 'pendiente'
-    DO UPDATE SET vence = LEAST(senzen_tareas.vence, EXCLUDED.vence), tipo = 'visitar', creada_por = EXCLUDED.creada_por`,
-    [comercioId, vence, usuarioId]);
+    DO UPDATE SET vence = LEAST(senzen_tareas.vence, EXCLUDED.vence), tipo = 'visitar', creada_por = EXCLUDED.creada_por,
+                  nota = COALESCE(EXCLUDED.nota, senzen_tareas.nota)`,
+    [comercioId, vence, usuarioId, nota]);
 }
 
 async function tareasAbiertas() {
   const { rows } = await pool.query(`
-    SELECT t.id, t.tipo, to_char(t.vence,'YYYY-MM-DD') AS vence, t.comercio_id,
+    SELECT t.id, t.tipo, to_char(t.vence,'YYYY-MM-DD') AS vence, t.comercio_id, t.nota,
            c.nombre, c.localidad, c.telefono, c.tipo AS tipo_comercio,
            (SELECT to_char(MAX(fecha),'YYYY-MM-DD') FROM senzen_contactos k WHERE k.comercio_id = c.id) AS ultimo_contacto,
            (SELECT k.resultado FROM senzen_contactos k WHERE k.comercio_id = c.id ORDER BY k.creado_en DESC LIMIT 1) AS ultimo_resultado,
@@ -168,12 +179,95 @@ async function semanas(desde, n = 1) {
 }
 const semana = async desde => (await semanas(desde, 1))[0];
 
-// Lo que ve Pepa: su semana (sin plata), sus tareas y metas de contactos y nuevos.
+// Cuántos comercios nuevos tiene que visitar en la semana del lunes `desde`: lo que
+// pusieron los dueños para esa semana o, si no, la meta general.
+async function metaNuevos(desde) {
+  const { rows: [r] } = await pool.query('SELECT meta_nuevos FROM senzen_semanas WHERE desde = $1', [desde]);
+  if (r) return r.meta_nuevos;
+  return (await metas()).nuevos;
+}
+
+const SELECT_CONTACTO = `
+  SELECT k.id, k.tipo, to_char(k.fecha,'YYYY-MM-DD') AS fecha, k.medio, k.resultado, k.motivo, k.comentario,
+         to_char(k.volver_el,'YYYY-MM-DD') AS volver_el, (k.foto_key IS NOT NULL) AS foto, k.aprobacion, k.respuesta,
+         k.tarea_id, k.usuario_id, u.nombre AS quien, ua.nombre AS aprobado_por_nombre,
+         c.id AS comercio_id, c.nombre, c.localidad, c.direccion, c.contacto, c.telefono, c.tipo AS tipo_comercio
+  FROM senzen_contactos k JOIN senzen_comercios c ON c.id = k.comercio_id JOIN usuarios u ON u.id = k.usuario_id
+  LEFT JOIN usuarios ua ON ua.id = k.aprobado_por`;
+
+// Las tareas de contactar de una semana: lo pendiente (también lo atrasado y lo que viene)
+// y lo que se cerró con un reporte, con en qué quedó ese reporte.
+// estado: pend (para hacer) · esp (espera a un dueño) · ok (aprobado) · dev (le pidieron más)
+async function tareasDeLaSemana(desde) {
+  const hasta = sumarDias(desde, 6);
+  const [abiertas, { rows: cerradas }, { rows: montos }] = await Promise.all([
+    tareasAbiertas(),
+    pool.query(`
+      SELECT t.id, t.tipo, to_char(t.vence,'YYYY-MM-DD') AS vence, t.comercio_id, t.nota,
+             c.nombre, c.localidad, c.telefono, u.nombre AS encargada_por, u.rol AS rol_encargo,
+             k.id AS k_id, k.medio, k.resultado, k.comentario, k.aprobacion, k.respuesta, to_char(k.volver_el,'YYYY-MM-DD') AS volver_el,
+             (k.foto_key IS NOT NULL) AS foto, to_char(k.fecha,'YYYY-MM-DD') AS fecha_contacto
+      FROM senzen_tareas t JOIN senzen_comercios c ON c.id = t.comercio_id
+      JOIN senzen_contactos k ON k.id = t.contacto_id
+      LEFT JOIN usuarios u ON u.id = t.creada_por
+      WHERE t.estado = 'hecha' AND (t.vence BETWEEN $1 AND $2 OR k.fecha BETWEEN $1 AND $2 OR k.aprobacion = 'devuelto')`, [desde, hasta]),
+    pool.query(`
+      SELECT DISTINCT ON (c.id) c.id, f.total::float AS total FROM senzen_comercios c
+      JOIN senzen_facturas f ON f.id_cliente = c.dux_id_cliente AND NOT f.anulada ORDER BY c.id, f.fecha DESC`),
+  ]);
+  const C = await compras();
+  const monto = Object.fromEntries(montos.map(m => [m.id, m.total]));
+  const base = t => ({
+    id: t.id, tipo: t.tipo, vence: t.vence, comercio_id: t.comercio_id, nombre: t.nombre, localidad: t.localidad, telefono: t.telefono,
+    nota: t.nota, encargada_por: t.rol_encargo === 'admin' ? t.encargada_por : null,
+    ultima_compra: C[t.comercio_id]?.ultima || null, ultimo_monto: monto[t.comercio_id] ?? null,
+  });
+  return [
+    ...abiertas.map(t => ({ ...base(t), estado: 'pend', contacto: null })),
+    ...cerradas.map(t => ({
+      ...base(t),
+      estado: t.aprobacion === 'aprobado' ? 'ok' : t.aprobacion === 'devuelto' ? 'dev' : 'esp',
+      contacto: { id: t.k_id, fecha: t.fecha_contacto, medio: t.medio, resultado: t.resultado, comentario: t.comentario,
+                  respuesta: t.respuesta, volver_el: t.volver_el, foto: t.foto },
+    })),
+  ].sort((a, b) => a.vence.localeCompare(b.vence) || a.nombre.localeCompare(b.nombre));
+}
+
+// Las visitas a comercios nuevos de la semana (y las devueltas de antes, que hay que corregir).
+async function nuevosDeLaSemana(desde) {
+  const { rows } = await pool.query(`${SELECT_CONTACTO}
+    WHERE k.tipo = 'nuevo' AND (k.fecha BETWEEN $1 AND $2 OR k.aprobacion = 'devuelto') ORDER BY k.creado_en`, [desde, sumarDias(desde, 6)]);
+  return rows;
+}
+
+// Lo que ve Pepa: su semana como calendario de tareas, sin plata.
 async function miSemana() {
-  const hoy = hoyStr();
-  const [s, tareas, m] = await Promise.all([semana(lunes(hoy)), tareasAbiertas(), metas()]);
+  const hoy = hoyStr(), desde = lunes(hoy);
+  const [s, tareas, nuevos, meta, m] = await Promise.all([semana(desde), tareasDeLaSemana(desde), nuevosDeLaSemana(desde), metaNuevos(desde), metas()]);
   const { ventas, ...sinPlata } = s;
-  return { hoy, semana: sinPlata, metas: { contactos: m.contactos, nuevos: m.nuevos }, tareas };
+  return { hoy, desde, hasta: sumarDias(desde, 6), semana: sinPlata, metas: { contactos: m.contactos, nuevos: meta }, meta_nuevos: meta, tareas, nuevos };
+}
+
+// Lo que ven los dueños: qué aprobar, el plan de la semana y cómo va.
+async function semanaDuenos() {
+  const hoy = hoyStr(), desde = lunes(hoy);
+  const [{ rows: paraAprobar }, tareas, nuevos, meta, metaProxima, lista] = await Promise.all([
+    pool.query(`${SELECT_CONTACTO} WHERE k.aprobacion = 'pendiente' ORDER BY k.creado_en`),
+    tareasDeLaSemana(desde), nuevosDeLaSemana(desde), metaNuevos(desde), metaNuevos(sumarDias(desde, 7)), comercios(),
+  ]);
+  const { rows: tareasDe } = await pool.query(`SELECT t.id, t.tipo, t.nota, u.nombre AS encargada_por FROM senzen_tareas t LEFT JOIN usuarios u ON u.id = t.creada_por WHERE t.id = ANY($1)`,
+    [paraAprobar.map(k => k.tarea_id).filter(Boolean)]);
+  const tarea = Object.fromEntries(tareasDe.map(t => [t.id, t]));
+  return {
+    hoy, desde, hasta: sumarDias(desde, 6), meta_nuevos: meta, meta_proxima: metaProxima,
+    para_aprobar: paraAprobar.map(k => ({ ...k, tarea: k.tarea_id ? tarea[k.tarea_id] || null : null })),
+    tareas, nuevos,
+    comercios: lista.filter(c => c.activo).map(c => ({ id: c.id, nombre: c.nombre, localidad: c.localidad, compras: c.compras, proxima: c.proxima })),
+  };
+}
+
+async function contacto(id) {
+  return (await pool.query(`${SELECT_CONTACTO} WHERE k.id = $1`, [id])).rows[0] || null;
 }
 
 // ── Tablero de los dueños ────────────────────────────────────────────────────
@@ -260,7 +354,7 @@ async function datos() {
     semanas(sumarDias(lunes(hoy), -7 * 7), 8),
     tareasAbiertas(),
     pool.query(`
-      SELECT motivo, COUNT(*)::int AS n FROM senzen_contactos WHERE resultado = 'no_compro' AND motivo IS NOT NULL
+      SELECT motivo, COUNT(*)::int AS n FROM senzen_contactos WHERE resultado IN ('no_compro', 'no_quiere') AND motivo IS NOT NULL
       GROUP BY motivo ORDER BY n DESC`),
     pool.query(`
       SELECT k.id, to_char(k.fecha,'YYYY-MM-DD') AS fecha, k.medio, k.resultado, k.motivo, to_char(k.volver_el,'YYYY-MM-DD') AS volver_el,
@@ -283,4 +377,4 @@ async function datos() {
   };
 }
 
-module.exports = { generarTareas, registrarContacto, encargar, tareasAbiertas, comercios, miSemana, datos, semana, semanas, lunes, sumarDias, metas };
+module.exports = { generarTareas, registrarContacto, encargar, tareasAbiertas, comercios, miSemana, semanaDuenos, contacto, metaNuevos, datos, semana, semanas, lunes, sumarDias, metas };

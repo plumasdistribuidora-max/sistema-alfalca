@@ -28,6 +28,7 @@ import SenzenDashboard       from './pages/marcas/senzen/SenzenDashboard';
 import MiSemana              from './pages/marcas/senzen/MiSemana';
 import RegistrarContacto     from './pages/marcas/senzen/RegistrarContacto';
 import SenzenComercios       from './pages/marcas/senzen/Comercios';
+import SemanaPepa            from './pages/marcas/senzen/SemanaPepa';
 import TableroGordo          from './pages/tareas/TableroGordo';
 import TableroDuenos         from './pages/tareas/TableroDuenos';
 import DetalleTarea          from './pages/tareas/DetalleTarea';
@@ -104,6 +105,7 @@ export default function App() {
             <Route path="marcas/kankay/historial"        element={soloDueno(<Solapas grupo="dux"><KankayHistorial /></Solapas>)} />
             <Route path="marcas/senzen"                  element={soloRed(<SenzenDashboard />)} />
             <Route path="senzen/contacto"                element={deSenzen(<RegistrarContacto />)} />
+            <Route path="senzen/semana"                  element={soloDueno(<SemanaPepa />)} />
             <Route path="senzen/comercios"               element={deSenzen(<SenzenComercios />)} />
             <Route path="marcas/:slug"                   element={soloRed(<MarcaProximamente />)} />
             <Route path="stock"                          element={soloRed(<StockInteligente />)} />

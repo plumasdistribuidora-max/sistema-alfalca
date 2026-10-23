@@ -253,6 +253,7 @@ export default function Sidebar({ open, onClose }) {
                   </Bloque>
                   <Bloque icon="limpieza" label="Senzen" rutas={RUTAS.senzen}>
                     <NavItem to="/marcas/senzen" icon="finanzas" label="Números" end />
+                    <NavItem to="/senzen/semana" icon="tareas" label="Semana de Pepa" />
                     <NavItem to="/senzen/comercios" icon="locales" label="Comercios" />
                     <NavItem to="/senzen/contacto" icon="reportes" label="Cargar contacto" />
                   </Bloque>

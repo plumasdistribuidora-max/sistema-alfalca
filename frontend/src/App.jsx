@@ -29,6 +29,7 @@ import MiSemana              from './pages/marcas/senzen/MiSemana';
 import RegistrarContacto     from './pages/marcas/senzen/RegistrarContacto';
 import SenzenComercios       from './pages/marcas/senzen/Comercios';
 import TableroGordo          from './pages/tareas/TableroGordo';
+import TableroDuenos         from './pages/tareas/TableroDuenos';
 import DetalleTarea          from './pages/tareas/DetalleTarea';
 import Tablero               from './pages/tareas/Tablero';
 import ReporteDia            from './pages/tareas/ReporteDia';
@@ -78,6 +79,7 @@ export default function App() {
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Reportes />)} />
             <Route path="tareas"               element={soloRed(<Solapas grupo="tareas"><TableroGordo /></Solapas>)} />
+            <Route path="tareas/duenos"        element={soloDueno(<Solapas grupo="tareas"><TableroDuenos /></Solapas>)} />
             <Route path="tareas/:id"           element={soloRed(<DetalleTarea />)} />
             <Route path="dia"                  element={soloRed(<ReporteDia />)} />
             <Route path="tablero"              element={soloDueno(<Solapas grupo="tareas"><Tablero /></Solapas>)} />

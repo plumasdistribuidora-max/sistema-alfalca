@@ -97,6 +97,34 @@ async function cambioEnTarea(t, quien, tema, texto) {
   return mandar(fuera([...encargados, t.cargada_por_id]), 'comentario', `${yo} comentó · ${titulo}`, texto, url, `tarea-${t.id}`);
 }
 
+// ── Tareas de los dueños ─────────────────────────────────────────────────────
+// Su tablero va aparte (routes/tareasDuenos.js). La hace el responsable y la cierra otro dueño.
+//   asignada · un dueño le cargó una tarea a otro.
+//   comentario · al responsable y al que la cargó.
+//   cierre · el responsable terminó: a los otros dueños, juntado en un solo aviso.
+//   cerrada / devuelta · al responsable.
+async function cambioEnTareaDueno(t, quien, tema, texto) {
+  if (deNoche()) return;
+  const url = `/tareas/duenos?t=${t.id}`;
+  const titulo = corto(t.titulo, 50);
+  const yo = nombre(quien);
+  const fuera = arr => arr.filter(id => id && id !== quien.id);
+  if (tema === 'cierre') {
+    const otros = fuera(await ids('admin')).filter(id => id !== t.responsable_id);
+    return Promise.all(otros.map(async id => {
+      const lista = (await pool.query(`SELECT titulo FROM tareas_duenos WHERE estado = 'por_aprobar' AND responsable_id <> $1 ORDER BY pedido_cierre_at`, [id])).rows;
+      if (!lista.length) return;
+      return mandar([id], 'cerrar', `Para cerrar · ${plural(lista.length, 'tarea de dueños espera', 'tareas de dueños esperan')} tu cierre`,
+        lista.slice(0, 3).map(x => corto(x.titulo, 50)).join(' · ') + (lista.length > 3 ? ` y ${lista.length - 3} más` : ''),
+        '/tareas/duenos', 'tareas-duenos-para-cerrar');
+    }));
+  }
+  if (tema === 'asignada') return mandar(fuera([t.responsable_id]), 'hoy', `${yo} te cargó una tarea`, t.titulo, url, `tdu-${t.id}`);
+  if (tema === 'cerrada') return mandar(fuera([t.responsable_id]), 'cerrar', `${yo} cerró · ${titulo}`, texto || 'La tarea quedó cerrada.', url, `tdu-${t.id}`);
+  if (tema === 'devuelta') return mandar(fuera([t.responsable_id]), 'vencio', `${yo} te la devolvió · ${titulo}`, texto, url, `tdu-${t.id}`);
+  return mandar(fuera([t.responsable_id, t.creada_por]), 'comentario', `${yo} comentó · ${titulo}`, texto, url, `tdu-${t.id}`);
+}
+
 // ── Repasos programados ─────────────────────────────────────────────────────
 // Se revisan cada diez minutos; cada uno sale una sola vez por día y por persona.
 async function abiertasConCargador() {
@@ -128,19 +156,30 @@ async function revisar() {
         (vencidas.length ? ` ${plural(vencidas.length, 'está vencida', 'están vencidas')}.` : ''), '/tareas', 'tareas-hoy'));
     }
   }
+  const deDuenos = (await pool.query(`
+    SELECT id, titulo, responsable_id, estado, plazo::text AS plazo FROM tareas_duenos WHERE estado <> 'terminada'
+  `)).rows;
   for (const id of duenos) {
     const cerrar = await paraCerrarDe(id);
     const cargadas = delEncargado.filter(t => t.cargada_por_id === id);
-    if (!cerrar.length && !cargadas.length) continue;
+    const mias = deDuenos.filter(t => t.responsable_id === id && t.estado !== 'por_aprobar');
+    const miasHoy = mias.filter(t => t.plazo === hoy);
+    const cerrarDuenos = deDuenos.filter(t => t.estado === 'por_aprobar' && t.responsable_id !== id);
+    if (!cerrar.length && !cargadas.length && !mias.length && !cerrarDuenos.length) continue;
     await unaVez(`tareas:hoy:${hoy}:${id}`, () => mandar([id], 'hoy', 'Tus tareas de hoy',
-      [cerrar.length && `${plural(cerrar.length, 'tarea del Gordo espera', 'tareas del Gordo esperan')} que las cierres.`,
-       cargadas.length && `${plural(cargadas.length, 'tarea que le cargaste sigue abierta', 'tareas que le cargaste siguen abiertas')}.`]
+      [mias.length && `Tenés ${plural(mias.length, 'tarea tuya abierta', 'tareas tuyas abiertas')}${miasHoy.length ? `, ${miasHoy.length === 1 ? 'vence hoy' : `vencen hoy ${miasHoy.length}`}: ${lista(miasHoy)}` : ''}.`,
+       (cerrar.length + cerrarDuenos.length) > 0 && `${plural(cerrar.length + cerrarDuenos.length, 'tarea espera', 'tareas esperan')} que las cierres.`,
+       cargadas.length && `${plural(cargadas.length, 'tarea que le cargaste al Gordo sigue abierta', 'tareas que le cargaste al Gordo siguen abiertas')}.`]
         .filter(Boolean).join(' '), '/tareas', 'tareas-hoy'));
   }
 
   // 9:00 · Se venció ayer y sigue abierta: al encargado y al que la cargó, una sola vez.
   if (m >= 9 * 60) {
     const ayer = sumarDias(hoy, -1);
+    for (const t of deDuenos.filter(x => x.plazo === ayer && x.estado !== 'por_aprobar')) {
+      await unaVez(`tdu:vencio:${t.id}:${t.plazo}`, () => mandar([t.responsable_id], 'vencio',
+        `Se venció · ${corto(t.titulo, 50)}`, `Era para el ${ddmm(t.plazo)} y sigue abierta.`, `/tareas/duenos?t=${t.id}`, `tdu-${t.id}`));
+    }
     for (const t of delEncargado.filter(x => x.plazo === ayer)) {
       await unaVez(`tareas:vencio:${t.id}:${t.plazo}`, () => mandar([...encargados, t.cargada_por_id], 'vencio',
         `Se venció · ${corto(t.titulo, 50)}`, `Era para el ${ddmm(t.plazo)} y sigue abierta.`, `/tareas/${t.id}`, `tarea-${t.id}`));
@@ -153,6 +192,7 @@ async function revisar() {
     const vencen = delEncargado.filter(t => t.plazo === manana);
     const destinos = new Map();
     for (const t of vencen) for (const id of [...encargados, t.cargada_por_id].filter(Boolean)) destinos.set(id, [...(destinos.get(id) || []), t]);
+    for (const t of deDuenos.filter(x => x.plazo === manana && x.estado !== 'por_aprobar')) destinos.set(t.responsable_id, [...(destinos.get(t.responsable_id) || []), t]);
     for (const [id, ts] of destinos) {
       await unaVez(`tareas:manana:${hoy}:${id}`, () => mandar([id], 'vence',
         ts.length === 1 ? 'Mañana vence una tarea' : `Mañana vencen ${ts.length} tareas`, `${lista(ts)}.`, '/tareas', 'tareas-manana'));
@@ -160,4 +200,4 @@ async function revisar() {
   }
 }
 
-module.exports = { SIMBOLO, cambioEnTarea, revisar, nombre };
+module.exports = { SIMBOLO, cambioEnTarea, cambioEnTareaDueno, revisar, nombre };

@@ -50,6 +50,7 @@ app.use('/api/maestros',  soloRed, require('./routes/maestros'));
 app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
 app.use('/api/eerr-manual', soloDueno, require('./routes/eerrManual'));
 app.use('/api/kankay',    soloDueno, require('./routes/kankay'));
+app.use('/api/tareas-duenos', soloDueno, require('./routes/tareasDuenos'));
 app.use('/api/senzen',    [requireAuth, requireRol(ROLES.VENDEDORA)], require('./routes/senzen'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));

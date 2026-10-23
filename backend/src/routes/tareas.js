@@ -596,7 +596,7 @@ router.post('/generar', requireAuth, soloEncargado, async (_req, res) => {
 // ── POST /nueva (dueños) ─────────────────────────────────────────────────────
 // Un dueño le carga una tarea al encargado. Sigue el mismo camino que las alertas:
 // el encargado la toma, la resuelve y un dueño la aprueba.
-// { titulo, texto?, local_id?, para_cuando?, area?, prioridad? }
+// { titulo, texto?, local_id?, para_cuando?, area?, prioridad?, microobjetivo_id? }
 router.post('/nueva', requireAuth, requireAdmin, async (req, res) => {
   try {
     const titulo = escrito(req.body.titulo, 200);
@@ -608,12 +608,17 @@ router.post('/nueva', requireAuth, requireAdmin, async (req, res) => {
     if (paraCuando && paraCuando < hoy) return fail(res, 400, 'La fecha ya pasó');
     const area = T.AREAS[req.body.area] ? req.body.area : null;
     const prioridad = ['alta', 'media', 'baja'].includes(req.body.prioridad) ? req.body.prioridad : null;
+    // Si es para ayudar con un microobjetivo, tiene que ser uno del dueño que la carga.
+    const micro = req.body.microobjetivo_id ? (await pool.query(
+      'SELECT id FROM microobjetivos WHERE id = $1 AND dueno_id = $2 AND activo', [Number(req.body.microobjetivo_id) || 0, req.user.id]
+    )).rows[0] : null;
+    if (req.body.microobjetivo_id && !micro) return fail(res, 400, 'Ese microobjetivo no es tuyo');
 
     const { rows } = await pool.query(`
-      INSERT INTO tareas (tipo, local_id, fecha, clave, titulo, detalle, area, prioridad)
-      VALUES ('encargo', $1, $2, $3, $4, $5::jsonb, $6, $7) RETURNING id
+      INSERT INTO tareas (tipo, local_id, fecha, clave, titulo, detalle, area, prioridad, microobjetivo_id)
+      VALUES ('encargo', $1, $2, $3, $4, $5::jsonb, $6, $7, $8) RETURNING id
     `, [localId, hoy, `encargo:${req.user.id}:${Date.now()}`, titulo,
-        JSON.stringify({ texto, pedido_por: req.user.nombre, para_cuando: paraCuando }), area, prioridad]);
+        JSON.stringify({ texto, pedido_por: req.user.nombre, para_cuando: paraCuando }), area, prioridad, micro?.id || null]);
     const id = rows[0].id;
     await evento(id, req.user.id, 'encargo', texto || null);
 

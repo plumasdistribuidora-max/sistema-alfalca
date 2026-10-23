@@ -484,6 +484,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <a href="#reportes"><span class="ic">☰</span>Reportes de los turnos</a>
     <a href="#tareas"><span class="ic">✓</span>Tareas</a>
     <a href="#aprobar"><span class="ic">◆</span>Aprobar y los números</a>
+    <a href="#duenos"><span class="ic">◆</span>Tablero de dueños</a>
     <a href="#dia"><span class="ic">☀</span>Reporte del día y avisos</a>
     <a href="#proveedores"><span class="ic">⊡</span>Proveedores</a>
 
@@ -765,7 +766,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <li><strong>El grupo</strong> — lo que se toca poco: usuarios, locales, formularios, maestros y este manual, que se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
           </ul>
           <p style="margin-top:16px">
-            Algunas pantallas tienen <strong>solapas</strong> adentro: <em>Tareas</em> (Tablero y, para los dueños, Números),
+            Algunas pantallas tienen <strong>solapas</strong> adentro: <em>Tareas</em> (Tablero del Gordo y, para los dueños, Tablero de dueños y Números),
             <em>Fudo</em> y <em>Dux</em> (Subir Excel e Historial) y <em>Maestros</em> (Docenas, Café y Cocina).
           </p>
           <p style="margin-top:12px">
@@ -1140,7 +1141,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
       <p><strong>Todo se hace adentro de la tarea</strong>: tocala y se abre. En la computadora también se puede arrastrar una tarjeta a otra columna, y se abre la tarea para que escribas lo que corresponde (por ejemplo, qué hiciste para pedir el cierre).</p>
 
       <h3>Cargarle una tarea al encargado</h3>
-      <p>Los dueños tienen un <strong>+</strong> arriba de la columna <em>Sin empezar</em>. Escribís qué hay que hacer, si querés un detalle, el local (o ninguno, si es algo del grupo), el área, para cuándo y la prioridad. Al encargado le llega el aviso en el celular y la tarea sigue el mismo camino que las demás. <strong>La cierra el dueño que la cargó</strong>; las que salen de un reporte de turno las cierra cualquier dueño.</p>
+      <p>Los dueños tienen un <strong>+</strong> arriba de la columna <em>Sin empezar</em>. Escribís qué hay que hacer, si querés un detalle, el local (o ninguno, si es algo del grupo), el área, para cuándo, la prioridad y, si es para ayudar con un microobjetivo tuyo, cuál. Al encargado le llega el aviso en el celular y la tarea sigue el mismo camino que las demás. <strong>La cierra el dueño que la cargó</strong>; las que salen de un reporte de turno las cierra cualquier dueño.</p>
 
       <h3>Qué levanta el sistema</h3>
       <div class="tabla-caja">
@@ -1167,7 +1168,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><strong>No hay nada que hacer.</strong> Se escribe por qué. El descarte también lo aprueba un dueño, y queda a la vista en Números.</li>
       </ul>
       <p>Los dueños escriben en la misma conversación. Mientras el encargado la resuelve, un dueño puede tocar <strong>Pedir foto o PDF</strong> y escribir qué necesita ver: <strong>hasta que el encargado la suba, no puede pedir el cierre</strong>. Cuando la tarea espera el cierre tienen <em>Aprobar</em>, <em>Pedir foto o dato</em>, <em>No alcanza</em> y <em>Solo comentar</em>.</p>
-      <p><strong>Cada cosa que se escribe o cambia en una tarea les llega en un aviso a los cuatro dueños y al encargado.</strong> El aviso dice quién fue y si es dueño o encargado, por ejemplo <em>Martin Muscara (encargado) · 9 de Julio</em>.</p>
+      <p><strong>Los avisos le llegan solo a quien le toca, y nunca al que hizo el cambio.</strong> Un comentario o un avance le llega al encargado y al dueño que cargó la tarea; el resto lo ve en azul en el tablero. Cuando el encargado pide el cierre, les llega a los dueños que la pueden cerrar, juntado en un solo aviso. Ver <a href="#dia">los avisos</a>.</p>
 
       <div class="aviso tip">
         <span class="mk">◆</span>
@@ -1209,8 +1210,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><strong>No alcanza.</strong> Escribís por qué. Vuelve al encargado como abierta.</li>
       </ul>
       <p>Hay un solo recuadro para escribirle lo que quieras: para aprobar es opcional, para pedir algo o rechazar hay que escribir qué. Cualquiera de los dueños puede responder y queda quién fue. Para los gastos: <em>Aprobar gasto</em>, <em>Pedir otro presupuesto</em> o <em>No</em>.</p>
-      <p><strong>Si otro dueño la rechazó o pidió más</strong>, igual la podés aprobar: quizás sabés algo que él no. Te aparece el recuadro <em>Aprobar igual</em> y tenés que escribir por qué; queda en el seguimiento y les llega el aviso a todos.</p>
-      <p><strong>Comentar.</strong> En cada tarea se puede escribir en cualquier momento, aunque esté terminada. Pueden escribir los cuatro dueños y el encargado, y todo queda en la conversación. Cada mensaje les llega en un aviso a todos.</p>
+      <p><strong>Si otro dueño la rechazó o pidió más</strong>, igual la podés aprobar: quizás sabés algo que él no. Te aparece el recuadro <em>Aprobar igual</em> y tenés que escribir por qué; queda en el seguimiento y le llega el aviso al encargado.</p>
+      <p><strong>Comentar.</strong> En cada tarea se puede escribir en cualquier momento, aunque esté terminada. Pueden escribir los cuatro dueños y el encargado, y todo queda en la conversación. El aviso le llega al encargado y al dueño que la cargó; los demás lo ven en azul en el tablero.</p>
       <div class="aviso ojo">
         <span class="mk">⚠</span>
         <p><strong>Los dueños no resuelven tareas.</strong> No ven los botones de tomar, anotar avances, cargar gastos ni pedir el cierre: eso es trabajo del encargado. Ustedes aprueban, piden algo, rechazan o comentan.</p>
@@ -1238,6 +1239,35 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><strong>Reportes por persona</strong> de los últimos 30 días: enviados, cuántas veces no cargó, cuántas lo cargó después de la alerta y cuántas veces cargó mal las ventas.</li>
         <li><strong>Descartadas</strong>, con su motivo.</li>
       </ul>
+    </section>
+
+    <!-- ══════════ TABLERO DE DUEÑOS ══════════ -->
+    <section class="seccion" id="duenos">
+      <p class="para-quien">Para los dueños</p>
+      <h2>Tablero de dueños</h2>
+      <p>
+        En <em>Tareas</em>, la solapa <strong>Tablero de dueños</strong> tiene las tareas de ustedes
+        cuatro: las de Entre Dos (y cada unidad), Kankay, Senzen y General. <strong>El encargado no
+        lo ve.</strong> Tiene las mismas tres columnas que el tablero del Gordo, y el color del
+        cuadradito de cada tarjeta es el negocio.
+      </p>
+      <ul class="simple">
+        <li><strong>Cargar una tarea.</strong> El <strong>+</strong> de <em>Sin empezar</em>. Elegís quién la hace, el negocio (y la unidad de Entre Dos), el área, el microobjetivo si cuelga de uno, para cuándo y la prioridad. Si se la cargás a otro dueño, le llega un aviso.</li>
+        <li><strong>Hacerla.</strong> El que la hace la abre, toca <em>Tomarla</em> y elige para cuándo. Después cuenta cómo viene y, cuando termina, toca <em>Terminé · pedir cierre</em> contando qué hizo.</li>
+        <li><strong>Cerrarla.</strong> <strong>La cierra otro dueño</strong>, no el que la hizo: así cada uno rinde cuentas de lo suyo. En <em>Para cerrar</em> están las de los otros que esperan. Se cierra o se devuelve diciendo qué falta.</li>
+        <li><strong>Corregir los datos.</strong> En la tarea, cualquier dueño cambia quién la hace, negocio, área, microobjetivo o prioridad. La fecha se cambia con <em>Cambiar</em> y pide el motivo. Todo queda en el historial.</li>
+        <li><strong>Mis tareas</strong> muestra solo las tuyas. Los filtros (dueño, negocio, área, microobjetivo, vencidas) se combinan.</li>
+      </ul>
+      <h3>Microobjetivos</h3>
+      <p>
+        Con <strong>Por microobjetivo</strong> el tablero se divide en filas, una por microobjetivo, y al
+        final las tareas sueltas. Ahí está el botón <strong>+ Microobjetivo</strong>: el nombre (por
+        ejemplo, <em>Bajar el CMV 1 punto</em>), el dueño responsable, el mes, el negocio y las
+        unidades a las que aplica, el área que mueve y la meta. Cada fila muestra cuánto se cerró,
+        contando también las tareas que el dueño le cargó al Gordo para ese microobjetivo. El
+        <strong>semáforo</strong> y la <strong>nota de la semana</strong> los actualiza el dueño
+        responsable.
+      </p>
     </section>
 
     <!-- ══════════ REPORTE DEL DÍA Y AVISOS ══════════ -->
@@ -1293,13 +1323,19 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <table class="manual">
           <thead><tr><th>Aviso</th><th>A quién</th><th>Cuándo</th></tr></thead>
           <tbody>
-            <tr><td><em>Reporte del día viernes 09/10 creado</em> — <em>Ventas del día $ 6.597.072. Hacé click para revisarlo.</em></td><td>Dueños y encargado</td><td>Cuando está el Fudo de todos los locales de ese día</td></tr>
-            <tr><td><em>Martin Muscara (encargado) · 9 de Julio</em> — lo que se escribió o cambió en una tarea: la tomó, avance, fecha nueva, gasto, comprobante, pide el cierre, aprobó, pide más, comentario, tarea nueva</td><td>Los cuatro dueños y el encargado</td><td>En el momento, cada vez</td></tr>
+            <tr><td><em>📊 Reporte del día viernes 09/10 creado</em> — <em>Ventas del día $ 6.597.072. Hacé click para revisarlo.</em></td><td>Dueños y encargado</td><td>Cuando está el Fudo de todos los locales de ese día</td></tr>
+            <tr><td><em>📋 Tus tareas de hoy</em> — cuántas tenés abiertas, cuáles vencen hoy y cuántas esperan que las cierres</td><td>A cada uno, solo lo suyo</td><td>8:30, si tiene algo</td></tr>
+            <tr><td><em>⏰ Mañana vencen 3 tareas</em></td><td>Al que la hace y al dueño que la cargó</td><td>18:00 del día anterior</td></tr>
+            <tr><td><em>⚠️ Se venció · Piso roto</em></td><td>Al que la hace y al dueño que la cargó</td><td>9:00 del día siguiente, una sola vez</td></tr>
+            <tr><td><em>📎 Fran te pidió una foto o PDF · …</em></td><td>Al encargado</td><td>En el momento</td></tr>
+            <tr><td><em>✅ Para cerrar · 3 tareas esperan tu cierre</em></td><td>A los dueños que la pueden cerrar</td><td>En el momento; si hay más, el mismo aviso se actualiza</td></tr>
+            <tr><td><em>💬 Fran comentó · Carteles de vereda rotos</em></td><td>Al que la hace y al que la cargó, nunca al que escribió</td><td>En el momento</td></tr>
+            <tr><td><em>✅ Tincho cerró · …</em>, <em>⚠️ … no la aprobó</em>, <em>📋 … te cargó una tarea</em></td><td>Al que la hace</td><td>En el momento</td></tr>
             <tr><td><em>Alertas nuevas</em></td><td>Encargado</td><td>Cuando entra un Fudo y nace alguna alerta</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Tocás el aviso y se abre el sistema directo en esa pantalla. Para aprobar hay que entrar: el aviso no tiene botones a propósito.</p>
+      <p>El símbolo del principio dice de qué se trata: en el iPhone todos los avisos traen el mismo ícono, así que es lo que los distingue. <strong>Entre las 22 y las 8 no llega ningún aviso de tareas</strong>: lo de la noche entra en el de la mañana. Tocás el aviso y se abre el sistema directo en esa pantalla. Para aprobar hay que entrar: el aviso no tiene botones a propósito.</p>
 
       <h3>Activarlos en el iPhone</h3>
       <ol class="pasos">

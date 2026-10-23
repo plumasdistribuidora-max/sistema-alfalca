@@ -48,7 +48,7 @@ function Icono({ name, small }) {
 }
 
 // Un renglón del menú puede quedar marcado en varias rutas: las solapas de una misma
-// pantalla (Tablero y Números, Subir Excel e Historial) y el detalle de una tarea.
+// pantalla (los dos tableros y Números, Subir Excel e Historial) y el detalle de una tarea.
 function enRutas(pathname, rutas) {
   return rutas.some(r => pathname === r || pathname.startsWith(r + '/'));
 }

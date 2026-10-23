@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
+import EsferaClaudia from './EsferaClaudia';
 
 // Claudia, la asistente de los dueños: un botón redondo abajo a la derecha que abre el chat encima de
 // cualquier pantalla. La charla vive mientras se navega (está en el Layout) y se pierde al
@@ -204,12 +205,10 @@ export default function AsistenteChat() {
       {abierto && (
         <div className="fixed z-40 inset-0 sm:inset-auto sm:right-6 sm:bottom-24 sm:w-[420px] sm:h-[min(640px,calc(100vh-8rem))] bg-white sm:rounded-2xl sm:border border-ahg-accent/40 sm:shadow-2xl flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 bg-ahg-primary text-white">
-            <div className="shrink-0 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" /></svg>
-            </div>
+            <EsferaClaudia tamano={32} pensando={pensando} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold leading-tight">Claudia</p>
-              <p className="text-[11px] text-white/60 truncate">Tu asistente con los datos del sistema</p>
+              <p className="text-[11px] text-white/60 truncate">{pensando ? 'Buscando en los datos…' : 'Tu asistente con los datos del sistema'}</p>
             </div>
             {!pensando && (vista === 'charlas' || mensajes.length > 0) && (
               <button onClick={nuevaCharla} className="shrink-0 whitespace-nowrap text-xs text-white/70 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10">Nueva charla</button>
@@ -297,12 +296,12 @@ export default function AsistenteChat() {
       <button
         onClick={() => setAbierto(v => !v)}
         aria-label={abierto ? 'Cerrar a Claudia' : 'Hablar con Claudia'}
-        className={`fixed z-40 right-5 bottom-5 sm:right-6 sm:bottom-6 w-14 h-14 rounded-full bg-ahg-primary text-white shadow-lg hover:bg-ahg-secondary flex items-center justify-center transition-colors ${abierto ? 'hidden sm:flex' : 'flex'}`}
+        className={`fixed z-40 right-5 bottom-5 sm:right-6 sm:bottom-6 w-14 h-14 rounded-full bg-ahg-primary text-white shadow-lg ring-1 ring-white/20 hover:scale-105 flex items-center justify-center overflow-hidden transition-transform ${abierto ? 'hidden sm:flex' : 'flex'}`}
       >
         {abierto ? (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
         ) : (
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5m-9 6l2.5-3H18a3 3 0 003-3V7a3 3 0 00-3-3H6a3 3 0 00-3 3v7a3 3 0 003 3" /></svg>
+          <EsferaClaudia tamano={56} pensando={pensando} />
         )}
       </button>
     </>

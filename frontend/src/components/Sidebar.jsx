@@ -220,6 +220,8 @@ export default function Sidebar({ open, onClose }) {
           {esDeRed(user) && (
             <>
               <NavItem to="/" icon="inicio" label="Inicio" end />
+              {/* Las tareas de los cuatro, de todos los negocios: va suelta, no dentro de una marca. */}
+              {dueno && <NavItem to="/tareas-duenos" icon="tareas" label="Tareas dueños" />}
 
               <Bloque icon="alfajor" label="Entre Dos" rutas={RUTAS.entreDos}>
                 <Grupo {...grupoProps('operacion')} icon="dia" label="Operación">

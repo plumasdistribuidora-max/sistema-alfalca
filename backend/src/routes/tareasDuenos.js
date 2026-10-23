@@ -118,6 +118,43 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── GET /por-aprobar ─────────────────────────────────────────────────────────
+// Lo que espera a un dueño en cada negocio, para verlo debajo del tablero (Martín, 23/10/2026):
+// en Entre Dos las tareas que el Gordo pidió cerrar y los gastos; en Senzen los reportes de
+// Pepa. Kankay todavía no tiene a nadie que cargue tareas. Un encargo lo cierra solo el
+// dueño que lo cargó, igual que en el tablero del Gordo.
+router.get('/por-aprobar', async (req, res) => {
+  try {
+    const [tareas, gastos, senzen] = await Promise.all([
+      pool.query(`
+        SELECT t.id, t.titulo, t.tipo, t.pedido_cierre_at, l.nombre AS local_nombre
+        FROM tareas t LEFT JOIN locales l ON l.id = t.local_id
+        LEFT JOIN LATERAL (SELECT e.usuario_id FROM tarea_eventos e WHERE e.tarea_id = t.id AND e.tipo = 'encargo' ORDER BY e.id LIMIT 1) ec ON true
+        WHERE t.estado = 'por_aprobar' AND (t.tipo <> 'encargo' OR ec.usuario_id IS NULL OR ec.usuario_id = $1)
+        ORDER BY t.pedido_cierre_at`, [req.user.id]),
+      pool.query(`
+        SELECT g.id, g.tarea_id, g.concepto, g.monto::float AS monto, g.created_at, t.titulo, l.nombre AS local_nombre
+        FROM tarea_gastos g JOIN tareas t ON t.id = g.tarea_id LEFT JOIN locales l ON l.id = t.local_id
+        WHERE g.estado = 'pendiente' ORDER BY g.created_at`),
+      pool.query(`
+        SELECT k.id, k.tipo, k.creado_en, c.nombre, u.nombre AS quien
+        FROM senzen_contactos k JOIN senzen_comercios c ON c.id = k.comercio_id JOIN usuarios u ON u.id = k.usuario_id
+        WHERE k.aprobacion = 'pendiente' ORDER BY k.creado_en`),
+    ]);
+    res.json({ ok: true, data: {
+      entre_dos: [
+        ...tareas.rows.map(t => ({ clase: 'tarea', id: t.id, titulo: t.titulo, lugar: corto(t.local_nombre), desde: t.pedido_cierre_at, url: `/tareas/${t.id}` })),
+        ...gastos.rows.map(g => ({ clase: 'gasto', id: g.id, titulo: g.concepto, tarea: g.titulo, monto: g.monto, lugar: corto(g.local_nombre), desde: g.created_at, url: `/tareas/${g.tarea_id}` })),
+      ],
+      kankay: [],
+      senzen: senzen.rows.map(k => ({ clase: k.tipo === 'nuevo' ? 'visita' : 'contacto', id: k.id, titulo: k.nombre, quien: nombreCorto(k.quien), desde: k.creado_en, url: '/senzen/semana' })),
+    } });
+  } catch (err) {
+    console.error('[tareas-duenos/por-aprobar]', err);
+    fail(res, 500, 'No se pudo cargar lo que espera aprobación');
+  }
+});
+
 // ── GET /registro ────────────────────────────────────────────────────────────
 router.get('/registro', async (req, res) => {
   try {

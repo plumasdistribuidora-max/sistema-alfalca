@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
-import { ddmm, hoyStr, cuando, Cargando, MensajeError, Titulo } from './comunes';
+import { ddmm, hoyStr, cuando, duracion, Cargando, MensajeError, Titulo } from './comunes';
 import {
   IcoCal, IcoFlag, IcoCom, IcoFiltro, IcoArch, IcoMas, COLUMNAS as COLS, fechaLocal, lunesDe, AZUL,
   Vistas, BotonBarra, Columna, Tablero, marcoTarjeta, SinLeer, PuntoSinLeer, Modal,
@@ -457,6 +457,59 @@ function CabezaMicro({ m, user, onCambio }) {
 
 const FILTRO_VACIO = { dueno: '', negocio: '', area: '', micro: '', venc: false };
 
+// Debajo del tablero: lo que espera a un dueño en cada negocio (Martín, 23/10/2026). Cada
+// renglón lleva a la pantalla donde se aprueba: el tablero del Gordo o la semana de Pepa.
+const POR_APROBAR = [
+  { k: 'entre_dos', nombre: 'Entre Dos', donde: 'Se aprueban en el tablero del Gordo', ir: '/tareas', vacio: 'El Gordo no tiene nada esperando tu cierre.' },
+  { k: 'kankay',    nombre: 'Kankay',    donde: 'Todavía nadie del equipo carga tareas', vacio: 'Nada para aprobar.' },
+  { k: 'senzen',    nombre: 'Senzen',    donde: 'Se aprueban en la semana de Pepa', ir: '/senzen/semana', vacio: 'Pepa no tiene reportes esperando.' },
+];
+const CLASE = { tarea: 'Pide cerrar', gasto: 'Gasto', visita: 'Visita nueva', contacto: 'Contacto' };
+const pesos = n => `$ ${Math.round(n).toLocaleString('es-AR')}`;
+
+function PorAprobar() {
+  const [p, setP] = useState(null);
+  useEffect(() => { api.get('/tareas-duenos/por-aprobar').then(r => setP(r.data.data)).catch(() => setP(false)); }, []);
+  if (p === false) return null;
+  return (
+    <section className="max-w-[1240px] space-y-2.5 pt-2" aria-labelledby="pa-titulo">
+      <h2 id="pa-titulo" className="text-base font-bold text-ahg-text" style={{ fontFamily: 'Nunito, sans-serif' }}>Para aprobar en cada negocio</h2>
+      <div className="grid gap-3 md:grid-cols-3">
+        {POR_APROBAR.map(n => {
+          const items = p?.[n.k] || [];
+          return (
+            <div key={n.k} className="bg-white rounded-xl border border-ahg-accent/40 overflow-hidden flex flex-col">
+              <div className="px-3.5 py-2.5 flex items-center gap-2 border-b border-ahg-accent/30" style={{ borderTop: `3px solid ${NEG_COLOR[n.k]}` }}>
+                <h3 className="text-sm font-semibold">{n.nombre}</h3>
+                <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${items.length ? 'text-white' : 'bg-ahg-accent/30 text-ahg-text/55'}`}
+                      style={items.length ? { background: NEG_COLOR[n.k] } : undefined}>{p ? items.length : '…'}</span>
+                <span className="ml-auto text-[11px] text-ahg-text/50 text-right">{n.donde}</span>
+              </div>
+              <ul className="divide-y divide-ahg-accent/25 flex-1">
+                {p && !items.length && <li className="px-3.5 py-4 text-sm text-ahg-text/50">{n.vacio}</li>}
+                {items.map(it => (
+                  <li key={`${it.clase}-${it.id}`}>
+                    <Link to={it.url} className="block px-3.5 py-2.5 hover:bg-ahg-accent/15">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: NEG_COLOR[n.k] }}>{CLASE[it.clase]}</span>
+                        {(it.lugar || it.quien) && <span className="text-[11px] text-ahg-text/55">{it.lugar || it.quien}</span>}
+                        <span className="ml-auto text-[11px] text-ahg-text/45 whitespace-nowrap">hace {duracion(Date.now() - new Date(it.desde).getTime())}</span>
+                      </div>
+                      <p className="text-sm text-ahg-text leading-snug mt-0.5">{it.titulo}{it.clase === 'gasto' && <> · <b>{pesos(it.monto)}</b></>}</p>
+                      {it.tarea && <p className="text-xs text-ahg-text/50 truncate">{it.tarea}</p>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {n.ir && items.length > 0 && <Link to={n.ir} className="px-3.5 py-2 text-xs font-medium text-ahg-text/70 hover:text-ahg-text border-t border-ahg-accent/30">Ir a aprobar →</Link>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function TableroDuenos() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -589,6 +642,8 @@ export default function TableroDuenos() {
           ))}
         </div>
       )}
+
+      <PorAprobar />
 
       {nueva && <NuevaTarea d={d} user={user} microInicial={nueva.micro} onCerrar={() => setNueva(null)} onListo={id => { setNueva(null); cargar(); abrir(id); }} />}
       {nuevoMicro && <NuevoMicro d={d} user={user} onCerrar={() => setNuevoMicro(false)} onListo={() => { setNuevoMicro(false); cargar(); }} />}

@@ -113,7 +113,7 @@ async function cambioEnTarea(t, quien, tema, texto) {
 //   cerrada / devuelta · al responsable.
 async function cambioEnTareaDueno(t, quien, tema, texto) {
   if (deNoche()) return;
-  const url = `/tareas/duenos?t=${t.id}`;
+  const url = `/tareas-duenos?t=${t.id}`;
   const titulo = corto(t.titulo, 50);
   const yo = nombre(quien);
   const fuera = arr => arr.filter(id => id && id !== quien.id);
@@ -125,7 +125,7 @@ async function cambioEnTareaDueno(t, quien, tema, texto) {
       if (!lista.length) return;
       return mandar([id], 'cerrar', `Para cerrar · ${plural(lista.length, 'tarea de dueños espera', 'tareas de dueños esperan')} tu cierre`,
         lista.slice(0, 3).map(x => corto(x.titulo, 50)).join(' · ') + (lista.length > 3 ? ` y ${lista.length - 3} más` : ''),
-        '/tareas/duenos', 'tareas-duenos-para-cerrar');
+        '/tareas-duenos', 'tareas-duenos-para-cerrar');
     }));
   }
   if (tema === 'asignada') return mandar(fuera([t.responsable_id]), 'hoy', `${yo} te cargó una tarea`, t.titulo, url, `tdu-${t.id}`, lugar);
@@ -189,7 +189,7 @@ async function revisar() {
     const ayer = sumarDias(hoy, -1);
     for (const t of deDuenos.filter(x => x.plazo === ayer && x.estado !== 'por_aprobar')) {
       await unaVez(`tdu:vencio:${t.id}:${t.plazo}`, () => mandar([t.responsable_id], 'vencio',
-        `Se venció · ${corto(t.titulo, 50)}`, `Era para el ${ddmm(t.plazo)} y sigue abierta.`, `/tareas/duenos?t=${t.id}`, `tdu-${t.id}`, t.lugar));
+        `Se venció · ${corto(t.titulo, 50)}`, `Era para el ${ddmm(t.plazo)} y sigue abierta.`, `/tareas-duenos?t=${t.id}`, `tdu-${t.id}`, t.lugar));
     }
     for (const t of delEncargado.filter(x => x.plazo === ayer)) {
       await unaVez(`tareas:vencio:${t.id}:${t.plazo}`, () => mandar([...encargados, t.cargada_por_id], 'vencio',

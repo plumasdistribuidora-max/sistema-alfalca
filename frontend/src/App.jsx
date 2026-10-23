@@ -67,6 +67,13 @@ function Inicio() {
   return esDeTurno(user) ? <MiReporte /> : <Home />;
 }
 
+// El tablero de dueños tenía su dirección dentro de Tareas de Entre Dos: los avisos viejos
+// todavía llevan ahí.
+function IrConQuery({ a }) {
+  const { search } = useLocation();
+  return <Navigate to={`${a}${search}`} replace />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -79,7 +86,8 @@ export default function App() {
             <Route path="usuarios"             element={soloRed(<UsuariosPage />)} />
             <Route path="reportes"             element={soloRed(<Reportes />)} />
             <Route path="tareas"               element={soloRed(<Solapas grupo="tareas"><TableroGordo /></Solapas>)} />
-            <Route path="tareas/duenos"        element={soloDueno(<Solapas grupo="tareas"><TableroDuenos /></Solapas>)} />
+            <Route path="tareas-duenos"        element={soloDueno(<TableroDuenos />)} />
+            <Route path="tareas/duenos"        element={<IrConQuery a="/tareas-duenos" />} />
             <Route path="tareas/:id"           element={soloRed(<DetalleTarea />)} />
             <Route path="dia"                  element={soloRed(<ReporteDia />)} />
             <Route path="tablero"              element={soloDueno(<Solapas grupo="tareas"><Tablero /></Solapas>)} />

@@ -8,7 +8,6 @@ import { esDueno } from '../utils/roles';
 export const GRUPOS = {
   tareas: [
     { to: '/tareas',  label: 'Tablero del Gordo', end: true },
-    { to: '/tareas/duenos', label: 'Tablero de dueños', soloDueno: true },
     { to: '/tablero', label: 'Números', soloDueno: true },
   ],
   fudo: [

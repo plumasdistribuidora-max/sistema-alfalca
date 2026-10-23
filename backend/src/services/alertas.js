@@ -265,7 +265,8 @@ async function avisarDia(r) {
   // El texto lo eligió Martín (11/10/2026): qué día es, cuánto se vendió, y que hay que entrar.
   const venta = r.dia.totales.ventas_sistema;
   const payload = {
-    titulo: `Reporte del día ${diaLargo(r.fecha).toLowerCase()} creado`,
+    // El símbolo dice de qué se trata el aviso (Martín eligió uno por tema, 23/10/2026).
+    titulo: `📊 Reporte del día ${diaLargo(r.fecha).toLowerCase()} creado`,
     texto: `Ventas del día ${$(venta)}. Hacé click para revisarlo.`,
     url: `/dia?fecha=${r.fecha}`,
     etiqueta: `dia-${r.fecha}`,

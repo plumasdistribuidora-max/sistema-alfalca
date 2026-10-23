@@ -11,6 +11,7 @@ const { requireAuth, requireRol, requireAdmin, ROLES } = require('../middleware/
 const { uploadToR2, getFromR2 } = require('../config/r2');
 const T = require('../utils/tareas');
 const avisos = require('../services/avisos');
+const tareasAvisos = require('../services/tareasAvisos');
 const alertas = require('../services/alertas');
 const { armarDia } = require('./consolidado');
 
@@ -616,7 +617,7 @@ router.post('/nueva', requireAuth, requireAdmin, async (req, res) => {
     const id = rows[0].id;
     await evento(id, req.user.id, 'encargo', texto || null);
 
-    avisarTodos(await tareaPorId(id), req.user, `cargó una tarea para el encargado${paraCuando ? `, para el ${ddmm(paraCuando)}` : ''}${texto ? ` · "${texto.slice(0, 140)}"` : ''}`);
+    avisar(await tareaPorId(id), req.user, 'encargo', `${paraCuando ? `Para el ${ddmm(paraCuando)}` : 'Sin fecha'}${texto ? ` · ${texto}` : ''}`);
     res.json({ ok: true, data: { id } });
   } catch (err) {
     console.error('[tareas/nueva]', err);
@@ -711,17 +712,10 @@ async function cargarParaEditar(req, res, estados) {
 
 
 // ── Avisos de una tarea ──────────────────────────────────────────────────────
-// Cada cambio en una tarea les llega a los cuatro dueños y al encargado (Martín,
-// 15/10/2026). El título dice quién lo hizo, así se entiende de quién es cada cosa.
-// La etiqueta es única: un aviso nuevo no tapa al anterior en el celular.
-function avisarTodos(t, quien, texto) {
-  const papel = quien.rol === ROLES.ENCARGADO_GENERAL ? 'encargado' : 'dueño';
-  const payload = {
-    titulo: `${quien.nombre} (${papel}) · ${corto(t.local_nombre) || 'Red'}`,
-    texto: `${t.titulo}: ${texto}`.slice(0, 240),
-    url: `/tareas/${t.id}`, etiqueta: `tarea-${t.id}-${Date.now()}`,
-  };
-  avisos.enSegundoPlano(Promise.all([avisos.aDuenos(payload), avisos.aEncargados(payload)]), 'cambio en tarea');
+// A quién le llega cada cosa y con qué símbolo está en services/tareasAvisos.js (Martín,
+// 23/10/2026): solo a quien le toca y nunca al que hizo el cambio.
+function avisar(t, quien, tema, texto) {
+  avisos.enSegundoPlano(tareasAvisos.cambioEnTarea(t, quien, tema, texto), `tarea ${tema}`);
 }
 
 // ── POST /:id/mensaje ────────────────────────────────────────────────────────
@@ -858,7 +852,9 @@ router.post('/:id/mensaje', requireAuth, encargadoNada, upload.single('foto'), a
       await pool.query('UPDATE tareas SET updated_at = NOW() WHERE id = $1', [t.id]);
     }
 
-    avisarTodos(t, req.user, `${resumen.length ? `${resumen.join(' · ')} · ` : ''}"${texto.slice(0, 140)}"`);
+    if (cerrar && !sola) avisar(t, req.user, 'cierre');
+    else if (!cerrar) avisar(t, req.user, 'comentario', tomar ? `La tomó para el ${ddmm(plazo)}: ${texto}` : nuevoPlazo ? `Cambió la fecha al ${ddmm(nuevoPlazo)}: ${texto}` : texto);
+    if (gastoEstado === 'pendiente') avisar(t, req.user, 'gasto', `${$(gastoMonto)} · ${texto}`);
     res.json({ ok: true, data: { aprobada_sola: sola } });
   } catch (err) {
     console.error('[tareas/mensaje]', err);
@@ -879,7 +875,7 @@ router.post('/:id/descartar', requireAuth, encargadoNada, async (req, res) => {
       WHERE id = $1
     `, [t.id, motivo, req.user.id]);
     await evento(t.id, req.user.id, 'pidio_cierre', `Pide descartarla: ${motivo}.`, { descarte: true, motivo });
-    avisarTodos(t, req.user, `pide descartarla: "${motivo}"`);
+    avisar(t, req.user, 'cierre');
     res.json({ ok: true });
   } catch (err) {
     console.error('[tareas/descartar]', err);
@@ -902,7 +898,7 @@ router.post('/gastos/:gid/comprobante', requireAuth, encargadoNada, upload.singl
     if (!req.file) return fail(res, 400, 'Adjuntá la foto del comprobante');
     await subirAdjunto(req.file, g.tarea_id, req.user.id, { gastoId: g.id, rol: 'comprobante' });
     await evento(g.tarea_id, req.user.id, 'comprobante', `Subió el comprobante de pago: ${g.concepto} ${$(n(g.monto))}.`, { gasto_id: g.id });
-    avisarTodos(await tareaPorId(g.tarea_id), req.user, `subió el comprobante de ${$(n(g.monto))}`);
+    avisar(await tareaPorId(g.tarea_id), req.user, 'comentario', `Subió el comprobante de ${$(n(g.monto))}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('[tareas/comprobante]', err);
@@ -922,11 +918,35 @@ router.post('/:id/comentar', requireAuth, soloEncargado, async (req, res) => {
     if (!texto) return fail(res, 400, 'Escribí el comentario');
     await evento(t.id, req.user.id, 'comentario', texto);
     await pool.query('UPDATE tareas SET updated_at = NOW() WHERE id = $1', [t.id]);
-    avisarTodos(t, req.user, `"${texto.slice(0, 160)}"`);
+    avisar(t, req.user, 'comentario', texto);
     res.json({ ok: true });
   } catch (err) {
     console.error('[tareas/comentar]', err);
     fail(res, 500, 'No se pudo guardar el comentario');
+  }
+});
+
+// ── POST /:id/clasificar (dueños) ────────────────────────────────────────────
+// Prioridad y área se pueden cambiar en cualquier momento. Queda en el seguimiento, sin
+// aviso: no es algo que el encargado tenga que hacer.  { prioridad?, area? }
+router.post('/:id/clasificar', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const t = await tareaPorId(req.params.id);
+    if (!t) return fail(res, 404, 'No existe esa tarea');
+    const cambios = [];
+    if ('prioridad' in req.body) {
+      const p = ['alta', 'media', 'baja'].includes(req.body.prioridad) ? req.body.prioridad : null;
+      if (p !== t.prioridad) { await pool.query('UPDATE tareas SET prioridad = $2 WHERE id = $1', [t.id, p]); cambios.push(`prioridad ${p || 'sin definir'}`); }
+    }
+    if ('area' in req.body && T.AREAS[req.body.area] && req.body.area !== T.areaDe(t)) {
+      await pool.query('UPDATE tareas SET area = $2 WHERE id = $1', [t.id, req.body.area]);
+      cambios.push(`área ${T.AREAS[req.body.area]}`);
+    }
+    if (cambios.length) await evento(t.id, req.user.id, 'clasificada', `Cambió ${cambios.join(' y ')}.`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[tareas/clasificar]', err);
+    fail(res, 500, 'No se pudo guardar');
   }
 });
 
@@ -941,7 +961,7 @@ router.post('/:id/pedir-foto', requireAuth, requireAdmin, async (req, res) => {
     if (texto.length < 3) return fail(res, 400, 'Escribí qué necesitás ver');
     await evento(t.id, req.user.id, 'pidio_foto', texto);
     await pool.query('UPDATE tareas SET updated_at = NOW() WHERE id = $1', [t.id]);
-    avisarTodos(t, req.user, `pide una foto o PDF: "${texto.slice(0, 160)}"`);
+    avisar(t, req.user, 'pedido', { foto: true, texto });
     res.json({ ok: true });
   } catch (err) {
     console.error('[tareas/pedir-foto]', err);
@@ -1008,12 +1028,13 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
           WHERE id = $1 AND estado = 'abierto'
         `, [t.detalle.item_id, T.hoyMendoza()]);
       }
-      avisarTodos(t, req.user, `${aprobarIgual ? `aprobó igual (${aprobarIgual.nombre} la había ${aprobarIgual.tipo === 'rechazada' ? 'rechazado' : 'devuelto'})` : 'aprobó la tarea'}${texto ? `: "${texto.slice(0, 140)}"` : ''}${causaId ? ' · quedó como causa conocida' : ''}`);
+      avisar(t, req.user, 'cerrada', `${aprobarIgual ? `La aprobó igual (${aprobarIgual.nombre} la había ${aprobarIgual.tipo === 'rechazada' ? 'rechazado' : 'devuelto'})` : 'La aprobó'}${texto ? `: ${texto}` : '.'}`);
     } else if (accion === 'pedir' || accion === 'rechazar') {
       if (!texto) return fail(res, 400, accion === 'pedir' ? 'Escribí qué le pedís' : 'Escribí por qué no alcanza');
       await pool.query(`UPDATE tareas SET estado = 'en_curso', updated_at = NOW() WHERE id = $1`, [t.id]);
       await evento(t.id, req.user.id, accion === 'pedir' ? 'pidio_mas' : 'rechazada', texto);
-      avisarTodos(t, req.user, `${accion === 'pedir' ? 'le pide más al encargado' : 'no la aprobó'}: "${texto.slice(0, 140)}"`);
+      if (accion === 'pedir') avisar(t, req.user, 'pedido', { foto: false, texto });
+      else avisar(t, req.user, 'devuelta', texto);
     } else {
       return fail(res, 400, 'Acción inválida');
     }
@@ -1049,8 +1070,8 @@ router.post('/gastos/:gid/responder', requireAuth, requireAdmin, async (req, res
       : accion === 'otro' ? `Pidió otro presupuesto para ${g.concepto}${texto ? `: ${texto}` : ''}.`
       : `No aprobó el gasto ${g.concepto}: ${texto}`;
     await evento(g.tid, req.user.id, accion === 'aprobar' ? 'gasto_aprobado' : 'gasto_rechazado', msg, { gasto_id: g.id });
-    avisarTodos(await tareaPorId(g.tid), req.user,
-      `${accion === 'aprobar' ? 'aprobó' : accion === 'otro' ? 'pidió otro presupuesto para' : 'no aprobó'} el gasto ${g.concepto} ${$(n(g.monto))}${texto ? ` · "${texto.slice(0, 120)}"` : ''}`);
+    avisar(await tareaPorId(g.tid), req.user, 'comentario',
+      `${accion === 'aprobar' ? 'Aprobó' : accion === 'otro' ? 'Pidió otro presupuesto para' : 'No aprobó'} el gasto ${g.concepto} ${$(n(g.monto))}${texto ? ` · ${texto}` : ''}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('[tareas/gastos/responder]', err);

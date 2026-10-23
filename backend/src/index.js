@@ -69,6 +69,12 @@ const senzenAvisos = require('./services/senzenAvisos');
 setInterval(() => senzenAvisos.revisar()
   .catch(err => console.warn('[senzen]', err.message)), 60 * 60 * 1000).unref();
 
+// Tareas: los repasos de la mañana, de las 18 y lo vencido (services/tareasAvisos.js).
+// Cada diez minutos, así el de las 8:30 sale a esa hora y no a las 9.
+const tareasAvisos = require('./services/tareasAvisos');
+setInterval(() => tareasAvisos.revisar()
+  .catch(err => console.warn('[tareas avisos]', err.message)), 10 * 60 * 1000).unref();
+
 if (isProd) {
   const distPath = path.join(__dirname, '../../frontend/dist');
   app.use(express.static(distPath));

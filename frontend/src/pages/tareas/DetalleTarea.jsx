@@ -130,6 +130,7 @@ function marcaDe(e, gastos) {
     case 'rechazada': return { tono: 'rojo', txt: 'No la aprobó' };
     case 'encargo': return { tono: 'gris', txt: 'Cargó la tarea' };
     case 'pidio_foto': return { tono: 'ambar', txt: 'Pide una foto o PDF' };
+    case 'clasificada': return { tono: 'gris', txt: 'Prioridad o área' };
     default: return null;
   }
 }
@@ -584,6 +585,33 @@ function GastoPendienteDueno({ g, onCambio }) {
   );
 }
 
+// Prioridad y área: las cambia un dueño en cualquier momento.
+function Clasificar({ t, onCambio }) {
+  const opciones = useOpciones();
+  const [error, setError] = useState('');
+  async function guardar(campo, valor) {
+    setError('');
+    try { await api.post(`/tareas/${t.id}/clasificar`, { [campo]: valor }); onCambio(); }
+    catch (err) { setError(err.response?.data?.error || 'No se pudo guardar'); }
+  }
+  const sel = 'input !py-1 !w-auto text-sm';
+  return (
+    <div className="flex flex-wrap gap-3 items-end text-xs text-ahg-text/60">
+      <label className="grid gap-1">Prioridad
+        <select id="cl-prioridad" className={sel} value={t.prioridad || ''} onChange={e => guardar('prioridad', e.target.value)}>
+          <option value="">Sin definir</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option>
+        </select>
+      </label>
+      <label className="grid gap-1">Área
+        <select id="cl-area" className={sel} value={t.area} onChange={e => guardar('area', e.target.value)}>
+          {Object.entries(opciones?.areas || {}).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </label>
+      {error && <p className="text-red-700">{error}</p>}
+    </div>
+  );
+}
+
 const PASOS = ['Sin tomar', 'En curso', 'Por aprobar', 'Terminada'];
 const PASO = { nueva: 0, en_curso: 1, por_aprobar: 2, terminada: 3 };
 
@@ -638,6 +666,9 @@ export default function DetalleTarea() {
         </div>
 
         <DatosDelProblema t={t} />
+
+        {dueno ? <Clasificar t={t} onCambio={cargar} />
+          : (t.prioridad === 'alta' || t.area_label) && <p className="text-xs text-ahg-text/60">{t.area_label}{t.prioridad === 'alta' && <b className="text-red-700"> · Prioridad alta</b>}</p>}
 
         <p className="text-xs text-ahg-text/60">
           En manos del encargado: <b>{duracion(t.relojes.encargado_ms)}</b>

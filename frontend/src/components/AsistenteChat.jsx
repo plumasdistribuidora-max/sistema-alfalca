@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
+import { useAuth } from '../contexts/AuthContext';
 
-// El asistente de los dueños: un botón redondo abajo a la derecha que abre el chat encima de
+// Claudia, la asistente de los dueños: un botón redondo abajo a la derecha que abre el chat encima de
 // cualquier pantalla. La charla vive mientras se navega (está en el Layout) y se pierde al
 // recargar. Las respuestas las arma Claude consultando la base (backend/services/asistente.js).
 
-const SUGERIDAS = [
-  '¿Cuántos doypacks se venden por semana en cada local?',
-  '¿Cuántas docenas vendió el grupo el mes pasado contra el mismo mes del año pasado?',
-  '¿Cuál es la hora del día que más vende cada tienda?',
-  '¿Cuánto vendió Kankay este mes y cuánto fue sin factura?',
-];
 
+const fmtPesos = n => `$ ${Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
+// "Martín (Admin)" → "Martín".
+const primerNombre = nombre => String(nombre || '').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] || '';
 const fmtUSD = n => `US$ ${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Claude responde con **negrita** y renglones con guion; no hace falta un lector de markdown.
@@ -79,12 +77,16 @@ function Gasto({ gasto }) {
 }
 
 export default function AsistenteChat() {
+  const { user } = useAuth();
   const [abierto, setAbierto]     = useState(false);
   const [mensajes, setMensajes]   = useState([]);   // { rol, texto, consultas?, error? }
   const [pregunta, setPregunta]   = useState('');
   const [pensando, setPensando]   = useState(false);
   const [segundos, setSegundos]   = useState(0);
   const [gasto, setGasto]         = useState(null);
+  const [charlaId, setCharlaId]   = useState(null); // la charla abierta, para guardarla junta
+  const [vista, setVista]         = useState('chat'); // 'chat' | 'charlas'
+  const [charlas, setCharlas]     = useState(null);
   const finRef   = useRef(null);
   const inputRef = useRef(null);
 
@@ -105,16 +107,47 @@ export default function AsistenteChat() {
     return () => clearInterval(t);
   }, [pensando]);
 
+  function nuevaCharla() {
+    setMensajes([]);
+    setCharlaId(null);
+    setVista('chat');
+  }
+
+  function verCharlas() {
+    setVista('charlas');
+    setCharlas(null);
+    api.get('/asistente/charlas').then(r => setCharlas(r.data.data)).catch(() => setCharlas([]));
+  }
+
+  // Vuelve a abrir una charla guardada; lo que se pregunte después se suma a la misma.
+  async function abrirCharla(id) {
+    try {
+      const r = await api.get(`/asistente/charlas/${encodeURIComponent(id)}`);
+      setMensajes(r.data.data.flatMap(p => [
+        { rol: 'usuario', texto: p.pregunta },
+        p.respuesta
+          ? { rol: 'asistente', texto: p.respuesta, consultas: p.consultas }
+          : { rol: 'asistente', error: true, texto: p.error || 'No se pudo responder.' },
+      ]));
+      setCharlaId(id);
+      setVista('chat');
+    } catch {
+      setCharlas(cs => cs?.filter(c => c.id !== id));
+    }
+  }
+
   async function enviar(texto) {
     const q = (texto ?? pregunta).trim();
     if (!q || pensando) return;
     // Al historial van solo las respuestas buenas, para que Claude tenga el contexto de la charla.
     const historial = mensajes.filter(m => !m.error).map(m => ({ rol: m.rol, texto: m.texto }));
+    const id = charlaId || (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
+    setCharlaId(id);
     setMensajes(ms => [...ms, { rol: 'usuario', texto: q }]);
     setPregunta('');
     setPensando(true);
     try {
-      const r = await api.post('/asistente/preguntar', { pregunta: q, historial });
+      const r = await api.post('/asistente/preguntar', { pregunta: q, historial, charla: id });
       const d = r.data.data;
       setMensajes(ms => [...ms, { rol: 'asistente', texto: d.respuesta, consultas: d.consultas }]);
     } catch (err) {
@@ -129,31 +162,52 @@ export default function AsistenteChat() {
     <>
       {abierto && (
         <div className="fixed z-40 inset-0 sm:inset-auto sm:right-6 sm:bottom-24 sm:w-[420px] sm:h-[min(640px,calc(100vh-8rem))] bg-white sm:rounded-2xl sm:border border-ahg-accent/40 sm:shadow-2xl flex flex-col overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 bg-ahg-primary text-white">
-            <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+          <div className="flex items-center gap-2 px-4 py-3 bg-ahg-primary text-white">
+            <div className="shrink-0 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" /></svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-tight">Asistente</p>
-              <p className="text-[11px] text-white/60">Responde con los datos del sistema</p>
+              <p className="text-sm font-semibold leading-tight">Claudia</p>
+              <p className="text-[11px] text-white/60 truncate">Tu asistente con los datos del sistema</p>
             </div>
-            {mensajes.length > 0 && !pensando && (
-              <button onClick={() => setMensajes([])} className="text-xs text-white/70 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10">Nueva charla</button>
+            {!pensando && (vista === 'charlas' || mensajes.length > 0) && (
+              <button onClick={nuevaCharla} className="shrink-0 whitespace-nowrap text-xs text-white/70 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10">Nueva charla</button>
             )}
-            <button onClick={() => setAbierto(false)} aria-label="Cerrar asistente" className="p-1.5 rounded-lg hover:bg-white/10">
+            {!pensando && vista === 'chat' && (
+              <button onClick={verCharlas} className="shrink-0 whitespace-nowrap text-xs text-white/70 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10">Mis charlas</button>
+            )}
+            <button onClick={() => setAbierto(false)} aria-label="Cerrar a Claudia" className="p-1.5 rounded-lg hover:bg-white/10">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
           </div>
 
+          {vista === 'charlas' ? (
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-ahg-bg/40">
+              <p className="text-xs text-ahg-text/50">Tus charlas con Claudia, de la más nueva a la más vieja. Tocá una para leerla o seguirla.</p>
+              {charlas === null && <p className="text-sm text-ahg-text/50">Cargando…</p>}
+              {charlas?.length === 0 && <p className="text-sm text-ahg-text/50">Todavía no hay charlas guardadas.</p>}
+              {charlas?.map(c => (
+                <button key={c.id} onClick={() => abrirCharla(c.id)}
+                  className="block w-full text-left px-3 py-2 rounded-xl bg-white border border-ahg-accent/40 hover:border-ahg-primary/50">
+                  <p className="text-sm text-ahg-text line-clamp-2">{c.titulo}</p>
+                  <p className="mt-0.5 text-[11px] text-ahg-text/50">
+                    {new Date(c.ultima).toLocaleString('es-AR', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {' · '}{c.preguntas} {c.preguntas === 1 ? 'pregunta' : 'preguntas'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : (<>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-ahg-bg/40">
             {mensajes.length === 0 && (
-              <div className="space-y-2">
-                <p className="text-sm text-ahg-text/70">Preguntá lo que quieras del negocio: ventas, docenas, horarios, compras, Kankay, Senzen. Busco la respuesta en los datos del sistema.</p>
-                {SUGERIDAS.map(s => (
-                  <button key={s} onClick={() => enviar(s)} className="block w-full text-left text-sm px-3 py-2 rounded-xl bg-white border border-ahg-accent/40 hover:border-ahg-primary/50 text-ahg-text">
-                    {s}
-                  </button>
-                ))}
+              <div className="max-w-[92%] px-3 py-2 rounded-2xl rounded-bl-md bg-white text-ahg-text border border-ahg-accent/40 text-sm leading-relaxed">
+                <p>Hola{primerNombre(user?.nombre) ? ` ${primerNombre(user.nombre)}` : ''}, soy Claudia, tu asistente. ¿En qué querés que te ayude hoy?</p>
+                {gasto && (
+                  <p className="mt-1.5 text-ahg-text/60">
+                    Nos quedan <strong className="font-semibold text-ahg-text">{fmtUSD(gasto.quedan_usd)}</strong> en créditos este mes
+                    {gasto.quedan_pesos != null && <> (unos {fmtPesos(gasto.quedan_pesos)})</>}.
+                  </p>
+                )}
               </div>
             )}
             {mensajes.map((m, i) => m.rol === 'usuario' ? (
@@ -193,13 +247,14 @@ export default function AsistenteChat() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
             </button>
           </form>
+          </>)}
           <Gasto gasto={gasto} />
         </div>
       )}
 
       <button
         onClick={() => setAbierto(v => !v)}
-        aria-label={abierto ? 'Cerrar asistente' : 'Abrir asistente'}
+        aria-label={abierto ? 'Cerrar a Claudia' : 'Hablar con Claudia'}
         className={`fixed z-40 right-5 bottom-5 sm:right-6 sm:bottom-6 w-14 h-14 rounded-full bg-ahg-primary text-white shadow-lg hover:bg-ahg-secondary flex items-center justify-center transition-colors ${abierto ? 'hidden sm:flex' : 'flex'}`}
       >
         {abierto ? (

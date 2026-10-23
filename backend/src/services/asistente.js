@@ -16,6 +16,8 @@ const TIMEOUT_MS   = 15000;
 const MAX_VUELTAS  = 20;       // consultas por pregunta, como mucho
 // US$ por millón de tokens de Opus 5.5: entrada, escritura y lectura de caché, salida.
 const PRECIO = { in: 4, cacheW: 5, cacheR: 0.2, out: 20 };
+// Lo que trae el plan Max por mes. Si cambia, va en parametros.asistente_creditos_usd.
+const CREDITOS_MES_USD = 100;
 
 // Tablas y columnas que Claude no ve (y que el rol tampoco puede leer).
 const OCULTAS = ['app_config', 'avisos_suscripciones', 'asistente_preguntas'];
@@ -34,7 +36,7 @@ function claude() {
 
 // ── Lo que sabe Claude ───────────────────────────────────────────────────────
 
-const REGLAS = `Sos el asistente del Sistema ALFALCA, el sistema de gestión de un grupo de Mendoza (Argentina) con cuatro amigos como dueños. Te preguntan los dueños. Respondés con los datos reales de la base Postgres usando la herramienta consultar_sql. Nunca inventes un número: si no lo podés sacar de la base, decilo.
+const REGLAS = `Te llamás Claudia y sos la asistente del Sistema ALFALCA, el sistema de gestión de un grupo de Mendoza (Argentina) con cuatro amigos como dueños. Te preguntan los dueños. Respondés con los datos reales de la base Postgres usando la herramienta consultar_sql. Nunca inventes un número: si no lo podés sacar de la base, decilo.
 
 ## Los negocios
 - Entre Dos: franquicia de alfajores. Cuatro tiendas: 1 amigorena (Amigorena), 2 nuevedejulio (9 de Julio), 3 peatonal (Peatonal), 4 sheraton (Sheraton). Las ventas salen de los Excel de Fudo.
@@ -160,7 +162,8 @@ async function consultar(sqlCrudo) {
 // ── La conversación ──────────────────────────────────────────────────────────
 
 // historial: [{ rol: 'usuario'|'asistente', texto }] de las preguntas anteriores de esta charla.
-async function preguntar({ usuario, pregunta, historial = [] }) {
+// charla: el id que arma el chat para agrupar las preguntas de una misma conversación.
+async function preguntar({ usuario, pregunta, historial = [], charla = null }) {
   const inicio = Date.now();
   const system = [
     { type: 'text', text: `${REGLAS}\n\n## Tablas de la base\n${await esquema()}`, cache_control: { type: 'ephemeral' } },
@@ -239,9 +242,9 @@ async function preguntar({ usuario, pregunta, historial = [] }) {
   const costo = (uso.in * PRECIO.in + uso.cacheW * PRECIO.cacheW + uso.cacheR * PRECIO.cacheR + uso.out * PRECIO.out) / 1e6;
   const segundos = (Date.now() - inicio) / 1000;
   await pool.query(`
-    INSERT INTO asistente_preguntas (usuario_id, pregunta, respuesta, consultas, tokens_in, tokens_cache, tokens_out, costo_usd, segundos, error)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-    [usuario.id, pregunta, respuesta, JSON.stringify(consultas), uso.in + uso.cacheW, uso.cacheR, uso.out, costo, segundos, error])
+    INSERT INTO asistente_preguntas (usuario_id, pregunta, respuesta, consultas, tokens_in, tokens_cache, tokens_out, costo_usd, segundos, error, charla)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [usuario.id, pregunta, respuesta, JSON.stringify(consultas), uso.in + uso.cacheW, uso.cacheR, uso.out, costo, segundos, error, charla])
     .catch(err => console.warn('[asistente] no se pudo registrar la pregunta:', err.message));
 
   return { respuesta, error, consultas, costo_usd: Number(costo.toFixed(4)), segundos: Number(segundos.toFixed(1)) };
@@ -261,11 +264,46 @@ async function gasto() {
     GROUP BY u.id, u.nombre
     ORDER BY costo_usd DESC`);
   const suma = k => rows.reduce((t, r) => t + r[k], 0);
+  // Los créditos del plan Max se renuevan cada mes y no se acumulan: lo que queda es lo del mes
+  // menos lo gastado en el mes. Es lo que calcula el sistema; el número exacto está en la Console.
+  const { rows: [c] } = await pool.query(`
+    SELECT (SELECT valor FROM parametros WHERE clave = 'asistente_creditos_usd') AS creditos,
+           (SELECT venta FROM dolar_oficial ORDER BY fecha DESC LIMIT 1)::float AS dolar`);
+  const creditos = Number(c.creditos) || CREDITOS_MES_USD;
+  const quedan = Math.max(0, creditos - suma('costo_mes'));
   return {
     preguntas: suma('preguntas'), costo_usd: suma('costo_usd'),
     preguntas_mes: suma('preguntas_mes'), costo_mes: suma('costo_mes'),
+    creditos_usd: creditos, quedan_usd: quedan, quedan_pesos: c.dolar ? Math.round(quedan * c.dolar) : null,
     por_persona: rows.map(r => ({ nombre: r.nombre || 'Sin usuario', preguntas: r.preguntas, costo_usd: r.costo_usd, costo_mes: r.costo_mes })),
   };
 }
 
-module.exports = { preguntar, gasto, validarSql, consultar };
+// ── Las charlas guardadas ────────────────────────────────────────────────────
+// Cada dueño ve las suyas. Las preguntas de antes de guardar charlas van cada una sola.
+const CHARLA = `COALESCE(charla, 'p' || id)`;
+
+async function charlas(usuarioId) {
+  const { rows } = await pool.query(`
+    SELECT ${CHARLA} AS id,
+           (array_agg(pregunta ORDER BY id))[1] AS titulo,
+           COUNT(*)::int AS preguntas,
+           MAX(creado_en) AS ultima
+    FROM asistente_preguntas
+    WHERE usuario_id = $1
+    GROUP BY 1
+    ORDER BY ultima DESC
+    LIMIT 100`, [usuarioId]);
+  return rows;
+}
+
+async function charla(usuarioId, id) {
+  const { rows } = await pool.query(`
+    SELECT pregunta, respuesta, consultas, error, creado_en
+    FROM asistente_preguntas
+    WHERE usuario_id = $1 AND ${CHARLA} = $2
+    ORDER BY id`, [usuarioId, id]);
+  return rows;
+}
+
+module.exports = { preguntar, gasto, charlas, charla, validarSql, consultar };

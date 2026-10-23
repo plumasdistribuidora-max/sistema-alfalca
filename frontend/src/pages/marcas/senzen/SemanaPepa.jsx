@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../../api';
 import { Titulo, Cargando, MensajeError } from '../../tareas/comunes';
-import { TAREAS, MEDIOS, label, fechaCorta, sumarDias, hoyLocal, SENZEN } from './senzenUtils';
+import { TAREAS, MEDIOS, label, fechaCorta, sumarDias, hoyLocal, repartir, DIAS_SEMANA, SENZEN } from './senzenUtils';
 import { FotoReporte, resultadoTexto } from './reportes';
 
 // La semana de Pepa para los dueños (23/10/2026): aprobar cada reporte o devolvérselo, decir
@@ -43,11 +43,88 @@ function Reporte({ k, onCambio }) {
   );
 }
 
+// Cuántos comercios nuevos tiene que visitar, por semana o por día, siempre repartidos día
+// por día (Martín, 23/10/2026: "que quede bien dividido"). Cada cambio se guarda solo.
+function PlanNuevos({ desde, plan, hechos, hoy, onGuardar }) {
+  const [modo, setModo] = useState(plan.modo || 'semana');
+  const porDia = plan.por_dia || [0, 0, 0, 0, 0, 0, 0];
+  const total = plan.por_dia ? porDia.reduce((a, v) => a + v, 0) : (plan.meta || 0);
+  // Los días que sale: los que ya tienen algo, o de lunes a viernes.
+  const [dias, setDias] = useState(() => {
+    const con = porDia.map((v, i) => (v > 0 ? i : -1)).filter(i => i >= 0);
+    return con.length ? con : [0, 1, 2, 3, 4];
+  });
+  const fechas = DIAS_SEMANA.map((_, i) => sumarDias(desde, i));
+  const mostrado = modo === 'semana' ? repartir(total, dias) : porDia;
+  const guardarSemana = (t, ds) => onGuardar(desde, { modo: 'semana', por_dia: repartir(Math.max(0, t), ds) });
+  const cambiarDia = (i, v) => onGuardar(desde, { modo: 'dia', por_dia: porDia.map((x, j) => (j === i ? Math.max(0, v) : x)) });
+  const boton = 'w-8 h-8 text-lg leading-none rounded-lg hover:bg-ahg-bg';
+  return (
+    <div className="grid gap-3">
+      <div className="inline-flex bg-ahg-accent/35 rounded-[10px] p-[3px] gap-0.5 justify-self-start" role="group" aria-label="Cómo cargarlo">
+        {[['semana', 'Por semana'], ['dia', 'Por día']].map(([k, l]) => (
+          <button key={k} onClick={() => { setModo(k); if (k === 'semana' && plan.modo !== 'semana') guardarSemana(total, dias); }} aria-pressed={modo === k}
+                  className={`rounded-lg px-3 py-1.5 text-[13px] font-medium ${modo === k ? 'bg-white text-ahg-text shadow-sm' : 'text-ahg-text/60'}`}>{l}</button>
+        ))}
+      </div>
+
+      {modo === 'semana' && (
+        <div className="grid gap-2.5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm">En toda la semana</span>
+            <div className="inline-flex items-center border border-ahg-accent/60 rounded-lg bg-white">
+              <button onClick={() => guardarSemana(total - 1, dias)} className={boton} aria-label="Uno menos">−</button>
+              <span className="min-w-[40px] text-center font-extrabold text-lg tabular-nums">{total}</span>
+              <button onClick={() => guardarSemana(total + 1, dias)} className={boton} aria-label="Uno más">+</button>
+            </div>
+            <span className="text-sm text-ahg-text/60">comercios nuevos</span>
+          </div>
+          <div className="grid gap-1">
+            <span className="text-xs text-ahg-text/55">¿Qué días sale a visitar?</span>
+            <div className="flex gap-1.5 flex-wrap">
+              {DIAS_SEMANA.map((d, i) => {
+                const on = dias.includes(i);
+                return (
+                  <button key={d} aria-pressed={on} onClick={() => { const ds = on ? dias.filter(x => x !== i) : [...dias, i]; setDias(ds); guardarSemana(total, ds); }}
+                          className={`w-11 py-1.5 rounded-lg text-xs font-semibold border ${on ? 'text-white' : 'bg-white border-ahg-accent/60 text-ahg-text/60'}`}
+                          style={on ? { background: SENZEN, borderColor: SENZEN } : undefined}>{d}</button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cómo queda cada día. En modo "por día" se cambia acá mismo. */}
+      <div className="grid grid-cols-7 gap-1.5">
+        {DIAS_SEMANA.map((d, i) => {
+          const f = fechas[i], h = hechos[f] || 0, n = mostrado[i];
+          const paso = f < hoy;
+          return (
+            <div key={d} className={`rounded-xl border px-1 py-2 grid justify-items-center gap-0.5 text-center ${f === hoy ? 'border-[#4f7a58] bg-[#e5eee6]/50' : 'border-ahg-accent/40 bg-white'}`}>
+              <span className="text-[10.5px] uppercase tracking-wide text-ahg-text/55">{d} {Number(f.slice(8))}</span>
+              {modo === 'dia' && <button onClick={() => cambiarDia(i, n + 1)} className="w-7 h-6 rounded hover:bg-ahg-bg text-sm" aria-label={`Uno más el ${d}`}>+</button>}
+              <b className={`text-lg tabular-nums leading-none ${n ? '' : 'text-ahg-text/25'}`}>{n}</b>
+              {modo === 'dia' && <button onClick={() => cambiarDia(i, n - 1)} className="w-7 h-6 rounded hover:bg-ahg-bg text-sm" aria-label={`Uno menos el ${d}`}>−</button>}
+              {(h > 0 || (paso && n > 0)) && <span className={`text-[10px] ${h >= n ? 'text-green-700' : 'text-red-700'}`}>hizo {h}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-ahg-text/55">
+        Total: <b className="text-ahg-text">{mostrado.reduce((a, v) => a + v, 0)}</b> comercios nuevos.
+        {plan.por_dia ? ' A Pepa le aparecen así en su calendario, día por día.' : ' Todavía no está repartido por día: tocá un día o cambiá el total para repartirlo.'}
+      </p>
+    </div>
+  );
+}
+
 export default function SemanaPepa() {
   const [D, setD] = useState(null);
   const [error, setError] = useState('');
   const [enc, setEnc] = useState({ comercio_id: '', vence: sumarDias(hoyLocal(), 1), nota: '' });
   const [msj, setMsj] = useState('');
+  const [semanaPlan, setSemanaPlan] = useState('esta');
 
   const cargar = () => api.get('/senzen/semana').then(r => { setD(r.data.data); setError(''); })
     .catch(err => setError(err.response?.data?.error || 'No se pudo cargar la semana de Pepa'));
@@ -56,8 +133,8 @@ export default function SemanaPepa() {
   if (error) return <MensajeError texto={error} />;
   if (!D) return <Cargando />;
 
-  async function meta(desde, n) {
-    try { await api.put(`/senzen/semanas/${desde}`, { meta_nuevos: n }); cargar(); }
+  async function guardarPlan(desde, cuerpo) {
+    try { await api.put(`/senzen/semanas/${desde}`, cuerpo); cargar(); }
     catch (err) { setMsj(err.response?.data?.error || 'No se pudo guardar'); }
   }
   async function encargar() {
@@ -77,13 +154,8 @@ export default function SemanaPepa() {
   const atrasadas = D.tareas.filter(t => t.estado === 'pend' && t.vence < hoy).length;
   const proximoLunes = sumarDias(D.desde, 7);
 
-  const Stepper = ({ valor, desde }) => (
-    <div className="inline-flex items-center border border-ahg-accent/60 rounded-lg overflow-hidden bg-white">
-      <button onClick={() => meta(desde, Math.max(0, (valor || 0) - 1))} className="w-9 h-9 text-lg" aria-label="Uno menos">−</button>
-      <span className="min-w-[44px] text-center font-extrabold text-lg tabular-nums">{valor ?? '—'}</span>
-      <button onClick={() => meta(desde, (valor || 0) + 1)} className="w-9 h-9 text-lg" aria-label="Uno más">+</button>
-    </div>
-  );
+  const hechosPorDia = D.nuevos.reduce((a, n) => ({ ...a, [n.fecha]: (a[n.fecha] || 0) + 1 }), {});
+  const esta = semanaPlan === 'esta';
 
   return (
     <div className="space-y-4 max-w-5xl">
@@ -99,16 +171,18 @@ export default function SemanaPepa() {
         <div className="grid gap-4">
           <section className="card p-4 grid gap-3">
             <h2 className="font-semibold">Plan de la semana</h2>
-            <div className="grid gap-1.5">
-              <p className="text-sm font-medium">¿Cuántos comercios nuevos tiene que visitar?</p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <Stepper valor={D.meta_nuevos} desde={D.desde} />
-                <span className="text-xs text-ahg-text/55">Esta semana. Lleva {nuevos}, {nuevosOk} aprobadas.</span>
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium flex-1">Comercios nuevos que tiene que visitar</p>
+                <div className="inline-flex bg-ahg-accent/35 rounded-[10px] p-[3px] gap-0.5" role="group" aria-label="Qué semana">
+                  {[['esta', `Esta semana · ${fechaCorta(D.desde)}`], ['proxima', `La que viene · ${fechaCorta(proximoLunes)}`]].map(([k, l]) => (
+                    <button key={k} onClick={() => setSemanaPlan(k)} aria-pressed={semanaPlan === k}
+                            className={`rounded-lg px-2.5 py-1 text-xs font-medium ${semanaPlan === k ? 'bg-white text-ahg-text shadow-sm' : 'text-ahg-text/60'}`}>{l}</button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <Stepper valor={D.meta_proxima} desde={proximoLunes} />
-                <span className="text-xs text-ahg-text/55">La semana que viene (desde el {fechaCorta(proximoLunes)}).</span>
-              </div>
+              <PlanNuevos key={semanaPlan} desde={esta ? D.desde : proximoLunes}
+                          plan={esta ? D.plan : D.plan_proxima} hechos={esta ? hechosPorDia : {}} hoy={hoy} onGuardar={guardarPlan} />
             </div>
             <div className="grid gap-2 border-t border-ahg-accent/30 pt-3">
               <p className="text-sm font-medium">Encargarle que contacte a un cliente</p>

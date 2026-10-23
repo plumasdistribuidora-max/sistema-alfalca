@@ -230,15 +230,20 @@ router.post('/contactos/:id/aprobar', requireAdmin, async (req, res) => {
   } catch (err) { fallo(res, 'aprobar', 'No se pudo guardar')(err); }
 });
 
-// Cuántos comercios nuevos tiene que visitar una semana.  { meta_nuevos }
+// Cuántos comercios nuevos tiene que visitar una semana, repartidos por día (lunes a
+// domingo). { modo: semana|dia, por_dia: [7 números] }. Con modo semana la pantalla ya
+// mandó el total repartido entre los días que eligieron los dueños.
 router.put('/semanas/:desde', requireAdmin, async (req, res) => {
   const desde = req.params.desde;
-  const n = Math.round(Number(req.body?.meta_nuevos));
+  const modo = req.body?.modo === 'dia' ? 'dia' : 'semana';
+  const dias = Array.isArray(req.body?.por_dia) ? req.body.por_dia.map(v => Math.round(Number(v))) : null;
   if (!ISO.test(desde) || senzen.lunes(desde) !== desde) return res.status(400).json({ ok: false, error: 'La semana arranca un lunes' });
-  if (!Number.isFinite(n) || n < 0 || n > 100) return res.status(400).json({ ok: false, error: 'Poné cuántos comercios' });
+  if (!dias || dias.length !== 7 || dias.some(v => !Number.isFinite(v) || v < 0 || v > 30)) return res.status(400).json({ ok: false, error: 'Poné cuántos comercios por día' });
+  const total = dias.reduce((a, v) => a + v, 0);
   try {
-    await pool.query(`INSERT INTO senzen_semanas (desde, meta_nuevos, cambiada_por) VALUES ($1,$2,$3)
-                      ON CONFLICT (desde) DO UPDATE SET meta_nuevos = $2, cambiada_por = $3, cambiada_en = NOW()`, [desde, n, req.user.id]);
+    await pool.query(`INSERT INTO senzen_semanas (desde, meta_nuevos, modo, por_dia, cambiada_por) VALUES ($1,$2,$3,$4,$5)
+                      ON CONFLICT (desde) DO UPDATE SET meta_nuevos = $2, modo = $3, por_dia = $4, cambiada_por = $5, cambiada_en = NOW()`,
+      [desde, total, modo, dias, req.user.id]);
     res.json({ ok: true });
   } catch (err) { fallo(res, 'semanas', 'No se pudo guardar')(err); }
 });

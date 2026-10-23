@@ -20,6 +20,18 @@ export const RESULTADOS = [
 ];
 export const PIDEN_FECHA = ['va_a_comprar', 'volver'];
 export const SENZEN = '#4f7a58';
+
+export const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+// Reparte un total de comercios nuevos entre los días elegidos (índices 0 = lunes): parejo,
+// y lo que sobra va a los primeros días. Devuelve los siete días.
+export function repartir(total, dias) {
+  const out = [0, 0, 0, 0, 0, 0, 0];
+  if (!dias.length) return out;
+  const base = Math.floor(total / dias.length);
+  let resto = total - base * dias.length;
+  for (const d of [...dias].sort((a, b) => a - b)) { out[d] = base + (resto > 0 ? 1 : 0); resto--; }
+  return out;
+}
 export const MOTIVOS = [
   ['tiene_stock', 'Tiene stock'], ['precio', 'Precio'], ['no_estaba', 'No estaba el dueño'],
   ['otra_marca', 'Trabaja otra marca'], ['no_le_interesa', 'No le interesa'],

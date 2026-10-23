@@ -261,9 +261,15 @@ const semana = async desde => (await semanas(desde, 1))[0];
 // Cuántos comercios nuevos tiene que visitar en la semana del lunes `desde`: lo que
 // pusieron los dueños para esa semana o, si no, la meta general.
 async function metaNuevos(desde) {
-  const { rows: [r] } = await pool.query('SELECT meta_nuevos FROM senzen_semanas WHERE desde = $1', [desde]);
-  if (r) return r.meta_nuevos;
-  return (await metas()).nuevos;
+  return (await planSemana(desde)).meta;
+}
+
+// El plan de comercios nuevos de una semana: el total y cuántos le tocan cada día (lunes a
+// domingo). por_dia null: los dueños pusieron solo el total, sin repartir.
+async function planSemana(desde) {
+  const { rows: [r] } = await pool.query('SELECT meta_nuevos, modo, por_dia FROM senzen_semanas WHERE desde = $1', [desde]);
+  if (r) return { meta: r.meta_nuevos, modo: r.modo, por_dia: r.por_dia };
+  return { meta: (await metas()).nuevos, modo: 'semana', por_dia: null };
 }
 
 const SELECT_CONTACTO = `
@@ -322,23 +328,24 @@ async function nuevosDeLaSemana(desde) {
 // Lo que ve Pepa: su semana como calendario de tareas, sin plata.
 async function miSemana() {
   const hoy = hoyStr(), desde = lunes(hoy);
-  const [s, tareas, nuevos, meta, m] = await Promise.all([semana(desde), tareasDeLaSemana(desde), nuevosDeLaSemana(desde), metaNuevos(desde), metas()]);
+  const [s, tareas, nuevos, plan, m] = await Promise.all([semana(desde), tareasDeLaSemana(desde), nuevosDeLaSemana(desde), planSemana(desde), metas()]);
   const { ventas, ...sinPlata } = s;
-  return { hoy, desde, hasta: sumarDias(desde, 6), semana: sinPlata, metas: { contactos: m.contactos, nuevos: meta }, meta_nuevos: meta, tareas, nuevos };
+  return { hoy, desde, hasta: sumarDias(desde, 6), semana: sinPlata, metas: { contactos: m.contactos, nuevos: plan.meta }, meta_nuevos: plan.meta, plan, tareas, nuevos };
 }
 
 // Lo que ven los dueños: qué aprobar, el plan de la semana y cómo va.
 async function semanaDuenos() {
   const hoy = hoyStr(), desde = lunes(hoy);
-  const [{ rows: paraAprobar }, tareas, nuevos, meta, metaProxima, lista] = await Promise.all([
+  const [{ rows: paraAprobar }, tareas, nuevos, plan, planProxima, lista] = await Promise.all([
     pool.query(`${SELECT_CONTACTO} WHERE k.aprobacion = 'pendiente' ORDER BY k.creado_en`),
-    tareasDeLaSemana(desde), nuevosDeLaSemana(desde), metaNuevos(desde), metaNuevos(sumarDias(desde, 7)), comercios(),
+    tareasDeLaSemana(desde), nuevosDeLaSemana(desde), planSemana(desde), planSemana(sumarDias(desde, 7)), comercios(),
   ]);
+  const meta = plan.meta, metaProxima = planProxima.meta;
   const { rows: tareasDe } = await pool.query(`SELECT t.id, t.tipo, t.nota, u.nombre AS encargada_por FROM senzen_tareas t LEFT JOIN usuarios u ON u.id = t.creada_por WHERE t.id = ANY($1)`,
     [paraAprobar.map(k => k.tarea_id).filter(Boolean)]);
   const tarea = Object.fromEntries(tareasDe.map(t => [t.id, t]));
   return {
-    hoy, desde, hasta: sumarDias(desde, 6), meta_nuevos: meta, meta_proxima: metaProxima,
+    hoy, desde, hasta: sumarDias(desde, 6), meta_nuevos: meta, meta_proxima: metaProxima, plan, plan_proxima: planProxima,
     para_aprobar: paraAprobar.map(k => ({ ...k, tarea: k.tarea_id ? tarea[k.tarea_id] || null : null })),
     tareas, nuevos,
     comercios: lista.filter(c => c.activo).map(c => ({ id: c.id, nombre: c.nombre, localidad: c.localidad, compras: c.compras, proxima: c.proxima })),
@@ -456,4 +463,4 @@ async function datos() {
   };
 }
 
-module.exports = { plataPorComercio, comercioDetalle, generarTareas, registrarContacto, encargar, tareasAbiertas, comercios, miSemana, semanaDuenos, contacto, metaNuevos, datos, semana, semanas, lunes, sumarDias, metas };
+module.exports = { plataPorComercio, comercioDetalle, planSemana, generarTareas, registrarContacto, encargar, tareasAbiertas, comercios, miSemana, semanaDuenos, contacto, metaNuevos, datos, semana, semanas, lunes, sumarDias, metas };

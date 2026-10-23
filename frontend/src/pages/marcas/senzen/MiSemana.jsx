@@ -81,6 +81,14 @@ export default function MiSemana() {
   const nombre = (user?.nombre || '').split(' ')[0];
   const hechos = nuevos.length, aprobados = nuevos.filter(n => n.aprobacion === 'aprobado').length;
   const faltan = meta ? Math.max(0, meta - hechos) : null;
+  // Con el plan repartido por día: cuántos le tocan el día elegido y lo que le quedó de días
+  // anteriores, que se suma a hoy.
+  const porDia = D.plan?.por_dia || null;
+  const idx = dias.indexOf(dia);
+  const hechosEl = f => nuevos.filter(n => n.fecha === f).length;
+  const delDiaNuevos = porDia && idx >= 0 ? porDia[idx] : null;
+  const quedaron = porDia && dia === hoy
+    ? Math.max(0, porDia.slice(0, idx).reduce((a, v) => a + v, 0) - nuevos.filter(n => n.fecha < hoy).length) : 0;
   const listo = msj => { setForm(null); setAviso(msj); cargar(); setTimeout(() => setAviso(''), 4000); };
   const contar = t => setForm({ tipo: 'contacto', tarea: { ...t, motivo_texto: motivoDe(t) } });
   const corregir = t => setForm({ tipo: 'contacto', corregir: { ...t.contacto, nombre: t.nombre } });
@@ -90,7 +98,35 @@ export default function MiSemana() {
     ? (t.vence === hoy || (t.vence < hoy && ['pend', 'dev'].includes(t.estado)) || (t.estado === 'dev'))
     : t.vence === dia);
 
-  const bloqueNuevos = (
+  const etiquetaDia = dia === hoy ? 'hoy' : `el ${DIAS[idx]?.toLowerCase()} ${Number(dia.slice(8))}`;
+  const bloqueNuevos = porDia && vista === 'cal' ? (
+    <Area icono={<IcoPuerta />} titulo={`Comercios nuevos para visitar ${etiquetaDia}`} derecha={`semana: ${hechos} de ${meta}`}>
+      <div className="flex items-baseline gap-2">
+        <span className="text-[28px] leading-none font-extrabold tabular-nums" style={NUNITO}>{hechosEl(dia)}<span className="text-sm text-ahg-text/55"> de {delDiaNuevos + quedaron}</span></span>
+        <span className="text-xs text-ahg-text/60">
+          {delDiaNuevos + quedaron === 0 ? (dia === hoy ? 'hoy no te toca ninguno' : 'ese día no te toca ninguno')
+            : hechosEl(dia) >= delDiaNuevos + quedaron ? '¡listo por hoy!' : quedaron ? `${delDiaNuevos} de ${dia === hoy ? 'hoy' : 'ese día'} + ${quedaron} que te ${quedaron === 1 ? 'quedó' : 'quedaron'} de días anteriores` : ''}
+        </span>
+      </div>
+      {meta ? <div className="h-2 rounded bg-stone-100 overflow-hidden flex" aria-hidden="true"><b style={{ width: `${100 * aprobados / meta}%`, background: SENZEN }} /><b style={{ width: `${100 * (hechos - aprobados) / meta}%`, background: '#a9c2ad' }} /></div> : null}
+      {dia === hoy && faltan > 0 && (
+        <button onClick={() => setForm({ tipo: 'nuevo' })} className="w-full rounded-xl py-3 font-semibold text-white" style={{ background: SENZEN }}>
+          Cargar visita a un comercio nuevo · {hechos + 1} de {meta}
+        </button>
+      )}
+      {nuevos.filter(n => n.fecha === dia || n.aprobacion === 'devuelto').map(n => {
+        const e = ESTADO_NUEVO[n.aprobacion];
+        return (
+          <div key={n.id} className="rounded-[10px] border border-ahg-accent/40 px-3 py-2.5 grid gap-1">
+            <div className="flex gap-2 items-start"><b className="flex-1 min-w-0 text-sm">{n.nombre}</b><Etiqueta e={e} /></div>
+            <p className="text-xs text-ahg-text/60">{fechaCorta(n.fecha)}{n.localidad ? ` · ${n.localidad}` : ''} · {resultadoTexto(n, 'nuevo')}</p>
+            {e === 'dev' && <><p className="text-xs rounded-lg px-2 py-1.5 bg-amber-50 text-amber-800"><b>Te pidieron:</b> {n.respuesta}</p>
+              <div><button onClick={() => setForm({ tipo: 'nuevo', corregir: n })} className="text-sm font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: SENZEN }}>Corregir</button></div></>}
+          </div>
+        );
+      })}
+    </Area>
+  ) : (
     <Area icono={<IcoPuerta />} titulo="Comercios nuevos para visitar" derecha="esta semana">
       <div className="flex items-baseline gap-2">
         <span className="text-[28px] leading-none font-extrabold tabular-nums" style={NUNITO}>{hechos}{meta ? <span className="text-sm text-ahg-text/55"> de {meta}</span> : null}</span>
@@ -128,6 +164,7 @@ export default function MiSemana() {
                       className={`rounded-[10px] py-1.5 grid justify-items-center gap-0.5 border ${d === dia ? 'bg-white border-ahg-accent/60 shadow-sm' : 'border-transparent'}`}>
                 <span className="text-[10.5px] uppercase tracking-wide text-ahg-text/55">{DIAS[i]}</span>
                 <b className="text-base tabular-nums" style={d === hoy ? { color: SENZEN } : undefined}>{Number(d.slice(8))}</b>
+                {porDia && porDia[i] > 0 && <span className={`text-[9.5px] font-semibold leading-none ${hechosEl(d) >= porDia[i] ? 'text-ahg-text/35' : ''}`} style={hechosEl(d) >= porDia[i] ? undefined : { color: SENZEN }} title="Comercios nuevos">{hechosEl(d)}/{porDia[i]} nuevos</span>}
                 <span className="flex gap-0.5 h-1.5">{ts.map(t => {
                   const e = estadoDe(t, hoy);
                   return <i key={t.id} className="w-[5px] h-[5px] rounded-full" style={{ background: e === 'atr' ? '#b03a2a' : ['ok', 'esp'].includes(e) ? '#c9c7c1' : SENZEN }} />;

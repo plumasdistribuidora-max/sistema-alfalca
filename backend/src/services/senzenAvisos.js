@@ -32,17 +32,19 @@ async function revisar() {
   const tareas = (await senzen.tareasAbiertas()).filter(t => t.vence <= hoy);
   // Lo que le falta de comercios nuevos en la semana, si los dueños pusieron cuántos.
   const desde = senzen.lunes(hoy);
-  const meta = await senzen.metaNuevos(desde);
+  const plan = await senzen.planSemana(desde);
   const { rows: [{ n: hechos }] } = await pool.query(
     `SELECT COUNT(*)::int AS n FROM senzen_contactos WHERE tipo = 'nuevo' AND fecha BETWEEN $1 AND $2`, [desde, senzen.sumarDias(desde, 6)]);
-  const faltan = meta ? Math.max(0, meta - hechos) : 0;
+  // Con el plan repartido por día, lo que le toca hasta hoy; si no, lo que falta de la semana.
+  const hastaHoy = plan.por_dia ? plan.por_dia.slice(0, ((new Date(hoy + 'T12:00:00Z').getUTCDay() + 6) % 7) + 1).reduce((a, v) => a + v, 0) : plan.meta;
+  const faltan = hastaHoy ? Math.max(0, hastaHoy - hechos) : 0;
   if (tareas.length || faltan) {
     await unaVez(`senzen:hoy:${hoy}`, async () => {
       const atrasadas = tareas.filter(t => t.vence < hoy).length;
       await enviarAUsuarios(await vendedoras(), {
         titulo: `${SIMBOLO.hoy} Tus tareas de hoy`,
         texto: [tareas.length && `Tenés ${plural(tareas.length, 'cliente', 'clientes')} para contactar hoy${atrasadas ? ` (${atrasadas} de días anteriores)` : ''}.`,
-                faltan && `Te ${faltan === 1 ? 'falta 1 comercio nuevo' : `faltan ${faltan} comercios nuevos`} para visitar esta semana.`].filter(Boolean).join(' '),
+                faltan && `${plan.por_dia ? 'Hoy tenés que visitar' : 'Esta semana te faltan'} ${plural(faltan, 'comercio nuevo', 'comercios nuevos')}.`].filter(Boolean).join(' '),
         url: '/', etiqueta: 'senzen_hoy',
       });
     });

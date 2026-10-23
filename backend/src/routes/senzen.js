@@ -37,10 +37,13 @@ router.get('/mi-semana', (req, res) => {
 // Pepa no ve montos.
 router.get('/comercios', async (req, res) => {
   try {
-    const lista = await senzen.comercios();
-    if (req.user.rol !== 'admin') return res.json({ ok: true, data: lista });
-    const plata = await senzen.plataPorComercio();
-    res.json({ ok: true, data: lista.map(c => ({ ...c, ...(plata[c.id] || { total: 0, debe: 0, ultimo_pedido: null, ultimo_pedido_total: null, pendiente: 0 }) })) });
+    const [lista, plata] = await Promise.all([senzen.comercios(), senzen.plataPorComercio()]);
+    // Pepa ve en qué meses pidió cada uno (para filtrar), sin montos.
+    if (req.user.rol !== 'admin') return res.json({ ok: true, data: lista.map(c => ({ ...c, meses: Object.keys(plata[c.id]?.por_mes || {}) })) });
+    res.json({ ok: true, data: lista.map(c => {
+      const p = plata[c.id] || { total: 0, debe: 0, ultimo_pedido: null, ultimo_pedido_total: null, pendiente: 0, por_mes: {} };
+      return { ...c, ...p, meses: Object.keys(p.por_mes) };
+    }) });
   } catch (err) { fallo(res, 'comercios', 'No se pudieron cargar los comercios')(err); }
 });
 

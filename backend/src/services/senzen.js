@@ -152,17 +152,20 @@ async function plataPorComercio() {
     cobradoPorFactura(),
   ]);
   const out = {};
-  const de = id => (out[id] ||= { total: 0, debe: 0, ultimo_pedido: null, ultimo_pedido_total: null, pendiente: 0 });
+  // por_mes: lo que pidió cada mes ("2026-10"): lo facturado más los pedidos sin facturar.
+  const de = id => (out[id] ||= { total: 0, debe: 0, ultimo_pedido: null, ultimo_pedido_total: null, pendiente: 0, por_mes: {} });
+  const sumarMes = (X, fecha, total) => { const m = fecha.slice(0, 7); X.por_mes[m] = Math.round(((X.por_mes[m] || 0) + total) * 100) / 100; };
   for (const f of fs) {
     const X = de(f.id);
     X.total += f.total;
     const saldo = f.total - (cobrado[f.fid] || 0);
     if (saldo > 1) X.debe += saldo;
+    sumarMes(X, f.fecha, f.total);
     if (!X.ultimo_pedido || f.fecha > X.ultimo_pedido) { X.ultimo_pedido = f.fecha; X.ultimo_pedido_total = f.total; }
   }
   for (const p of ps) {
     const X = de(p.id);
-    if (p.estado !== 'FACTURADO') X.pendiente += p.total;
+    if (p.estado !== 'FACTURADO') { X.pendiente += p.total; sumarMes(X, p.fecha, p.total); }
     if (!X.ultimo_pedido || p.fecha > X.ultimo_pedido) { X.ultimo_pedido = p.fecha; X.ultimo_pedido_total = p.total; }
   }
   for (const X of Object.values(out)) { X.total = Math.round(X.total * 100) / 100; X.debe = Math.round(X.debe * 100) / 100; }

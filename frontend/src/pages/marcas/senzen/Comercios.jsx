@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { esDueno } from '../../../utils/roles';
-import { TIPOS, ESTADOS, MEDIOS, RESULTADOS, label, cuando, hoyLocal, sumarDias, fmt, fechaCorta, SENZEN, NUNITO } from './senzenUtils';
+import { TIPOS, ESTADOS, MEDIOS, RESULTADOS, label, cuando, hoyLocal, sumarDias, fmt, fechaCorta, mesN, SENZEN, NUNITO } from './senzenUtils';
 import { Modal } from '../../tareas/kanban';
 
 // Los comercios de Senzen: los que ya compraron (los trae Dux solo) y los que carga Pepa
@@ -17,6 +17,7 @@ export default function Comercios() {
   const [buscar, setBuscar] = useState('');
   const [filtro, setFiltro] = useState('todos');
   const [orden, setOrden] = useState(dueno ? 'pedido' : 'nombre');
+  const [mes, setMes] = useState('');
   const [nuevo, setNuevo] = useState(false);
   const [editando, setEditando] = useState(null);
   const [abierto, setAbierto] = useState(null);
@@ -37,9 +38,14 @@ export default function Comercios() {
     };
     return (lista || []).filter(c => (filtro === 'baja' ? !c.activo : c.activo)
       && (filtro === 'todos' || filtro === 'baja' || (filtro === 'deben' ? c.debe > 1 : c.estado === filtro))
+      && (!mes || (c.meses || []).includes(mes))
       && (!q || c.nombre.toLowerCase().includes(q) || (c.localidad || '').toLowerCase().includes(q)))
-      .sort(ORDEN[orden]);
-  }, [lista, buscar, filtro, orden]);
+      .sort(mes && orden === 'compro' ? (a, b) => (b.por_mes?.[mes] || 0) - (a.por_mes?.[mes] || 0) : ORDEN[orden]);
+  }, [lista, buscar, filtro, orden, mes]);
+  // Los meses en que pidió alguien, del más nuevo al más viejo.
+  const meses = useMemo(() => [...new Set((lista || []).flatMap(c => c.meses || []))].sort().reverse(), [lista]);
+  const mesTxt = m => `${mesN(m)} ${m.slice(0, 4)}`;
+  const delMes = mes ? visibles.reduce((a, c) => a + (c.por_mes?.[mes] || 0), 0) : 0;
 
   async function cambiar(c, cambios, msg) {
     try {
@@ -95,7 +101,13 @@ export default function Comercios() {
           <button key={v} onClick={() => setFiltro(v)} aria-pressed={filtro === v}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filtro === v ? 'bg-ahg-primary text-white border-ahg-primary' : 'bg-white border-ahg-accent/60 text-ahg-text/70'}`}>{l}</button>
         ))}
-        <label className="ml-auto text-xs text-ahg-text/55 flex items-center gap-1.5">Ordenar
+        <label className="ml-auto text-xs text-ahg-text/55 flex items-center gap-1.5">Pidieron en
+          <select id="mes" className={`border rounded-lg px-2 py-1.5 text-sm bg-white ${mes ? 'border-ahg-text' : 'border-ahg-accent/60'}`} value={mes} onChange={e => setMes(e.target.value)}>
+            <option value="">Cualquier mes</option>
+            {meses.map(m => <option key={m} value={m}>{mesTxt(m)}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-ahg-text/55 flex items-center gap-1.5">Ordenar
           <select id="orden" className="border border-ahg-accent/60 rounded-lg px-2 py-1.5 text-sm bg-white" value={orden} onChange={e => setOrden(e.target.value)}>
             <option value="pedido">Último pedido</option>
             {dueno && <option value="compro">Más compraron</option>}
@@ -104,6 +116,13 @@ export default function Comercios() {
           </select>
         </label>
       </div>
+
+      {mes && lista && (
+        <p className="text-sm text-ahg-text/70">
+          En {mesTxt(mes)} pidieron <b>{visibles.length}</b> {visibles.length === 1 ? 'comercio' : 'comercios'}{dueno ? <> por <b>{fmt(delMes)}</b></> : null}.
+          <button className="ml-2 text-xs underline text-ahg-text/55" onClick={() => setMes('')}>Sacar el mes</button>
+        </p>
+      )}
 
       {lista === null ? <div className="h-40 bg-stone-200 rounded-xl animate-pulse" /> : (
         <div className="space-y-2">
@@ -125,7 +144,9 @@ export default function Comercios() {
                   </span>
                 </span>
                 <span className={`grid ${dueno ? 'grid-cols-3' : 'grid-cols-2'} gap-x-5 gap-y-0.5 sm:text-right text-xs`}>
-                  {dueno && <Dato titulo="Compró" valor={c.total ? fmt(c.total) : '—'} sub={c.compras ? `${c.compras} ${c.compras === 1 ? 'compra' : 'compras'}` : ''} />}
+                  {dueno && (mes
+                    ? <Dato titulo={`En ${mesN(mes).slice(0, 3)}`} valor={fmt(c.por_mes?.[mes] || 0)} sub={c.total ? `${fmt(c.total)} en total` : ''} />
+                    : <Dato titulo="Compró" valor={c.total ? fmt(c.total) : '—'} sub={c.compras ? `${c.compras} ${c.compras === 1 ? 'compra' : 'compras'}` : ''} />)}
                   {dueno ? <Dato titulo="Debe" valor={c.debe > 1 ? fmt(c.debe) : '—'} tono={c.debe > 1 ? 'text-red-700' : ''} sub={c.pendiente > 1 ? `${fmt(c.pendiente)} sin facturar` : ''} />
                     : <Dato titulo="Compras" valor={c.compras || '—'} />}
                   <Dato titulo="Último pedido" valor={ultimo ? fechaCorta(ultimo) : '—'} sub={ultimo ? cuando(ultimo, hoy) : ''} />

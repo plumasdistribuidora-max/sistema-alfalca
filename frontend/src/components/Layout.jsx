@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import AsistenteChat from './AsistenteChat';
+import { useAuth } from '../contexts/AuthContext';
+import { esDueno } from '../utils/roles';
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -16,6 +20,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* El asistente lee toda la base: solo para los dueños (el backend también lo cierra). */}
+      {esDueno(user) && <AsistenteChat />}
     </div>
   );
 }

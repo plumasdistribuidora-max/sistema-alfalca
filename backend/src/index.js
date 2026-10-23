@@ -51,6 +51,8 @@ app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
 app.use('/api/eerr-manual', soloDueno, require('./routes/eerrManual'));
 app.use('/api/kankay',    soloDueno, require('./routes/kankay'));
 app.use('/api/tareas-duenos', soloDueno, require('./routes/tareasDuenos'));
+// El asistente con Claude: solo el dueño, porque lee toda la base.
+app.use('/api/asistente', soloDueno, require('./routes/asistente'));
 app.use('/api/senzen',    [requireAuth, requireRol(ROLES.VENDEDORA)], require('./routes/senzen'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date() }));

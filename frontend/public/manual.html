@@ -495,6 +495,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <a href="#finanzas"><span class="ic">⊛</span>Finanzas</a>
     <a href="#kankay"><span class="ic">◇</span>Kankay</a>
     <a href="#senzen"><span class="ic">◌</span>Senzen</a>
+    <a href="#asistente"><span class="ic">✦</span>Asistente</a>
 
     <p class="tit">Equipo</p>
     <a href="#equipo"><span class="ic">◐</span>Empleados y horas</a>
@@ -644,7 +645,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
           <tbody>
             <tr>
               <td><strong>Dueño</strong></td>
-              <td>Todo: las tres marcas, Finanzas, el tablero de tareas y la configuración</td>
+              <td>Todo: las tres marcas, Finanzas, el tablero de tareas, la configuración y el <strong>Asistente</strong></td>
               <td>Mira el reporte del día y aprueba lo que pide cerrar el encargado</td>
             </tr>
             <tr>
@@ -2054,6 +2055,48 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><strong>Pepa</strong> — su semana contra las metas, semana a semana, de contactar a repetir, por qué no compran, a quién le tiene que hablar y sus últimos contactos con la foto y el mapa. Las <strong>metas</strong> se cargan ahí mismo.</li>
         <li><em>Actualizar ahora</em>, arriba a la derecha, lee Dux en el momento sin esperar la vuelta de cada hora.</li>
       </ul>
+    </section>
+
+    <!-- ══════════ ASISTENTE ══════════ -->
+    <section class="seccion" id="asistente">
+      <p class="eyebrow">Asistente</p>
+      <p class="para-quien">Solo los dueños</p>
+      <h2>El asistente</h2>
+      <p>
+        Abajo a la derecha, en cualquier pantalla, hay un <strong>botón redondo</strong>. Al apretarlo se abre un chat
+        donde se le pregunta cualquier cosa del negocio con palabras normales: <em>¿cuántos doypacks se venden por
+        semana en cada local?</em>, <em>¿a qué hora vende más el Sheraton?</em>, <em>¿cuánto vendió Kankay sin factura
+        este mes?</em> Lo responde <strong>Claude</strong>, buscando en los datos del sistema: ventas de Fudo, docenas,
+        compras y facturas, reportes, tareas, Kankay y Senzen.
+      </p>
+      <figure class="figura dos">
+        <div class="mock" style="max-width:240px">
+          <div class="m-main" style="padding:0;display:grid">
+            <div style="background:#55585c;color:#fff;padding:8px 10px;font-size:9px;font-weight:600">Asistente<br><span style="font-weight:400;opacity:.6;font-size:7.5px">Responde con los datos del sistema</span></div>
+            <div style="padding:10px;display:grid;gap:6px">
+              <div style="justify-self:end;background:#55585c;color:#fff;border-radius:10px;padding:6px 8px;font-size:8.5px;max-width:85%">¿Cuántas docenas vendió el grupo la semana pasada?</div>
+              <div class="m-card" style="padding:7px 8px;font-size:8.5px;max-width:92%">La semana del lunes al domingo el grupo vendió <b>1.234,5 docenas</b>.<br>
+                <span style="color:var(--m-txt3)">• Peatonal 456,0 · Amigorena 321,5 · …</span><br>
+                <span style="color:var(--m-txt3);font-size:7.5px">Ver cómo lo calculé (2 consultas)</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <ul class="simple">
+            <li>La charla sigue mientras se navega por el sistema: se puede preguntar algo, mirar una pantalla y volver a repreguntar (<em>¿y el mes anterior?</em>). Al recargar la página empieza de cero. <em>Nueva charla</em> la borra.</li>
+            <li>Tarda entre 10 segundos y un minuto: arma las consultas, las corre y las revisa antes de contestar.</li>
+            <li><strong>Ver cómo lo calculé</strong>, abajo de cada respuesta, muestra qué buscó y la consulta exacta. Sirve para controlar un número raro.</li>
+            <li>Solo <strong>lee</strong>: no puede cambiar, cargar ni borrar nada, y no ve las contraseñas.</li>
+            <li>Lo que no está en el sistema no lo sabe: por ejemplo, el Excel de la red de Entre Dos (el ranking de franquiciados).</li>
+          </ul>
+        </div>
+      </figure>
+      <div class="aviso ojo">
+        <span class="mk">⚠</span>
+        <p>Cada pregunta gasta de los <strong>créditos de la API de Claude</strong> que trae el plan Max de Martín (US$ 100 por mes con Max 5x,
+        US$ 200 con Max 20x; no se acumulan). Una pregunta cuesta más o menos US$ 0,10 a 0,20. Abajo del chat dice cuánto se lleva gastado
+        en total y en el mes; tocando <strong>Quién gastó</strong> se ve cuántas preguntas hizo cada dueño y cuánto salieron. Si se terminan, el asistente avisa y vuelve a andar el mes siguiente: nunca se cobra de más.</p>
+      </div>
     </section>
 
     <!-- ══════════ EQUIPO ══════════ -->

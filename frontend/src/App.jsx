@@ -26,7 +26,6 @@ import KankayDashboard        from './pages/marcas/kankay/KankayDashboard';
 import { KankayImportar, KankayHistorial } from './pages/marcas/kankay/KankayImportar';
 import SenzenDashboard       from './pages/marcas/senzen/SenzenDashboard';
 import MiSemana              from './pages/marcas/senzen/MiSemana';
-import RegistrarContacto     from './pages/marcas/senzen/RegistrarContacto';
 import SenzenComercios       from './pages/marcas/senzen/Comercios';
 import SemanaPepa            from './pages/marcas/senzen/SemanaPepa';
 import TableroGordo          from './pages/tareas/TableroGordo';
@@ -104,7 +103,8 @@ export default function App() {
             <Route path="marcas/kankay/importar"         element={soloDueno(<Solapas grupo="dux"><KankayImportar /></Solapas>)} />
             <Route path="marcas/kankay/historial"        element={soloDueno(<Solapas grupo="dux"><KankayHistorial /></Solapas>)} />
             <Route path="marcas/senzen"                  element={soloRed(<SenzenDashboard />)} />
-            <Route path="senzen/contacto"                element={deSenzen(<RegistrarContacto />)} />
+            {/* Cargar un contacto suelto se sacó: Pepa carga todo desde las tareas de su semana. */}
+            <Route path="senzen/contacto"                element={<Navigate to="/" replace />} />
             <Route path="senzen/semana"                  element={soloDueno(<SemanaPepa />)} />
             <Route path="senzen/comercios"               element={deSenzen(<SenzenComercios />)} />
             <Route path="marcas/:slug"                   element={soloRed(<MarcaProximamente />)} />

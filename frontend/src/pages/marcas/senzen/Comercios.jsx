@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { esDueno } from '../../../utils/roles';
@@ -94,7 +93,6 @@ export default function Comercios() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5 items-center">
-                <Link to={`/senzen/contacto?comercio=${c.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-ahg-primary text-white">Cargar contacto</Link>
                 <button className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-ahg-accent/60" onClick={() => { setEditando(c); setNuevo(false); }}>Editar</button>
                 {dueno && <Encargar onElegir={v => encargar(c, v)} hoy={hoy} />}
                 {dueno && <button className="text-xs px-2 py-1.5 text-ahg-text/60" onClick={() => cambiar(c, { consignacion: !c.consignacion }, c.consignacion ? 'Ya no figura en consignación' : `${c.nombre} quedó en consignación`)}>{c.consignacion ? 'Sacar consignación' : 'Consignación'}</button>}

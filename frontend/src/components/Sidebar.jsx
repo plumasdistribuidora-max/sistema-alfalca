@@ -208,11 +208,11 @@ export default function Sidebar({ open, onClose }) {
             <NavItem to="/" icon="reportes" label="Mi reporte de hoy" end />
           )}
 
-          {/* Pepa, la vendedora de Senzen: su semana, cargar contactos y sus comercios. */}
+          {/* Pepa, la vendedora de Senzen: su semana y sus comercios. Todo lo que carga sale
+              de las tareas del calendario (Martín, 23/10/2026). */}
           {esVendedora(user) && (
             <>
               <NavItem to="/" icon="tareas" label="Mi semana" end />
-              <NavItem to="/senzen/contacto" icon="reportes" label="Cargar visita o llamada" />
               <NavItem to="/senzen/comercios" icon="locales" label="Comercios" />
             </>
           )}
@@ -255,7 +255,6 @@ export default function Sidebar({ open, onClose }) {
                     <NavItem to="/marcas/senzen" icon="finanzas" label="Números" end />
                     <NavItem to="/senzen/semana" icon="tareas" label="Semana de Pepa" />
                     <NavItem to="/senzen/comercios" icon="locales" label="Comercios" />
-                    <NavItem to="/senzen/contacto" icon="reportes" label="Cargar contacto" />
                   </Bloque>
                 </>
               )}

@@ -113,11 +113,15 @@ export function PuntoSinLeer({ t }) {
   return t.sin_leer?.total > 0 ? <span className="absolute top-3 right-3 w-2 h-2 rounded-full" style={{ background: AZUL }} aria-hidden="true" /> : null;
 }
 
-// Un modal centrado; en el celular arranca arriba y scrollea.
+// Un modal centrado. Si es más alto que la pantalla scrollea entero, de arriba a abajo: el
+// centrado va en un contenedor de alto mínimo completo, porque centrar con flex en el
+// contenedor que scrollea corta la parte de arriba (pasaba con el formulario de Pepa).
 export function Modal({ onCerrar, ancho = 'max-w-lg', children }) {
   return (
-    <div className="fixed inset-0 z-40 bg-black/40 flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onCerrar}>
-      <div onClick={e => e.stopPropagation()} className={`bg-white rounded-2xl w-full ${ancho} my-6 shadow-xl`}>{children}</div>
+    <div className="fixed inset-0 z-40 bg-black/40 overflow-y-auto" onClick={onCerrar}>
+      <div className="min-h-full flex items-start sm:items-center justify-center p-3">
+        <div onClick={e => e.stopPropagation()} className={`bg-white rounded-2xl w-full ${ancho} my-3 shadow-xl`}>{children}</div>
+      </div>
     </div>
   );
 }

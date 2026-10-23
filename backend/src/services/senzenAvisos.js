@@ -42,7 +42,7 @@ async function revisar() {
     await unaVez(`senzen:hoy:${hoy}`, async () => {
       const atrasadas = tareas.filter(t => t.vence < hoy).length;
       await enviarAUsuarios(await vendedoras(), {
-        titulo: `${SIMBOLO.hoy} Tus tareas de hoy`,
+        titulo: `Senzen · ${SIMBOLO.hoy} Tus tareas de hoy`,
         texto: [tareas.length && `Tenés ${plural(tareas.length, 'cliente', 'clientes')} para contactar hoy${atrasadas ? ` (${atrasadas} de días anteriores)` : ''}.`,
                 faltan && `${plan.por_dia ? 'Hoy tenés que visitar' : 'Esta semana te faltan'} ${plural(faltan, 'comercio nuevo', 'comercios nuevos')}.`].filter(Boolean).join(' '),
         url: '/', etiqueta: 'senzen_hoy',
@@ -57,7 +57,7 @@ async function revisar() {
       const [s, m] = await Promise.all([senzen.semana(desde), senzen.metas()]);
       const meta = (v, k) => (m[k] ? ` de ${m[k]}` : '');
       await aDuenos({
-        titulo: 'Senzen · La semana de Pepa',
+        titulo: `Senzen · ${SIMBOLO.reporte} La semana de Pepa`,
         texto: `${plural(s.contactos, 'contacto', 'contactos')}${meta(s.contactos, 'contactos')} (${plural(s.visitas, 'visita', 'visitas')}), ` +
                `${plural(s.nuevos, 'cliente nuevo', 'clientes nuevos')}${meta(s.nuevos, 'nuevos')}, ` +
                `$ ${Math.round(s.ventas).toLocaleString('es-AR')} facturados. Tareas hechas: ${s.tareasHechas}, a tiempo ${s.tareasATiempo}.`,
@@ -86,7 +86,7 @@ function paraAprobar(quien) {
       WHERE k.aprobacion = 'pendiente' ORDER BY k.creado_en`);
     if (!rows.length) return;
     await enviarAUsuarios(await duenos(), {
-      titulo: `${SIMBOLO.cerrar} Para aprobar · ${nombre(quien)} cargó ${plural(rows.length, 'reporte', 'reportes')}`,
+      titulo: `Senzen · ${SIMBOLO.cerrar} Para aprobar · ${nombre(quien)} cargó ${plural(rows.length, 'reporte', 'reportes')}`,
       texto: rows.slice(0, 3).map(r => r.nombre).join(' · ') + (rows.length > 3 ? ` y ${rows.length - 3} más` : ''),
       url: '/senzen/semana', etiqueta: 'senzen_aprobar',
     });
@@ -98,8 +98,8 @@ function respuesta(k, quien, accion, texto) {
   enFondo((async () => {
     if (deNoche()) return;
     await enviarAUsuarios([k.usuario_id], accion === 'aprobar'
-      ? { titulo: `${SIMBOLO.cerrar} ${nombre(quien)} aprobó · ${k.nombre}`, texto: texto || 'Tu reporte quedó aprobado.', url: '/', etiqueta: `senzen_k${k.id}` }
-      : { titulo: `${SIMBOLO.pedido} ${nombre(quien)} te pidió más · ${k.nombre}`, texto, url: '/', etiqueta: `senzen_k${k.id}` });
+      ? { titulo: `Senzen · ${SIMBOLO.cerrar} ${nombre(quien)} aprobó · ${k.nombre}`, texto: texto || 'Tu reporte quedó aprobado.', url: '/', etiqueta: `senzen_k${k.id}` }
+      : { titulo: `Senzen · ${SIMBOLO.pedido} ${nombre(quien)} te pidió más · ${k.nombre}`, texto, url: '/', etiqueta: `senzen_k${k.id}` });
   })(), 'respuesta');
 }
 
@@ -108,7 +108,7 @@ function encargo(comercio, vence, nota, quien) {
   enFondo((async () => {
     if (deNoche()) return;
     await enviarAUsuarios(await vendedoras(), {
-      titulo: `${SIMBOLO.hoy} ${nombre(quien)} te encargó · ${comercio}`,
+      titulo: `Senzen · ${SIMBOLO.hoy} ${nombre(quien)} te encargó · ${comercio}`,
       texto: `Para el ${ddmm(vence)}${nota ? `: ${nota}` : ''}.`, url: '/', etiqueta: 'senzen_encargo',
     });
   })(), 'encargo');

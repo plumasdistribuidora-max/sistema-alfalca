@@ -3,6 +3,7 @@ import api from '../../../api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { TAREAS, fechaCorta, sumarDias, fmt, SENZEN, NUNITO } from './senzenUtils';
 import { NuevaVisita, ContarComoFue, resultadoTexto } from './reportes';
+import AvisosBoton from '../../../components/AvisosBoton';
 
 // El inicio de Pepa (23/10/2026): su semana como calendario de tareas, o como tablero.
 // Dos clases de tarea: visitar comercios nuevos (los dueños dicen cuántos) y contactar a
@@ -233,6 +234,7 @@ export default function MiSemana() {
           ))}
         </div>
       </div>
+      <AvisosBoton />
       {aviso && <p className="text-sm rounded-lg px-3 py-2 bg-green-50 text-green-800 font-medium">{aviso}</p>}
       {cuerpo}
       {form?.tipo === 'nuevo' && <NuevaVisita corregir={form.corregir} paso={!form.corregir && meta ? `${hechos + 1} de ${meta}` : null}

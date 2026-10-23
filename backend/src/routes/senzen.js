@@ -33,8 +33,23 @@ router.get('/mi-semana', (req, res) => {
   senzen.miSemana().then(data => res.json({ ok: true, data })).catch(fallo(res, 'mi-semana', 'No se pudo cargar tu semana'));
 });
 
-router.get('/comercios', (req, res) => {
-  senzen.comercios().then(data => res.json({ ok: true, data })).catch(fallo(res, 'comercios', 'No se pudieron cargar los comercios'));
+// La lista. A los dueños les suma cuánto compró cada uno, cuánto debe y su último pedido;
+// Pepa no ve montos.
+router.get('/comercios', async (req, res) => {
+  try {
+    const lista = await senzen.comercios();
+    if (req.user.rol !== 'admin') return res.json({ ok: true, data: lista });
+    const plata = await senzen.plataPorComercio();
+    res.json({ ok: true, data: lista.map(c => ({ ...c, ...(plata[c.id] || { total: 0, debe: 0, ultimo_pedido: null, ultimo_pedido_total: null, pendiente: 0 }) })) });
+  } catch (err) { fallo(res, 'comercios', 'No se pudieron cargar los comercios')(err); }
+});
+
+router.get('/comercios/:id(\\d+)', async (req, res) => {
+  try {
+    const data = await senzen.comercioDetalle(Number(req.params.id), req.user.rol === 'admin');
+    if (!data) return res.status(404).json({ ok: false, error: 'Comercio no encontrado' });
+    res.json({ ok: true, data });
+  } catch (err) { fallo(res, 'comercio', 'No se pudo cargar el comercio')(err); }
 });
 
 router.post('/comercios', async (req, res) => {

@@ -133,6 +133,85 @@ async function tareasAbiertas() {
 
 // ── Comercios ────────────────────────────────────────────────────────────────
 
+// Lo cobrado de cada factura, por las imputaciones de los cobros de Dux.
+async function cobradoPorFactura() {
+  const { rows } = await pool.query('SELECT imputaciones FROM senzen_cobros');
+  const cobrado = {};
+  for (const c of rows) for (const i of c.imputaciones) cobrado[i.id_comp_venta] = (cobrado[i.id_comp_venta] || 0) + i.monto;
+  return cobrado;
+}
+
+// La plata de cada comercio, para la lista (solo dueños): cuánto compró, cuánto debe y su
+// último pedido (el más nuevo entre los pedidos y las facturas de Dux).
+async function plataPorComercio() {
+  const [{ rows: fs }, { rows: ps }, cobrado] = await Promise.all([
+    pool.query(`SELECT c.id, f.id_comp_venta::text AS fid, to_char(f.fecha,'YYYY-MM-DD') AS fecha, f.total::float
+                FROM senzen_facturas f JOIN senzen_comercios c ON c.dux_id_cliente = f.id_cliente WHERE NOT f.anulada`),
+    pool.query(`SELECT c.id, to_char(p.fecha,'YYYY-MM-DD') AS fecha, p.total::float, p.estado
+                FROM senzen_pedidos p JOIN senzen_comercios c ON c.dux_id_cliente = p.id_cliente WHERE NOT p.anulado`),
+    cobradoPorFactura(),
+  ]);
+  const out = {};
+  const de = id => (out[id] ||= { total: 0, debe: 0, ultimo_pedido: null, ultimo_pedido_total: null, pendiente: 0 });
+  for (const f of fs) {
+    const X = de(f.id);
+    X.total += f.total;
+    const saldo = f.total - (cobrado[f.fid] || 0);
+    if (saldo > 1) X.debe += saldo;
+    if (!X.ultimo_pedido || f.fecha > X.ultimo_pedido) { X.ultimo_pedido = f.fecha; X.ultimo_pedido_total = f.total; }
+  }
+  for (const p of ps) {
+    const X = de(p.id);
+    if (p.estado !== 'FACTURADO') X.pendiente += p.total;
+    if (!X.ultimo_pedido || p.fecha > X.ultimo_pedido) { X.ultimo_pedido = p.fecha; X.ultimo_pedido_total = p.total; }
+  }
+  for (const X of Object.values(out)) { X.total = Math.round(X.total * 100) / 100; X.debe = Math.round(X.debe * 100) / 100; }
+  return out;
+}
+
+// Todo de un comercio, para el detalle. conPlata: los montos son solo para los dueños.
+async function comercioDetalle(id, conPlata) {
+  const { rows: [c] } = await pool.query(`
+    SELECT c.*, to_char(c.creado_en AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM-DD') AS creado, u.nombre AS creado_por_nombre
+    FROM senzen_comercios c LEFT JOIN usuarios u ON u.id = c.creado_por WHERE c.id = $1`, [id]);
+  if (!c) return null;
+  const [{ rows: facturas }, { rows: pedidos }, { rows: items }, { rows: contactos }, { rows: [tarea] }, cobrado] = await Promise.all([
+    pool.query(`SELECT id_comp_venta::text AS id, to_char(fecha,'YYYY-MM-DD') AS fecha, comprobante, total::float
+                FROM senzen_facturas WHERE id_cliente = $1 AND NOT anulada ORDER BY fecha DESC`, [c.dux_id_cliente || 0]),
+    pool.query(`SELECT nro_pedido, to_char(fecha,'YYYY-MM-DD') AS fecha, total::float, estado
+                FROM senzen_pedidos WHERE id_cliente = $1 AND NOT anulado ORDER BY fecha DESC`, [c.dux_id_cliente || 0]),
+    pool.query(`SELECT i.item, SUM(i.cantidad)::float AS unidades, SUM(i.subtotal)::float AS total, COUNT(DISTINCT i.id_comp_venta)::int AS veces
+                FROM senzen_factura_items i JOIN senzen_facturas f USING (id_comp_venta)
+                WHERE f.id_cliente = $1 AND NOT f.anulada GROUP BY i.item ORDER BY SUM(i.subtotal) DESC`, [c.dux_id_cliente || 0]),
+    pool.query(`${SELECT_CONTACTO} WHERE k.comercio_id = $1 ORDER BY k.creado_en DESC`, [id]),
+    pool.query(`SELECT t.tipo, to_char(t.vence,'YYYY-MM-DD') AS vence, t.nota, u.nombre AS encargada_por
+                FROM senzen_tareas t LEFT JOIN usuarios u ON u.id = t.creada_por WHERE t.comercio_id = $1 AND t.estado = 'pendiente'`, [id]),
+    conPlata ? cobradoPorFactura() : {},
+  ]);
+  const base = {
+    comercio: { id: c.id, nombre: c.nombre, tipo: c.tipo, localidad: c.localidad, direccion: c.direccion, contacto: c.contacto,
+                telefono: c.telefono, consignacion: c.consignacion, activo: c.activo, creado: c.creado,
+                creado_por: c.creado_por_nombre, en_dux: !!c.dux_id_cliente },
+    proxima: tarea || null,
+    contactos: contactos.map(k => ({ id: k.id, fecha: k.fecha, tipo: k.tipo, medio: k.medio, resultado: k.resultado, comentario: k.comentario,
+                                     volver_el: k.volver_el, aprobacion: k.aprobacion, respuesta: k.respuesta, foto: k.foto, quien: k.quien })),
+    compras: facturas.length,
+    primera_compra: facturas.length ? facturas[facturas.length - 1].fecha : null,
+    ultima_compra: facturas[0]?.fecha || null,
+  };
+  if (!conPlata) {
+    // Pepa ve qué compra y cuándo, sin montos.
+    return { ...base, productos: items.map(i => ({ item: i.item, unidades: i.unidades, veces: i.veces })),
+             pedidos: pedidos.map(p => ({ fecha: p.fecha, estado: p.estado })) };
+  }
+  const fact = facturas.map(f => ({ ...f, saldo: Math.max(0, Math.round((f.total - (cobrado[f.id] || 0)) * 100) / 100) }));
+  return {
+    ...base, facturas: fact, pedidos, productos: items,
+    total: fact.reduce((a, f) => a + f.total, 0), debe: fact.reduce((a, f) => a + (f.saldo > 1 ? f.saldo : 0), 0),
+    pendiente: pedidos.filter(p => p.estado !== 'FACTURADO').reduce((a, p) => a + p.total, 0),
+  };
+}
+
 async function comercios() {
   const { rows } = await pool.query(`
     SELECT c.id, c.nombre, c.tipo, c.localidad, c.direccion, c.contacto, c.telefono, c.consignacion, c.activo,
@@ -377,4 +456,4 @@ async function datos() {
   };
 }
 
-module.exports = { generarTareas, registrarContacto, encargar, tareasAbiertas, comercios, miSemana, semanaDuenos, contacto, metaNuevos, datos, semana, semanas, lunes, sumarDias, metas };
+module.exports = { plataPorComercio, comercioDetalle, generarTareas, registrarContacto, encargar, tareasAbiertas, comercios, miSemana, semanaDuenos, contacto, metaNuevos, datos, semana, semanas, lunes, sumarDias, metas };

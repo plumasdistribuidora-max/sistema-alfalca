@@ -10,7 +10,7 @@ const fecha = d => new Date(d).toLocaleDateString('es-AR', { timeZone: 'America/
 const primerNombre = n => String(n || '').replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] || '';
 
 function nombreArchivo(titulo, ext) {
-  const limpio = String(titulo || 'Respuesta').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const limpio = String(titulo || 'Respuesta').replace(/\//g, '-').replace(/[\\:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
   return `Claudia - ${limpio}.${ext}`;
 }
 

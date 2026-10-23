@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import EsferaClaudia from './EsferaClaudia';
+import AvatarClaudia from './AvatarClaudia';
 
 // Claudia, la asistente de los dueños: un botón redondo abajo a la derecha que abre el chat encima de
 // cualquier pantalla. La charla vive mientras se navega (está en el Layout) y se pierde al
@@ -205,7 +205,7 @@ export default function AsistenteChat() {
       {abierto && (
         <div className="fixed z-40 inset-0 sm:inset-auto sm:right-6 sm:bottom-24 sm:w-[420px] sm:h-[min(640px,calc(100vh-8rem))] bg-white sm:rounded-2xl sm:border border-ahg-accent/40 sm:shadow-2xl flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 bg-ahg-primary text-white">
-            <EsferaClaudia tamano={32} pensando={pensando} />
+            <AvatarClaudia tamano={32} pensando={pensando} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold leading-tight">Claudia</p>
               <p className="text-[11px] text-white/60 truncate">{pensando ? 'Buscando en los datos…' : 'Tu asistente con los datos del sistema'}</p>
@@ -239,6 +239,9 @@ export default function AsistenteChat() {
             </div>
           ) : (<>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-ahg-bg/40">
+            {mensajes.length === 0 && (
+              <div className="flex justify-center pt-2 pb-1"><AvatarClaudia tamano={112} grande /></div>
+            )}
             {mensajes.length === 0 && (
               <div className="max-w-[92%] px-3 py-2 rounded-2xl rounded-bl-md bg-white text-ahg-text border border-ahg-accent/40 text-sm leading-relaxed">
                 <p>Hola{primerNombre(user?.nombre) ? ` ${primerNombre(user.nombre)}` : ''}, soy Claudia, tu asistente. ¿En qué querés que te ayude hoy?</p>
@@ -301,7 +304,7 @@ export default function AsistenteChat() {
         {abierto ? (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
         ) : (
-          <EsferaClaudia tamano={56} pensando={pensando} />
+          <AvatarClaudia tamano={56} pensando={pensando} />
         )}
       </button>
     </>

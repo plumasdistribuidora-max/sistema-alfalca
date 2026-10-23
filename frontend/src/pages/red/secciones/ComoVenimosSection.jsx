@@ -23,10 +23,11 @@ function diaMes(iso) { const { m, d } = partes(iso); return `${d}/${m}`; }
 
 // ── Piezas chicas ────────────────────────────────────────────────────────────
 
-function Chip({ a, b, texto, oscuro }) {
+// invertir: para los números donde subir es malo (docenas por millón): el verde va para abajo.
+function Chip({ a, b, texto, oscuro, invertir }) {
   if (!b) return null;
   const v = (a / b - 1) * 100;
-  const tono = Math.abs(v) < 2 ? 'mid' : v > 0 ? 'up' : 'down';
+  const tono = Math.abs(v) < 2 ? 'mid' : (v > 0) !== !!invertir ? 'up' : 'down';
   const clases = oscuro
     ? { up: 'bg-white/15 text-emerald-200', down: 'bg-white/15 text-red-200', mid: 'bg-white/15 text-white' }
     : { up: 'bg-emerald-50 text-emerald-700', down: 'bg-red-50 text-red-700', mid: 'bg-stone-100 text-stone-500' };
@@ -46,10 +47,10 @@ function ChipGris({ children, oscuro }) {
 }
 
 // Un renglón de comparación, siempre real contra real: contra qué, cuánto fue y el %.
-function Fila({ label, a, b, fmt, oscuro, sub, parcial, nota }) {
+function Fila({ label, a, b, fmt, oscuro, sub, parcial, nota, invertir }) {
   if (!b) return null;
   const v = (a / b - 1) * 100;
-  const color = Math.abs(v) < 2 ? (oscuro ? 'text-white' : 'text-stone-600') : v > 0 ? (oscuro ? 'text-emerald-200' : 'text-emerald-700') : (oscuro ? 'text-red-200' : 'text-red-700');
+  const color = Math.abs(v) < 2 ? (oscuro ? 'text-white' : 'text-stone-600') : (v > 0) !== !!invertir ? (oscuro ? 'text-emerald-200' : 'text-emerald-700') : (oscuro ? 'text-red-200' : 'text-red-700');
   return (
     <div className={`flex items-start justify-between gap-2 text-[12px] ${sub ? 'pl-3' : ''}`}>
       <span className="min-w-0">
@@ -125,6 +126,10 @@ function Curva({ serie, color }) {
 // ── Sumas por grupo de locales ───────────────────────────────────────────────
 
 const VACIO = { f: 0, tk: 0, p: 0, d: 0 };
+// Cuántas docenas entran en cada millón facturado. Si sube, cada docena salió más barata:
+// promos, descuentos o producto regalado.
+const porMillon = o => (o?.f ? o.d / (o.f / 1e6) : 0);
+
 function suma(lista, sel) {
   return lista.reduce((o, l) => {
     const x = sel(l) || VACIO;
@@ -319,7 +324,7 @@ export default function ComoVenimosSection({ selId = null }) {
       {/* ── Tiendas ── */}
       {verTiendas && (
         <Bloque titulo={sel && !sel.es_cafe ? shortName(sel.nombre) : 'Tiendas de alfajores'}>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
             <Tarjeta tono="gris" titulo="Docenas" valor={fmtDoc(tAct.d)}
                      abajo={estimado(fmtDoc(proy(tAct.d)))}
                      explica="Cuántos alfajores salieron. No tiene inflación: es la medida de si vendemos más o menos.">
@@ -335,6 +340,20 @@ export default function ComoVenimosSection({ selId = null }) {
                      abajo={tAct.tk ? `${fmtDoc(tAct.d / tAct.tk)} docenas por compra` : ''}
                      explica="Cuántas compras hubo. Si bajan las docenas pero no los clientes, la gente lleva menos; si bajan los clientes, entra menos gente.">
               {chipsT('tk', false, fmtNum)}
+            </Tarjeta>
+            <Tarjeta titulo="Docenas por millón" valor={fmtDoc(porMillon(tAct))}
+                     abajo={tAct.d ? `por cada $ 1.000.000 · la docena a ${fmtARS(tAct.f / tAct.d)}` : ''}
+                     explica={'Cuántas docenas entran en cada millón que facturamos. Si sube, cada docena se vendió más barata: promos, descuentos o producto regalado. Contra el año pasado se le suma nuestra suba de precios: si igual da para arriba, estamos creciendo regalando.'}>
+              {tMes && <Fila invertir label={lblMes} a={porMillon(tAct)} b={porMillon(tMes)} fmt={fmtDoc} />}
+              {tCmp ? (
+                <>
+                  <FilaGris>{tCmp.parcial ? 'Lo comparable, ' + lblAnio.toLowerCase() : lblAnio}: {fmtDoc(porMillon(tCmp.ant))}, a precios de entonces</FilaGris>
+                  {suba.tiendas?.pct != null && (
+                    <Fila invertir sub label={`+ nuestra suba ${pct1(suba.tiendas.pct)} %`}
+                          a={porMillon(tCmp.act)} b={porMillon(tCmp.ant) / (1 + suba.tiendas.pct / 100)} fmt={fmtDoc} />
+                  )}
+                </>
+              ) : <FilaGris>No abría el año pasado</FilaGris>}
             </Tarjeta>
           </div>
 
@@ -354,6 +373,7 @@ export default function ComoVenimosSection({ selId = null }) {
                       <th className="text-right font-semibold py-1.5 px-2 whitespace-nowrap">vs {anio ? anioAnt : `${MES_CORTO[partes(p.anio_ant.desde).m - 1]} ${String(anioAnt).slice(2)}`}</th>
                       <th className="text-right font-semibold py-1.5 px-2">Facturación</th>
                       <th className="text-right font-semibold py-1.5 px-2 whitespace-nowrap">$ / docena</th>
+                      <th className="text-right font-semibold py-1.5 px-2 whitespace-nowrap">Doc. por millón</th>
                       <th className="text-right font-semibold py-1.5 px-2">{mesesCurva > 1 ? `Ene–${MES_CORTO[mesesCurva - 1]}` : ''}</th>
                     </tr>
                   </thead>
@@ -384,11 +404,15 @@ export default function ComoVenimosSection({ selId = null }) {
                             <td className="py-2 px-2 text-right">{cmp ? <Chip a={cmp.act.d} b={cmp.ant.d} texto="" /> : <ChipGris>nueva</ChipGris>}</td>
                             <td className="py-2 px-2 text-right tabular-nums whitespace-nowrap">{fmtARS(l.act.f)}</td>
                             <td className="py-2 px-2 text-right tabular-nums whitespace-nowrap">{l.act.d ? fmtARS(l.act.f / l.act.d) : '—'}</td>
+                            <td className="py-2 px-2 text-right tabular-nums whitespace-nowrap">
+                              {l.act.f ? fmtDoc(porMillon(l.act)) : '—'}
+                              {!anio && l.mes_ant && <span className="ml-1.5"><Chip invertir a={porMillon(l.act)} b={porMillon(l.mes_ant)} texto="" /></span>}
+                            </td>
                             <td className="py-2 px-2"><Curva serie={l.docenas_por_mes} color={colorDeTienda(l.nombre)} /></td>
                           </tr>
                           {abierta && (
                             <tr className="bg-stone-50">
-                              <td colSpan={anio ? 6 : 7} className="p-3">
+                              <td colSpan={anio ? 7 : 8} className="p-3">
                                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
                                   {met.map(([titulo, k, fmt]) => (
                                     <div key={titulo} className="bg-white rounded-lg px-3 py-2 space-y-0.5">

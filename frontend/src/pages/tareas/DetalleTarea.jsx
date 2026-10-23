@@ -129,6 +129,7 @@ function marcaDe(e, gastos) {
     case 'pidio_mas': return { tono: 'rojo', txt: 'Pide más' };
     case 'rechazada': return { tono: 'rojo', txt: 'No la aprobó' };
     case 'encargo': return { tono: 'gris', txt: 'Cargó la tarea' };
+    case 'pidio_foto': return { tono: 'ambar', txt: 'Pide una foto o PDF' };
     default: return null;
   }
 }
@@ -168,8 +169,9 @@ function agrupar(eventos) {
   return out;
 }
 
-function Conversacion({ data, yo }) {
-  const { eventos, gastos, tarea: t } = data;
+function Conversacion({ data, yo, yoId }) {
+  const { eventos, gastos, tarea: t, visto_antes: vistoAntes } = data;
+  const esNuevo = e => e.usuario_id && e.usuario_id !== yoId && (!vistoAntes || new Date(e.created_at) > new Date(vistoAntes));
   const grupos = agrupar(eventos);
   return (
     <div className="space-y-2.5">
@@ -188,13 +190,15 @@ function Conversacion({ data, yo }) {
         const textos = [...new Set(g.eventos.map(textoDe).filter(Boolean))];
         const marcas = g.eventos.map(e => marcaDe(e, gastos)).filter(Boolean);
         const adjuntos = g.eventos.flatMap(e => adjuntosDe(e, gastos));
+        const nuevo = g.eventos.some(esNuevo);
         return (
           <div key={primero.id} className={`flex ${mio ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 space-y-1 border ${duenio ? 'bg-amber-50 border-amber-200' : 'bg-stone-100 border-stone-200'}`}>
+            <div className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 space-y-1 border ${duenio ? 'bg-amber-50 border-amber-200' : 'bg-stone-100 border-stone-200'} ${nuevo ? 'ring-2 ring-[#2d68b0]/60' : ''}`}>
               <p className="text-[11px] text-ahg-text/60">
                 <b className="text-ahg-text">{g.usuario}</b>
                 <span className={`ml-1.5 px-1.5 py-px rounded-full text-[10px] font-semibold ${duenio ? 'bg-amber-200/70 text-amber-900' : 'bg-stone-300/70 text-stone-700'}`}>{duenio ? 'Dueño' : 'Encargado'}</span>
                 <span className="ml-1.5">{cuando(g.created_at)}</span>
+                {nuevo && <span className="ml-1.5 font-bold text-[#2d68b0]">Nuevo</span>}
               </p>
               {textos.map((x, i) => <p key={i} className="text-sm whitespace-pre-line break-words">{x}</p>)}
               {marcas.length > 0 && <div className="flex flex-wrap gap-1">{marcas.map((m, i) => <Chip key={i} tono={m.tono}>{m.txt}</Chip>)}</div>}
@@ -305,6 +309,12 @@ function CuadroEncargado({ data, opcionesGen, onCambio }) {
         </div>
       )}
 
+      {t.pedido_foto && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+          <b>{t.pedido_foto.quien}</b> te pidió una foto o PDF: {t.pedido_foto.texto}. Sumala con "Sumar foto" o "Hay un gasto": sin eso no se puede pedir el cierre.
+        </div>
+      )}
+
       {modo && (
         <div className={`rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-2 ${modo === 'cierre' ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
           <span>{modo === 'cierre' ? 'Vas a pedir el cierre. Lo aprueba un dueño.' : 'Vas a pedir descartarla. También lo aprueba un dueño.'}</span>
@@ -412,13 +422,13 @@ function CuadroEncargado({ data, opcionesGen, onCambio }) {
 
 // Para los dueños, y para el encargado cuando la tarea espera a los dueños o ya se
 // terminó: un cuadro para escribir. También avisa a todos.
-function CuadroComentar({ id, onCambio, ayuda }) {
+function CuadroComentar({ id, onCambio, ayuda, pedirFoto, pedidoPendiente }) {
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
-  async function mandar() {
+  async function mandar(ruta = 'comentar') {
     setOcupado(true); setError('');
-    try { await api.post(`/tareas/${id}/comentar`, { texto }); setTexto(''); onCambio(); }
+    try { await api.post(`/tareas/${id}/${ruta}`, { texto }); setTexto(''); onCambio(); }
     catch (err) { setError(err.response?.data?.error || 'No se pudo mandar'); }
     finally { setOcupado(false); }
   }
@@ -427,7 +437,13 @@ function CuadroComentar({ id, onCambio, ayuda }) {
       {ayuda && <p className="text-sm text-ahg-text/70">{ayuda}</p>}
       <label htmlFor="comentar" className="text-xs text-ahg-text/60">Escribí lo que quieras</label>
       <textarea id="comentar" className="input w-full" rows={2} maxLength={1000} value={texto} onChange={e => setTexto(e.target.value)} placeholder="Lo ven todos y les llega el aviso" />
-      <button className="btn-primary" disabled={ocupado || !texto.trim()} onClick={mandar}>{ocupado ? 'Mandando…' : 'Mandar'}</button>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-primary" disabled={ocupado || !texto.trim()} onClick={() => mandar()}>{ocupado ? 'Mandando…' : 'Mandar'}</button>
+        {pedirFoto && <button className="btn-secondary" disabled={ocupado || texto.trim().length < 3} onClick={() => mandar('pedir-foto')}>Pedir foto o PDF</button>}
+      </div>
+      {pedirFoto && <p className="text-xs text-ahg-text/50">{pedidoPendiente
+        ? `Ya le pidieron: "${pedidoPendiente.texto}". Hasta que la suba no puede pedir el cierre.`
+        : 'Para pedir una foto o un PDF, escribí arriba qué necesitás ver. Hasta que la suba, el encargado no puede pedir el cierre.'}</p>}
       {error && <p className="text-sm text-red-700">{error}</p>}
     </div>
   );
@@ -644,7 +660,7 @@ export default function DetalleTarea() {
 
       <section className="card overflow-hidden">
         <div className="bg-ahg-bg/60 p-4 sm:p-5">
-          <Conversacion data={data} yo={user?.nombre} />
+          <Conversacion data={data} yo={user?.nombre} yoId={user?.id} />
         </div>
 
         <div className="p-4 sm:p-5 border-t border-ahg-accent/40 space-y-4">
@@ -660,6 +676,7 @@ export default function DetalleTarea() {
           )}
           {dueno && t.estado !== 'por_aprobar' && (
             <CuadroComentar id={t.id} onCambio={cargar}
+              pedirFoto={['nueva', 'en_curso'].includes(t.estado)} pedidoPendiente={t.pedido_foto}
               ayuda={t.estado === 'nueva' ? 'El encargado todavía no la tomó.'
                 : t.estado === 'en_curso' ? 'La está resolviendo el encargado. Cuando pida el cierre te aparece acá para aprobar.'
                 : null} />

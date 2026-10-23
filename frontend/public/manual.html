@@ -483,7 +483,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <a href="#mi-reporte"><span class="ic">◈</span>Mi reporte de hoy</a>
     <a href="#reportes"><span class="ic">☰</span>Reportes de los turnos</a>
     <a href="#tareas"><span class="ic">✓</span>Tareas</a>
-    <a href="#aprobar"><span class="ic">◆</span>Aprobar y el tablero</a>
+    <a href="#aprobar"><span class="ic">◆</span>Aprobar y los números</a>
     <a href="#dia"><span class="ic">☀</span>Reporte del día y avisos</a>
     <a href="#proveedores"><span class="ic">⊡</span>Proveedores</a>
 
@@ -765,7 +765,7 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
             <li><strong>El grupo</strong> — lo que se toca poco: usuarios, locales, formularios, maestros y este manual, que se abre en una pestaña nueva sin que pierdas lo que estabas cargando.</li>
           </ul>
           <p style="margin-top:16px">
-            Algunas pantallas tienen <strong>solapas</strong> adentro: <em>Tareas</em> (Bandeja y, para los dueños, Tablero),
+            Algunas pantallas tienen <strong>solapas</strong> adentro: <em>Tareas</em> (Tablero y, para los dueños, Números),
             <em>Fudo</em> y <em>Dux</em> (Subir Excel e Historial) y <em>Maestros</em> (Docenas, Café y Cocina).
           </p>
           <p style="margin-top:12px">
@@ -1117,42 +1117,30 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
 
       <figure class="figura">
         <div class="mock">
-          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · tareas</span></div>
+          <div class="mock-bar"><i></i><i></i><i></i><span>alfalca · tareas · tablero</span></div>
           <div class="m-main" style="padding:16px">
-            <div class="m-hdr"><div class="m-eye">Alfalca</div><h5>Tareas</h5></div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0"><span class="m-pill" style="background:#55585c;color:#fff">Abiertas 4</span><span class="m-pill gris">Sin tomar 1</span><span class="m-pill gris">En curso 2</span><span class="m-pill gris">Por aprobar 1</span><span class="m-pill gris">Terminadas 3</span> <span class="marca-n" style="margin-left:4px">1</span></div>
-            <div class="m-card" style="padding:12px">
-              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Ventas no coinciden: los turnos dijeron $ 27.200 más que Fudo</b><div style="font-size:11px;color:#9A9C9E">9 de Julio · Ventas no coinciden con Fudo · vie 9</div></div><span style="font-size:11px;font-weight:600;color:#b91c1c;white-space:nowrap">Vencida hace 1 día</span></div>
-              <div style="font-size:12px;margin-top:6px">Revisar el arqueo con la vendedora</div>
-              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#ef4444"></i><i style="flex:1;height:5px;border-radius:9px;background:#ef4444"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
-            </div>
-            <div class="m-card" style="padding:12px">
-              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Tienda tarde: no cargó el reporte</b><div style="font-size:11px;color:#9A9C9E">9 de Julio · No cargó el reporte · dom 11</div></div><span style="font-size:11px;font-weight:600;color:#b91c1c;white-space:nowrap">Nadie la tomó · hace 1 día</span></div>
-              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#55585c"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
-            </div>
-            <div class="m-card" style="padding:12px">
-              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Ron: 22 u. vencen el 19/10</b><div style="font-size:11px;color:#9A9C9E">Peatonal · Producto por vencer · sáb 10</div></div><span style="font-size:11px;font-weight:600;color:#b45309;white-space:nowrap">Espera a los dueños hace 3 h</span></div>
-              <div style="font-size:12px;margin-top:6px">Dice: <b>se pasaron a la barra del Café</b></div>
-              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#55585c"></i><i style="flex:1;height:5px;border-radius:9px;background:#55585c"></i><i style="flex:1;height:5px;border-radius:9px;background:#55585c"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
-            </div>
-            <div class="m-card" style="padding:12px">
-              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>Piso: baldosa rota</b><div style="font-size:11px;color:#9A9C9E">Amigorena · Mantenimiento · vie 9</div></div><span style="font-size:11px;font-weight:600;color:#6b6e72;white-space:nowrap">Para el jue 16</span></div>
-              <div style="font-size:12px;margin-top:6px">Llamo al albañil el lunes</div>
-              <div style="display:flex;gap:4px;margin-top:8px"><i style="flex:1;height:5px;border-radius:9px;background:#55585c"></i><i style="flex:1;height:5px;border-radius:9px;background:#55585c"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i><i style="flex:1;height:5px;border-radius:9px;background:#dedcd6"></i></div>
+            <div class="m-hdr"><div class="m-eye">Entre Dos</div><h5>Tareas</h5></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0"><span style="display:inline-flex;gap:2px;background:rgba(195,194,189,.35);border-radius:8px;padding:2px"><span class="m-pill" style="background:#fff;color:#1f2022">Todas 6</span><span class="m-pill gris" style="background:none">Las que cargué yo 1</span><span class="m-pill gris" style="background:none">Para cerrar 2</span><span class="m-pill gris" style="background:none">Sin leer <b style="background:#2d68b0;color:#fff;border-radius:9px;padding:0 5px">1</b></span></span> <span class="marca-n">1</span><span style="margin-left:auto;font-size:11px;border:1px solid #dedcd6;border-radius:7px;padding:3px 8px;background:#fff">Filtros</span><span style="font-size:11px;border:1px solid #dedcd6;border-radius:7px;padding:3px 8px;background:#fff">Registro de cerradas</span> <span class="marca-n">4</span></div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+              <div style="background:rgba(225,223,218,.45);border:1px solid rgba(195,194,189,.55);border-radius:10px;padding:8px;min-width:0"><div style="font-size:11.5px;font-weight:600;margin:2px 2px 8px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#8d9095;margin-right:5px"></span>Sin empezar <span style="color:#9A9C9E;font-weight:500">1</span></div><div class="m-card" style="padding:9px 11px;margin-bottom:7px"><div style="font-size:10px;color:#6b6e72"><span style="display:inline-block;width:6px;height:6px;border-radius:2px;background:#26282a;margin-right:4px"></span><b style="color:#1f2022;font-weight:600">Amigorena</b> · Personal</div><div style="font-size:12px;font-weight:600;margin:4px 0">Tienda tarde: no cargó el reporte</div><div style="font-size:10.5px;color:#6b6e72">Del 21/10</div></div></div>
+              <div style="background:rgba(225,223,218,.45);border:1px solid rgba(195,194,189,.55);border-radius:10px;padding:8px;min-width:0"><div style="font-size:11.5px;font-weight:600;margin:2px 2px 8px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#c48a1c;margin-right:5px"></span>En proceso <span style="color:#9A9C9E;font-weight:500">3</span></div><div class="m-card" style="padding:9px 11px;border:1.5px solid #2d68b0;box-shadow:0 0 0 3px rgba(45,104,176,.14);margin-bottom:7px"><div style="font-size:10px;color:#6b6e72"><span style="display:inline-block;width:6px;height:6px;border-radius:2px;background:#5c5f63;margin-right:4px"></span><b style="color:#1f2022;font-weight:600">9 de Julio</b> · Operación</div><div style="font-size:12px;font-weight:600;margin:4px 0">Piso: baldosa rota</div><div style="font-size:10.5px;color:#6b6e72"><span style="color:#b91c1c;font-weight:600">Venció 22/10</span> · 4 mensajes</div><div style="font-size:10.5px;font-weight:600;color:#2d68b0;border-top:1px solid #e5e3de;margin-top:6px;padding-top:6px">1 comentario sin leer</div></div><div class="m-card" style="padding:9px 11px;margin-bottom:7px"><div style="font-size:10px;color:#6b6e72"><span style="display:inline-block;width:6px;height:6px;border-radius:2px;background:#989a9f;margin-right:4px"></span><b style="color:#1f2022;font-weight:600">Peatonal</b> · Marketing</div><div style="font-size:12px;font-weight:600;margin:4px 0">Cartel nuevo de la vidriera</div><div style="font-size:10.5px;color:#6b6e72">30/10 · <span style="color:#b91c1c">Alta</span> · Agustín</div><div style="font-size:10.5px;font-weight:600;color:#b45309;border-top:1px solid #e5e3de;margin-top:6px;padding-top:6px">Falta la foto o PDF que pidió Agustín</div></div></div>
+              <div style="background:rgba(225,223,218,.45);border:1px solid rgba(195,194,189,.55);border-radius:10px;padding:8px;min-width:0"><div style="font-size:11.5px;font-weight:600;margin:2px 2px 8px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2d68b0;margin-right:5px"></span>Esperando cierre <span style="color:#9A9C9E;font-weight:500">2</span></div><div class="m-card" style="padding:9px 11px;margin-bottom:7px"><div style="font-size:10px;color:#6b6e72"><span style="display:inline-block;width:6px;height:6px;border-radius:2px;background:#8a5a3c;margin-right:4px"></span><b style="color:#1f2022;font-weight:600">Café</b> · CMV</div><div style="font-size:12px;font-weight:600;margin:4px 0">El café no cierra: el pesaje dice 3,1 kg menos</div><div style="font-size:10.5px;color:#6b6e72">24/10 · 2 mensajes</div></div><div class="m-card" style="padding:9px 11px;margin-bottom:7px"><div style="font-size:10px;color:#6b6e72"><span style="display:inline-block;width:6px;height:6px;border-radius:2px;background:#989a9f;margin-right:4px"></span><b style="color:#1f2022;font-weight:600">Peatonal</b> · Administración</div><div style="font-size:12px;font-weight:600;margin:4px 0">Ventas no coinciden: $ 27.200 más que Fudo</div><div style="font-size:10.5px;color:#6b6e72">24/10 · 1 mensaje</div></div></div>
             </div>
           </div>
         </div>
-        <figcaption><b>Tareas.</b> Los nombres y montos son de ejemplo. <span class="marca-n">2</span> La barrita de abajo de cada tarea.</figcaption>
+        <figcaption><b>El tablero de tareas.</b> Los nombres y montos son de ejemplo. <span class="marca-n">2</span> Las columnas. <span class="marca-n">3</span> Lo que no leíste, en azul.</figcaption>
       </figure>
 
       <ol class="refs">
-        <li><strong>Filtros.</strong> Arriba elegís qué ver: <em>Abiertas</em> (todo lo que falta terminar, es lo que se ve al entrar), <em>Sin tomar</em>, <em>En curso</em>, <em>Por aprobar</em> o <em>Terminadas</em> (las de los últimos 3 días). El número es cuántas hay en cada una.</li>
-        <li><strong>Cómo viene cada tarea.</strong> La barrita tiene cuatro pasos: <em>Sin tomar → En curso → Por aprobar → Terminada</em>, y se llena hasta donde llegó. Se pone <strong>roja</strong> si está vencida o un dueño la devolvió, y <strong>verde</strong> cuando está terminada. Arriba a la derecha dice en una frase qué pasa ahora: <em>Nadie la tomó</em>, <em>Vencida hace 1 día</em>, <em>Para el jue 16</em>, <em>Espera a los dueños</em>, <em>Aprobó Federico</em>.</li>
+        <li><strong>Qué ver.</strong> Arriba elegís: <em>Todas</em>, <em>Las que cargué yo</em> y <em>Para cerrar</em> (las que te toca cerrar a vos) si sos dueño, o <em>Me piden algo</em> si sos el encargado. <em>Sin leer</em> junta las tareas donde otro escribió o cambió algo desde la última vez que la abriste. El número es cuántas hay. Con <em>Filtros</em> se elige por local, área, origen (reporte de turno o cargada por un dueño), quién la cargó o solo las vencidas, y se pueden combinar.</li>
+        <li><strong>Tres columnas.</strong> <em>Sin empezar</em> (nadie la tomó), <em>En proceso</em> (el encargado la tomó y dijo para cuándo) y <em>Esperando cierre</em> (el encargado dice que terminó y falta que un dueño la cierre). Cada tarjeta dice el local y el área, la fecha límite (roja si venció, naranja si vence hoy), si es de prioridad alta, cuántos mensajes tiene y, si la cargó un dueño, quién. Lo más apurado va arriba.</li>
+        <li><strong>Sin leer.</strong> Si alguien comentó o cambió algo y vos no lo viste, la tarjeta tiene borde y punto azul y dice <em>1 comentario sin leer</em>. Al abrir la tarea se apaga, solo para vos: los demás la siguen viendo en azul hasta que la abran. Adentro, los mensajes nuevos dicen <em>Nuevo</em>. Si un dueño pidió una foto o un PDF, la tarjeta lo dice en naranja.</li>
+        <li><strong>Registro de cerradas.</strong> Cuando un dueño cierra una tarea, sale del tablero. Todas las cerradas quedan en este botón, por semana, con quién la cerró, cuánto tardó y si se resolvió o se descartó. Tiene un buscador.</li>
       </ol>
-      <p>Lo que más apura sale primero: lo vencido y lo devuelto, después lo que nadie tomó, lo que espera a los dueños y lo que está en curso por fecha. <strong>Para tomar una tarea</strong>, para anotar un avance o pedir el cierre, tocala y se abre.</p>
+      <p><strong>Todo se hace adentro de la tarea</strong>: tocala y se abre. En la computadora también se puede arrastrar una tarjeta a otra columna, y se abre la tarea para que escribas lo que corresponde (por ejemplo, qué hiciste para pedir el cierre).</p>
 
       <h3>Cargarle una tarea al encargado</h3>
-      <p>Los dueños tienen arriba el botón <strong>+ Nueva tarea</strong>. Escribís qué hay que hacer, si querés un detalle, el local (o ninguno, si es algo del grupo) y para cuándo. Al encargado le llega el aviso en el celular y la tarea sigue el mismo camino que las demás: la toma, la resuelve y un dueño aprueba el cierre. Si pusiste fecha, cuando la toma ya le aparece esa.</p>
+      <p>Los dueños tienen un <strong>+</strong> arriba de la columna <em>Sin empezar</em>. Escribís qué hay que hacer, si querés un detalle, el local (o ninguno, si es algo del grupo), el área, para cuándo y la prioridad. Al encargado le llega el aviso en el celular y la tarea sigue el mismo camino que las demás. <strong>La cierra el dueño que la cargó</strong>; las que salen de un reporte de turno las cierra cualquier dueño.</p>
 
       <h3>Qué levanta el sistema</h3>
       <div class="tabla-caja">
@@ -1176,9 +1164,9 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         <li><strong>La primera vez, la toma.</strong> Escribe qué va a hacer, elige para cuándo y toca <em>Tomar la tarea</em>.</li>
         <li><strong>Después, Mandar.</strong> Cada mensaje es un avance. Abajo del texto hay tres botones chicos que se abren solo si los tocás: <em>Cambiar la fecha</em> (lo que escribiste es el motivo, y cada cambio queda contado), <em>Hay un gasto</em> (monto y foto del presupuesto o del comprobante; ver abajo) y <em>Sumar foto</em>.</li>
         <li><strong>Terminé, pedir el cierre.</strong> Escribís <em>qué era y cómo se resolvió</em>, o tocás una idea como <em>Error de carga del vendedor</em>. Si corresponde, ponés el monto y <strong>de quién fue</strong>: eso va al historial de esa persona. Desde ahí tu reloj se frena y empieza el de los dueños.</li>
-        <li><strong>No hay nada que hacer.</strong> Se escribe por qué. El descarte también lo aprueba un dueño, y queda a la vista en el tablero.</li>
+        <li><strong>No hay nada que hacer.</strong> Se escribe por qué. El descarte también lo aprueba un dueño, y queda a la vista en Números.</li>
       </ul>
-      <p>Los dueños escriben en la misma conversación. Cuando la tarea espera aprobación tienen <em>Aprobar</em>, <em>Pedir foto o dato</em>, <em>No alcanza</em> y <em>Solo comentar</em>.</p>
+      <p>Los dueños escriben en la misma conversación. Mientras el encargado la resuelve, un dueño puede tocar <strong>Pedir foto o PDF</strong> y escribir qué necesita ver: <strong>hasta que el encargado la suba, no puede pedir el cierre</strong>. Cuando la tarea espera el cierre tienen <em>Aprobar</em>, <em>Pedir foto o dato</em>, <em>No alcanza</em> y <em>Solo comentar</em>.</p>
       <p><strong>Cada cosa que se escribe o cambia en una tarea les llega en un aviso a los cuatro dueños y al encargado.</strong> El aviso dice quién fue y si es dueño o encargado, por ejemplo <em>Martin Muscara (encargado) · 9 de Julio</em>.</p>
 
       <div class="aviso tip">
@@ -1209,14 +1197,14 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
     <!-- ══════════ APROBAR ══════════ -->
     <section class="seccion" id="aprobar">
       <p class="para-quien">Para los dueños</p>
-      <h2>Aprobar y el tablero</h2>
+      <h2>Aprobar y los números</h2>
       <p>
-        En <em>Tareas</em>, el filtro <strong>Por aprobar</strong> junta las tareas que el encargado
-        pidió cerrar. Los gastos de $ 100.000 o más que esperan respuesta salen en un recuadro amarillo
+        En <em>Tareas</em>, <strong>Para cerrar</strong> junta las tareas que el encargado
+        pidió cerrar y que te toca cerrar a vos: las de los reportes de turno y las que cargaste vos. Los gastos de $ 100.000 o más que esperan respuesta salen en un recuadro amarillo
         arriba de todo. Abrís cada uno y respondés:
       </p>
       <ul class="simple">
-        <li><strong>Aprobar.</strong> La tarea queda terminada. Si es un mantenimiento, sale de la lista de pendientes que ven los turnos.</li>
+        <li><strong>Aprobar.</strong> La tarea queda cerrada: sale del tablero y pasa al registro. Si es un mantenimiento, sale de la lista de pendientes que ven los turnos. Una tarea que cargó un dueño solo la puede aprobar ese dueño.</li>
         <li><strong>Pedir foto o dato.</strong> Escribís qué le pedís. Vuelve al encargado y le llega un aviso.</li>
         <li><strong>No alcanza.</strong> Escribís por qué. Vuelve al encargado como abierta.</li>
       </ul>
@@ -1239,8 +1227,8 @@ table.m-tabla tr:last-child td{ border-bottom: 0; }
         un faltante.
       </p>
 
-      <h3>El tablero</h3>
-      <p>En <strong>Tareas</strong>, la solapa <strong>Tablero</strong> (solo dueños):</p>
+      <h3>Los números</h3>
+      <p>En <strong>Tareas</strong>, la solapa <strong>Números</strong> (solo dueños):</p>
       <ul class="simple">
         <li>Arriba: tareas abiertas, vencidas, el tiempo promedio del encargado y el de los dueños, cuántas pidió cerrar en la fecha que él mismo puso y cuántas se descartaron.</li>
         <li>Las abiertas de la más vieja a la más nueva, con lo que va a hacer y los cambios de fecha.</li>

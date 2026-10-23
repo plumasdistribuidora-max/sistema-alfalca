@@ -7,8 +7,8 @@ import { esDueno } from '../utils/roles';
 // Si al usuario le queda una sola solapa, no se dibuja la barra.
 export const GRUPOS = {
   tareas: [
-    { to: '/tareas',  label: 'Bandeja', end: true },
-    { to: '/tablero', label: 'Tablero', soloDueno: true },
+    { to: '/tareas',  label: 'Tablero', end: true },
+    { to: '/tablero', label: 'Números', soloDueno: true },
   ],
   fudo: [
     { to: '/ventas/importar',   label: 'Subir Excel' },

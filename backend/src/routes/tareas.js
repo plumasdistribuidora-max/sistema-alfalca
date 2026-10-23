@@ -67,7 +67,9 @@ const SELECT_TAREA = `
          t.reporte_id, t.estado, t.accion, t.plazo::text AS plazo, t.tomada_por, t.tomada_at,
          t.cierre_tipo, t.resultado, t.resultado_monto, t.afectado_usuario_id,
          t.pedido_cierre_at, t.terminada_por, t.terminada_at, t.causa_id, t.created_at, t.updated_at,
+         t.area, t.prioridad,
          l.nombre AS local_nombre,
+         ec.usuario_id AS cargada_por_id, uc.nombre AS cargada_por_nombre,
          ut.nombre AS tomada_por_nombre, ua.nombre AS afectado_nombre, uf.nombre AS terminada_por_nombre,
          (SELECT COUNT(*) FROM tarea_eventos e WHERE e.tarea_id = t.id AND e.tipo = 'plazo')::int AS cambios_plazo,
          (SELECT COALESCE(SUM(g.monto), 0) FROM tarea_gastos g
@@ -77,21 +79,49 @@ const SELECT_TAREA = `
   LEFT JOIN usuarios ut ON ut.id = t.tomada_por
   LEFT JOIN usuarios ua ON ua.id = t.afectado_usuario_id
   LEFT JOIN usuarios uf ON uf.id = t.terminada_por
+  LEFT JOIN LATERAL (SELECT e.usuario_id FROM tarea_eventos e WHERE e.tarea_id = t.id AND e.tipo = 'encargo' ORDER BY e.id LIMIT 1) ec ON true
+  LEFT JOIN usuarios uc ON uc.id = ec.usuario_id
 `;
 
-// Le agrega a cada tarea sus relojes, si está vencida y el último movimiento.
-async function enriquecer(tareas) {
+// Lo que un dueño pidió con "Pedir foto o PDF" y el encargado todavía no subió. Mientras
+// esté pendiente, el encargado no puede pedir el cierre (Martín, 23/10/2026).
+function pedidoFoto(evs, adjuntos) {
+  const p = [...evs].reverse().find(e => e.tipo === 'pidio_foto');
+  if (!p) return null;
+  const subio = adjuntos.some(a => a.subido_por_rol !== ROLES.ADMIN && new Date(a.created_at) > new Date(p.created_at));
+  return subio ? null : { quien: p.usuario, texto: p.texto, at: p.created_at };
+}
+
+// Le agrega a cada tarea sus relojes, si está vencida y el último movimiento. Con el
+// usuario que mira, también lo que otros hicieron desde la última vez que la abrió.
+async function enriquecer(tareas, usuarioId = null) {
   if (!tareas.length) return tareas;
+  const ids = tareas.map(t => t.id);
   const eventos = (await pool.query(`
-    SELECT e.id, e.tarea_id, e.tipo, e.texto, e.datos, e.created_at, u.nombre AS usuario
+    SELECT e.id, e.tarea_id, e.usuario_id, e.tipo, e.texto, e.datos, e.created_at, u.nombre AS usuario
     FROM tarea_eventos e LEFT JOIN usuarios u ON u.id = e.usuario_id
     WHERE e.tarea_id = ANY($1) ORDER BY e.created_at, e.id
-  `, [tareas.map(t => t.id)])).rows;
+  `, [ids])).rows;
+  const adjuntos = (await pool.query(`
+    SELECT a.tarea_id, a.created_at, u.rol AS subido_por_rol
+    FROM tarea_adjuntos a LEFT JOIN usuarios u ON u.id = a.subido_por WHERE a.tarea_id = ANY($1)
+  `, [ids])).rows;
+  const vistas = usuarioId ? Object.fromEntries((await pool.query(
+    'SELECT tarea_id, visto_at FROM tarea_vistas WHERE usuario_id = $1 AND tarea_id = ANY($2)', [usuarioId, ids]
+  )).rows.map(v => [v.tarea_id, new Date(v.visto_at)])) : {};
   const hoy = T.hoyMendoza();
   return tareas.map(t => {
     const evs = eventos.filter(e => e.tarea_id === t.id);
+    // Sin leer: lo que hizo otra persona (no el sistema) después de la última vez que la abrí.
+    const nuevos = usuarioId ? evs.filter(e => e.usuario_id && e.usuario_id !== usuarioId
+      && (!vistas[t.id] || new Date(e.created_at) > vistas[t.id])) : [];
+    const area = T.areaDe(t);
     return {
       ...t,
+      area, area_label: T.AREAS[area],
+      pedido_foto: pedidoFoto(evs, adjuntos.filter(a => a.tarea_id === t.id)),
+      sin_leer: { total: nuevos.length, comentarios: nuevos.filter(e => (e.texto || '').trim()).length },
+      mensajes: evs.filter(e => e.usuario_id && (e.texto || '').trim()).length,
       gastado: n(t.gastado),
       resultado_monto: t.resultado_monto === null ? null : n(t.resultado_monto),
       tipo_label: T.TIPOS[t.tipo]?.label || t.tipo,
@@ -132,13 +162,13 @@ router.get('/opciones', requireAuth, (_req, res) => res.json({ ok: true, data: T
 // ── GET / (bandeja) ──────────────────────────────────────────────────────────
 // Lo abierto, lo que espera a los dueños, lo terminado de los últimos días y los gastos
 // que esperan aprobación.
-router.get('/', requireAuth, soloEncargado, async (_req, res) => {
+router.get('/', requireAuth, soloEncargado, async (req, res) => {
   try {
     const tareas = await enriquecer((await pool.query(`
       ${SELECT_TAREA}
       WHERE t.estado <> 'terminada' OR t.terminada_at > NOW() - INTERVAL '3 days'
       ORDER BY t.created_at
-    `)).rows);
+    `)).rows, req.user.id);
 
     const gastos = (await pool.query(`
       SELECT g.id, g.tarea_id, g.concepto, g.monto, g.estado, g.created_at,
@@ -151,6 +181,29 @@ router.get('/', requireAuth, soloEncargado, async (_req, res) => {
   } catch (err) {
     console.error('[tareas GET]', err);
     fail(res, 500, 'No se pudo cargar la bandeja');
+  }
+});
+
+// ── GET /registro ────────────────────────────────────────────────────────────
+// Las tareas cerradas: salen del tablero y quedan acá, de la más nueva a la más vieja.
+router.get('/registro', requireAuth, soloEncargado, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      ${SELECT_TAREA}
+      WHERE t.estado = 'terminada'
+      ORDER BY t.terminada_at DESC NULLS LAST, t.id DESC
+    `);
+    res.json({ ok: true, data: rows.map(t => {
+      const area = T.areaDe(t);
+      return {
+        id: t.id, titulo: t.titulo, tipo: t.tipo, fecha: t.fecha, local_nombre: t.local_nombre, local_corto: corto(t.local_nombre),
+        area, area_label: T.AREAS[area], created_at: t.created_at, terminada_at: t.terminada_at,
+        terminada_por_nombre: t.terminada_por_nombre, cierre_tipo: t.cierre_tipo, sola: !!t.causa_id && !t.terminada_por,
+      };
+    }) });
+  } catch (err) {
+    console.error('[tareas/registro]', err);
+    fail(res, 500, 'No se pudo cargar el registro');
   }
 });
 
@@ -542,7 +595,7 @@ router.post('/generar', requireAuth, soloEncargado, async (_req, res) => {
 // ── POST /nueva (dueños) ─────────────────────────────────────────────────────
 // Un dueño le carga una tarea al encargado. Sigue el mismo camino que las alertas:
 // el encargado la toma, la resuelve y un dueño la aprueba.
-// { titulo, texto?, local_id?, para_cuando? }
+// { titulo, texto?, local_id?, para_cuando?, area?, prioridad? }
 router.post('/nueva', requireAuth, requireAdmin, async (req, res) => {
   try {
     const titulo = escrito(req.body.titulo, 200);
@@ -552,12 +605,14 @@ router.post('/nueva', requireAuth, requireAdmin, async (req, res) => {
     const hoy = T.hoyMendoza();
     const paraCuando = /^\d{4}-\d{2}-\d{2}$/.test(req.body.para_cuando || '') ? req.body.para_cuando : null;
     if (paraCuando && paraCuando < hoy) return fail(res, 400, 'La fecha ya pasó');
+    const area = T.AREAS[req.body.area] ? req.body.area : null;
+    const prioridad = ['alta', 'media', 'baja'].includes(req.body.prioridad) ? req.body.prioridad : null;
 
     const { rows } = await pool.query(`
-      INSERT INTO tareas (tipo, local_id, fecha, clave, titulo, detalle)
-      VALUES ('encargo', $1, $2, $3, $4, $5::jsonb) RETURNING id
+      INSERT INTO tareas (tipo, local_id, fecha, clave, titulo, detalle, area, prioridad)
+      VALUES ('encargo', $1, $2, $3, $4, $5::jsonb, $6, $7) RETURNING id
     `, [localId, hoy, `encargo:${req.user.id}:${Date.now()}`, titulo,
-        JSON.stringify({ texto, pedido_por: req.user.nombre, para_cuando: paraCuando })]);
+        JSON.stringify({ texto, pedido_por: req.user.nombre, para_cuando: paraCuando }), area, prioridad]);
     const id = rows[0].id;
     await evento(id, req.user.id, 'encargo', texto || null);
 
@@ -576,8 +631,16 @@ router.get('/:id', requireAuth, soloEncargado, async (req, res) => {
     if (!t) return fail(res, 404, 'No existe esa tarea');
     const [tarea] = await enriquecer([t]);
 
+    // Abrirla la deja vista. Lo que otros escribieron desde la vez anterior se marca como nuevo.
+    const vistaAnterior = (await pool.query(`
+      WITH previa AS (SELECT visto_at FROM tarea_vistas WHERE usuario_id = $1 AND tarea_id = $2)
+      INSERT INTO tarea_vistas (usuario_id, tarea_id, visto_at) VALUES ($1, $2, NOW())
+      ON CONFLICT (usuario_id, tarea_id) DO UPDATE SET visto_at = NOW()
+      RETURNING (SELECT visto_at FROM previa) AS antes
+    `, [req.user.id, t.id])).rows[0]?.antes || null;
+
     const eventos = (await pool.query(`
-      SELECT e.id, e.tipo, e.texto, e.datos, e.created_at, u.nombre AS usuario, u.rol AS usuario_rol
+      SELECT e.id, e.usuario_id, e.tipo, e.texto, e.datos, e.created_at, u.nombre AS usuario, u.rol AS usuario_rol
       FROM tarea_eventos e LEFT JOIN usuarios u ON u.id = e.usuario_id
       WHERE e.tarea_id = $1 ORDER BY e.created_at, e.id
     `, [t.id])).rows;
@@ -621,6 +684,7 @@ router.get('/:id', requireAuth, soloEncargado, async (req, res) => {
       ok: true,
       data: {
         tarea,
+        visto_antes: vistaAnterior,
         aprobar_igual: negativa ? { quien: negativa.nombre, tipo: negativa.tipo } : null,
         eventos: eventos.map(e => ({ ...e, adjuntos: adjuntos.filter(a => a.evento_id === e.id) })),
         gastos, personas, reportes, causa,
@@ -699,6 +763,10 @@ router.post('/:id/mensaje', requireAuth, encargadoNada, upload.single('foto'), a
     const afectado = req.body.afectado_usuario_id ? Number(req.body.afectado_usuario_id) : null;
     if (cerrar) {
       if ((tipo?.con_monto || []).includes(texto) && !monto) return fail(res, 400, 'Poné el monto');
+      const [conPedido] = await enriquecer([t]);
+      if (conPedido.pedido_foto && !req.file) {
+        return fail(res, 400, `${conPedido.pedido_foto.quien} pidió una foto o PDF: sumala para pedir el cierre`);
+      }
       // Sin comprobante no se cierra: lo que se gastó tiene que quedar registrado.
       const gastos = (await pool.query(`
         SELECT g.id, g.concepto, g.estado,
@@ -862,6 +930,25 @@ router.post('/:id/comentar', requireAuth, soloEncargado, async (req, res) => {
   }
 });
 
+// ── POST /:id/pedir-foto (dueños) ────────────────────────────────────────────
+// Un dueño le pide al encargado una foto o un PDF mientras la está resolviendo. Hasta
+// que la suba no puede pedir el cierre. Si ya esperaba el cierre, se usa "Pedir foto o
+// dato" de la respuesta, que además la devuelve.  { texto }
+router.post('/:id/pedir-foto', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const t = await cargarParaEditar(req, res, ['nueva', 'en_curso']); if (!t) return;
+    const texto = escrito(req.body.texto, 300);
+    if (texto.length < 3) return fail(res, 400, 'Escribí qué necesitás ver');
+    await evento(t.id, req.user.id, 'pidio_foto', texto);
+    await pool.query('UPDATE tareas SET updated_at = NOW() WHERE id = $1', [t.id]);
+    avisarTodos(t, req.user, `pide una foto o PDF: "${texto.slice(0, 160)}"`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[tareas/pedir-foto]', err);
+    fail(res, 500, 'No se pudo mandar el pedido');
+  }
+});
+
 // ── Respuestas de los dueños ─────────────────────────────────────────────────
 
 // Si un dueño rechazó o pidió más, otro dueño puede aprobarla igual: quizás sabe algo
@@ -892,6 +979,11 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
     }
 
     if (accion === 'aprobar') {
+      // Lo que cargó un dueño lo cierra ese dueño; lo que salió de un reporte, cualquiera
+      // (pedido de los dueños, 22/10/2026).
+      if (t.tipo === 'encargo' && t.cargada_por_id && t.cargada_por_id !== req.user.id) {
+        return fail(res, 403, `La cierra ${t.cargada_por_nombre}, que fue quien la cargó`);
+      }
       let causaId = null;
       if (req.body.causa_conocida && t.tipo === 'ventas' && t.cierre_tipo === 'resultado' && t.local_id) {
         const ya = (await pool.query(

@@ -132,9 +132,21 @@ const MOTIVOS_PLAZO = [
   'Otro motivo',
 ];
 
+// Las áreas del pedido de los dueños (22/10/2026). Las tareas que levanta el sistema
+// toman la de su tipo; las que carga un dueño, la que él elige.
+const AREAS = {
+  ventas: 'Ventas', cmv: 'CMV', personal: 'Personal', gastos_fijos: 'Gastos fijos',
+  marketing: 'Marketing', operacion: 'Operación', administracion: 'Administración',
+};
+const AREA_DE_TIPO = {
+  no_cargo: 'personal', ausencia: 'personal', ventas: 'administracion', cafe: 'cmv',
+  vencimiento: 'cmv', mantenimiento: 'operacion', faltante: 'operacion', queja: 'ventas', encargo: 'operacion',
+};
+const areaDe = t => t.area || AREA_DE_TIPO[t.tipo] || 'operacion';
+
 const opciones = () => ({
   tipos: TIPOS, motivos_descarte: MOTIVOS_DESCARTE, avances: AVANCES,
-  motivos_plazo: MOTIVOS_PLAZO, tope_gasto: TOPE_GASTO, inicio: INICIO,
+  motivos_plazo: MOTIVOS_PLAZO, tope_gasto: TOPE_GASTO, inicio: INICIO, areas: AREAS,
 });
 
 // ── Relojes ──────────────────────────────────────────────────────────────────
@@ -186,6 +198,6 @@ function fechaStr(d) {
 
 module.exports = {
   INICIO, TOPE_GASTO, DIAS_VENCIMIENTO, KG_CAFE,
-  TIPOS, MOTIVOS_DESCARTE, AVANCES, MOTIVOS_PLAZO, opciones,
+  TIPOS, MOTIVOS_DESCARTE, AVANCES, MOTIVOS_PLAZO, AREAS, areaDe, opciones,
   relojes, hoyMendoza, diasEntre, diasVencida, fechaStr,
 };

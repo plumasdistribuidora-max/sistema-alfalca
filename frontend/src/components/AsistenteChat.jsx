@@ -240,7 +240,7 @@ export default function AsistenteChat() {
           ) : (<>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-ahg-bg/40">
             {mensajes.length === 0 && (
-              <div className="flex justify-center pt-2 pb-1"><AvatarClaudia tamano={112} grande /></div>
+              <div className="flex justify-center pt-2 pb-1"><AvatarClaudia tamano={112} grande saludarAlAparecer /></div>
             )}
             {mensajes.length === 0 && (
               <div className="max-w-[92%] px-3 py-2 rounded-2xl rounded-bl-md bg-white text-ahg-text border border-ahg-accent/40 text-sm leading-relaxed">
@@ -304,7 +304,7 @@ export default function AsistenteChat() {
         {abierto ? (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
         ) : (
-          <AvatarClaudia tamano={56} pensando={pensando} />
+          <AvatarClaudia tamano={56} pensando={pensando} saludoCada={3 * 60 * 1000} />
         )}
       </button>
     </>

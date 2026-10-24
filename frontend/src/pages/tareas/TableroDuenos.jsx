@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
-import { ddmm, hoyStr, cuando, duracion, Cargando, MensajeError, Titulo } from './comunes';
+import { ddmm, hoyStr, cuando, duracion, Cargando, MensajeError, Titulo, Adjunto } from './comunes';
+import { comprimir } from '../../utils/fotos';
 import {
   IcoCal, IcoFlag, IcoCom, IcoFiltro, IcoArch, IcoMas, COLUMNAS as COLS, fechaLocal, lunesDe, AZUL,
   Vistas, BotonBarra, Columna, Tablero, marcoTarjeta, SinLeer, PuntoSinLeer, Modal,
@@ -82,7 +83,7 @@ function OpcionesNegocio({ d, conTodos }) {
 }
 const partirNegocio = v => { const [negocio, local] = String(v).split(':'); return { negocio, local_id: local ? Number(local) : null }; };
 
-function NuevaTarea({ d, user, microInicial, onCerrar, onListo }) {
+export function NuevaTarea({ d, user, microInicial, onCerrar, onListo }) {
   const [f, setF] = useState({ titulo: '', detalle: '', responsable_id: user.id, negocio: 'entre_dos', area: 'operacion', micro: microInicial || '', plazo: '', prioridad: 'media' });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -144,16 +145,22 @@ function NuevaTarea({ d, user, microInicial, onCerrar, onListo }) {
   );
 }
 
-function NuevoMicro({ d, user, onCerrar, onListo }) {
+// También se usa en Dueños → Objetivos, con el mes que se está planificando.
+// inicial: el negocio y los locales de la unidad desde la que se carga.
+export function NuevoMicro({ d, user, mes, inicial, onCerrar, onListo }) {
   const hoy = hoyStr();
-  const [f, setF] = useState({ nombre: '', dueno_id: user.id, negocio: 'entre_dos', local_ids: [], area: 'cmv', meta: '', mes: hoy.slice(0, 7) });
+  const [f, setF] = useState({ nombre: '', dueno_id: user.id, negocio: inicial?.negocio || 'entre_dos', local_ids: inicial?.local_ids || [], area: 'cmv', meta: '', aporte: '', avance: '', mes: mes || hoy.slice(0, 7) });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const campo = k => e => setF(v => ({ ...v, [k]: e.target.value }));
   const unidad = id => setF(v => ({ ...v, local_ids: v.local_ids.includes(id) ? v.local_ids.filter(x => x !== id) : [...v.local_ids, id] }));
   async function guardar(e) {
     e.preventDefault(); setGuardando(true); setError('');
-    try { await api.post('/tareas-duenos/microobjetivos', f); onListo(); }
+    // "+1" son puntos de rentabilidad; "$ 500.000" (o un número grande) son pesos de ventas.
+    const n = Number(String(f.aporte).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
+    const enPesos = /\$/.test(f.aporte) || Math.abs(n) >= 1000;
+    const cuerpo = { ...f, aporte_pts: !f.aporte || enPesos ? '' : String(f.aporte).replace(/[^\d,.-]/g, ''), aporte_monto: f.aporte && enPesos ? n : '' };
+    try { await api.post('/tareas-duenos/microobjetivos', cuerpo); onListo(); }
     catch (err) { setError(err.response?.data?.error || 'No se pudo guardar'); setGuardando(false); }
   }
   const etiq = 'text-xs text-ahg-text/60 grid gap-1';
@@ -199,9 +206,18 @@ function NuevoMicro({ d, user, onCerrar, onListo }) {
             </div>
           </fieldset>
         )}
-        <label className={etiq}>Indicador y meta (opcional)
-          <input id="nm-meta" className="input" maxLength={200} value={f.meta} onChange={campo('meta')} placeholder="Ej.: CMV de 38 % a 37 %" />
+        <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+          <label className={etiq}>Indicador y meta (opcional)
+            <input id="nm-meta" className="input" maxLength={200} value={f.meta} onChange={campo('meta')} placeholder="Ej.: CMV de 38 % a 37 %" />
+          </label>
+          <label className={etiq}>Cuánto aporta
+            <input id="nm-aporte" className="input" value={f.aporte} onChange={campo('aporte')} placeholder="+1 o $ 500.000" />
+          </label>
+        </div>
+        <label className={etiq}>Cómo va (opcional, se actualiza durante el mes)
+          <input id="nm-avance" className="input" maxLength={120} value={f.avance} onChange={campo('avance')} placeholder="Ej.: 0 de 5 clientes" />
         </label>
+        <p className="text-[11px] text-ahg-text/50 -mt-1">Si el objetivo es de rentabilidad, el aporte va en puntos (+1 = un punto más de ganancia sobre la venta neta). Si es de ventas, en pesos. Máximo 3 microobjetivos por dueño por mes.</p>
         {error && <p className="text-sm text-red-700">{error}</p>}
         <div className="flex gap-2">
           <button type="submit" className="btn-primary" disabled={guardando || f.nombre.trim().length < 3}>{guardando ? 'Guardando…' : 'Guardar'}</button>
@@ -212,9 +228,9 @@ function NuevoMicro({ d, user, onCerrar, onListo }) {
   );
 }
 
-// La ficha de una tarea de dueños: los datos se corrigen ahí mismo, y abajo el historial y
-// lo que puede hacer quien mira.
-function Ficha({ id, d, user, onCerrar, onCambio }) {
+// La ficha de una tarea de dueños: arriba los datos (se corrigen ahí mismo) y abajo la
+// conversación, con las fotos y los PDF que suben los dueños (24/10/2026).
+export function Ficha({ id, d, user, onCerrar, onCambio }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [texto, setTexto] = useState('');
@@ -222,6 +238,8 @@ function Ficha({ id, d, user, onCerrar, onCambio }) {
   const [cambiaFecha, setCambiaFecha] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const [archivos, setArchivos] = useState([]);
+  const [verDatos, setVerDatos] = useState(false);
 
   function cargar() {
     api.get(`/tareas-duenos/${id}`).then(r => { setData(r.data.data); setPlazo(r.data.data.tarea.plazo || ''); setError(''); })
@@ -232,8 +250,11 @@ function Ficha({ id, d, user, onCerrar, onCambio }) {
   async function accion(a, extra = {}) {
     setOcupado(true); setError('');
     try {
-      await api.post(`/tareas-duenos/${id}/accion`, { accion: a, texto, ...extra });
-      setTexto(''); onCambio(); if (a === 'cerrar') onCerrar(); else cargar();
+      const fd = new FormData();
+      Object.entries({ accion: a, texto, ...extra }).forEach(([k, v]) => v != null && fd.append(k, v));
+      for (const f of archivos) fd.append('archivos', /^image\//.test(f.type) ? await comprimir(f) : f, f.name);
+      await api.post(`/tareas-duenos/${id}/accion`, fd);
+      setTexto(''); setArchivos([]); onCambio(); if (a === 'cerrar') onCerrar(); else cargar();
     } catch (err) { setError(err.response?.data?.error || 'No se pudo guardar'); }
     finally { setOcupado(false); }
   }
@@ -272,7 +293,13 @@ function Ficha({ id, d, user, onCerrar, onCambio }) {
       </div>
 
       <div className="p-5 grid gap-4 max-h-[calc(100vh-180px)] overflow-y-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-ahg-text/60">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ahg-text/65">
+          <span>La hace <b className="text-ahg-text">{t.responsable}</b></span>
+          {t.microobjetivo_nombre && <span>◎ {t.microobjetivo_nombre}</span>}
+          <span className={t.vencida ? 'text-red-700 font-semibold' : ''}>{t.plazo ? `Para el ${ddmm(t.plazo)}` : 'Sin fecha'}</span>
+          <button type="button" className="underline ml-auto" onClick={() => setVerDatos(x => !x)} aria-expanded={verDatos}>{verDatos ? 'Ocultar datos' : 'Cambiar datos'}</button>
+        </div>
+        {verDatos && <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-ahg-text/60">
           <label className="grid gap-1">La hace
             <select id="f-resp" className={sel} disabled={cerrada} value={t.responsable_id} onChange={e => editar({ responsable_id: e.target.value })}>
               {d.duenos.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
@@ -303,7 +330,7 @@ function Ficha({ id, d, user, onCerrar, onCambio }) {
               {!cerrada && <button type="button" className="ml-2 underline text-xs text-ahg-text/55" onClick={() => setCambiaFecha(x => !x)}>Cambiar</button>}
             </span>
           </div>
-        </div>
+        </div>}
 
         {cambiaFecha && (
           <div className="rounded-xl border border-[#2d68b0]/50 p-3 grid gap-2 bg-ahg-bg/50">
@@ -324,21 +351,29 @@ function Ficha({ id, d, user, onCerrar, onCambio }) {
           </div>
         )}
 
-        <div>
-          <p className="text-[13px] font-semibold mb-2">Historial</p>
-          <div className="space-y-2">
-            {data.eventos.map(e => {
-              const extra = evTexto(e);
-              const n = nuevo(e);
-              return (
-                <div key={e.id} className={`rounded-xl px-3 py-2 text-sm border ${n ? 'border-[#2d68b0]/60 bg-[#e2ecf8]' : e.tipo === 'comentario' ? 'bg-ahg-bg/70 border-transparent' : 'border-ahg-accent/40'}`}>
-                  <p className="text-[11px] text-ahg-text/55"><b className="text-ahg-text">{e.usuario || 'Sistema'}</b> · {cuando(e.created_at)}{n && <b className="ml-1.5" style={{ color: AZUL }}>Nuevo</b>}</p>
-                  {extra && <p className="text-xs font-semibold text-ahg-text/75 mt-0.5">{extra}</p>}
-                  {e.texto && <p className="whitespace-pre-line break-words mt-0.5">{e.texto}</p>}
+        <div className="rounded-xl bg-ahg-bg/70 p-3 flex flex-col gap-2.5" aria-label="Conversación">
+          {data.eventos.map(e => {
+            const extra = evTexto(e);
+            const n = nuevo(e);
+            const adj = e.adjuntos || [];
+            // Los pasos (la tomó, pidió el cierre, la cerró…) van como renglón chico; lo que
+            // alguien escribió o subió, como mensaje.
+            if (!e.texto && !adj.length) {
+              return <p key={e.id} className="self-center text-[11.5px] text-ahg-text/60 bg-white border border-ahg-accent/40 rounded-full px-3 py-0.5 text-center">
+                <b className="text-ahg-text/80">{e.usuario || 'Sistema'}</b> · {extra || 'Cambio'} · {cuando(e.created_at)}</p>;
+            }
+            const mio = e.usuario_id === user.id;
+            return (
+              <div key={e.id} className={`max-w-[85%] grid gap-1 ${mio ? 'self-end text-right' : 'self-start'}`}>
+                <p className="text-[11px] text-ahg-text/55">{mio ? 'Vos' : <b className="text-ahg-text">{e.usuario || 'Sistema'}</b>} · {cuando(e.created_at)}{n && <b className="ml-1.5" style={{ color: AZUL }}>Nuevo</b>}</p>
+                <div className={`rounded-2xl px-3 py-2 text-sm text-left border ${n ? 'border-[#2d68b0]/60 bg-[#e2ecf8]' : mio ? 'bg-[#e9ebe6] border-[#d5d8d0] rounded-br-md' : 'bg-white border-ahg-accent/40 rounded-bl-md'}`}>
+                  {extra && <p className="text-xs font-semibold text-ahg-text/70">{extra}</p>}
+                  {e.texto && <p className="whitespace-pre-line break-words">{e.texto}</p>}
+                  {adj.length > 0 && <div className="flex gap-2 flex-wrap pt-1.5">{adj.map(x => <Adjunto key={x.id} a={{ ...x, rol: 'foto' }} base="/tareas-duenos/adjuntos" />)}</div>}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
 
         {!cerrada && (
@@ -348,22 +383,35 @@ function Ficha({ id, d, user, onCerrar, onCambio }) {
             {!yoHago && t.estado === 'por_aprobar' && <p className="text-sm font-semibold">{t.responsable} dice que terminó. Cerrala o devolvésela con lo que falta.</p>}
             {yoHago && t.estado === 'por_aprobar' && <p className="text-sm text-ahg-text/70">Esperando que otro dueño la cierre.</p>}
             <textarea id="f-texto" className="input" rows={2} maxLength={1000} value={texto} onChange={e => setTexto(e.target.value)}
-                      placeholder={yoHago && t.estado === 'en_curso' ? 'Qué hiciste, qué falta…' : 'Escribí un comentario'} />
+                      placeholder={yoHago && t.estado === 'en_curso' ? 'Qué hiciste, qué falta…' : 'Escribí un mensaje'} />
+            {archivos.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">{archivos.map((f, i) => (
+                <span key={i} className="text-xs bg-ahg-bg border border-ahg-accent/50 rounded-full pl-2.5 pr-1 py-0.5 inline-flex items-center gap-1">
+                  {f.type === 'application/pdf' ? '📄' : '📷'} {f.name}
+                  <button type="button" aria-label={`Sacar ${f.name}`} className="w-4 h-4 rounded-full hover:bg-ahg-accent/50 leading-none" onClick={() => setArchivos(a => a.filter((_, j) => j !== i))}>×</button>
+                </span>))}</div>
+            )}
             {yoHago && t.estado === 'nueva' && (
               <label className="text-xs text-ahg-text/60 grid gap-1 w-44">¿Para cuándo?
                 <input id="f-tomar-plazo" type="date" className="input !py-1.5" min={hoyStr()} value={plazo} onChange={e => setPlazo(e.target.value)} />
               </label>
             )}
             {error && <p className="text-sm text-red-700">{error}</p>}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <label className="btn-secondary !py-1.5 cursor-pointer text-sm">📷 Foto
+                <input id="f-foto" type="file" accept="image/*" multiple className="sr-only" onChange={e => { setArchivos(a => [...a, ...e.target.files].slice(0, 5)); e.target.value = ''; }} />
+              </label>
+              <label className="btn-secondary !py-1.5 cursor-pointer text-sm">📄 PDF
+                <input id="f-pdf" type="file" accept="application/pdf" multiple className="sr-only" onChange={e => { setArchivos(a => [...a, ...e.target.files].slice(0, 5)); e.target.value = ''; }} />
+              </label>
+              <span className="flex-1" />
               {yoHago && t.estado === 'nueva' && <button className="btn-primary" disabled={ocupado || !plazo} onClick={() => accion('tomar', { plazo })}>Tomarla</button>}
-              {yoHago && t.estado === 'en_curso' && <button className="btn-primary" disabled={ocupado || texto.trim().length < 3} onClick={() => accion('pedir_cierre')}>Terminé · pedir cierre</button>}
+              {yoHago && t.estado === 'en_curso' && <button className="btn-secondary" disabled={ocupado || texto.trim().length < 3} onClick={() => accion('pedir_cierre')}>Terminé · pedir cierre</button>}
               {!yoHago && t.estado === 'por_aprobar' && <>
+                <button className="btn-secondary" disabled={ocupado || texto.trim().length < 3} onClick={() => accion('devolver')}>Devolver</button>
                 <button className="btn-primary !bg-green-700 hover:!bg-green-800" disabled={ocupado} onClick={() => accion('cerrar')}>Cerrar tarea</button>
-                <button className="btn-secondary" disabled={ocupado || texto.trim().length < 3} onClick={() => accion('devolver')}>Devolver a En proceso</button>
               </>}
-              <button className={yoHago && t.estado !== 'por_aprobar' ? 'btn-secondary' : (!yoHago && t.estado === 'por_aprobar' ? 'text-sm underline text-ahg-text/60 ml-auto' : 'btn-primary')}
-                      disabled={ocupado || !texto.trim()} onClick={() => accion('comentar')}>Comentar</button>
+              <button className="btn-primary" disabled={ocupado || (!texto.trim() && !archivos.length)} onClick={() => accion('comentar')}>{ocupado ? 'Enviando…' : 'Enviar'}</button>
             </div>
             {!yoHago && t.estado === 'por_aprobar' && <p className="text-xs text-ahg-text/50">Para devolverla, escribí arriba qué falta. Al cerrarla sale del tablero y queda en el registro.</p>}
           </div>

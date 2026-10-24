@@ -11,8 +11,30 @@ const T       = require('../utils/tareas');
 const avisos  = require('../services/avisos');
 const tareasAvisos = require('../services/tareasAvisos');
 const { corto } = require('../services/alertas');
+const multer  = require('multer');
+const { uploadToR2, getFromR2 } = require('../config/r2');
 
 const router = express.Router();
+// Fotos (el frontend las achica) y PDF, como en las tareas del encargado. Hasta 5 por mensaje.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 15 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => {
+    if (!/^image\//.test(file.mimetype) && file.mimetype !== 'application/pdf') return cb(new Error('Solo se pueden subir fotos o PDF'));
+    cb(null, true);
+  },
+});
+const conArchivos = (req, res, next) => upload.array('archivos', 5)(req, res, err => (err ? fail(res, 400, err.message || 'No se pudo subir el archivo') : next()));
+
+async function subirAdjuntos(files, tareaId, eventoId, usuarioId) {
+  for (const [i, file] of (files || []).entries()) {
+    const ext = file.mimetype === 'application/pdf' ? 'pdf' : (file.mimetype.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi, '');
+    const key = `tareas-duenos/${tareaId}/${Date.now()}-${i}.${ext}`;
+    await uploadToR2(key, file.buffer, file.mimetype);
+    await pool.query(`INSERT INTO tarea_duenos_adjuntos (tarea_id, evento_id, r2_key, mime, nombre, tamano, subido_por)
+                      VALUES ($1,$2,$3,$4,$5,$6,$7)`, [tareaId, eventoId, key, file.mimetype, String(file.originalname || '').slice(0, 200) || null, file.size, usuarioId]);
+  }
+}
 const fail = (res, status, error) => res.status(status).json({ ok: false, error });
 const escrito = (v, max = 300) => String(v || '').trim().slice(0, max);
 const esFecha = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '');
@@ -20,6 +42,11 @@ const esFecha = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '');
 const NEGOCIOS = { entre_dos: 'Entre Dos', kankay: 'Kankay', senzen: 'Senzen', general: 'General' };
 const ESTADOS = ['nueva', 'en_curso', 'por_aprobar', 'terminada'];
 const nombreCorto = n => String(n || '').replace(/\s*\(.*\)\s*$/, '');
+const MAX_MICROS = 3;
+// Puntos de rentabilidad que aporta una palanca ("+1" = un punto más de ganancia sobre la venta).
+// Pesos que aporta una palanca de ventas ("$ 1.500.000" → 1500000).
+const monto = v => { const x = Number(String(v ?? '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')); return v === '' || v == null || !Number.isFinite(x) || x === 0 ? null : Math.round(x); };
+const aporte = v => { const x = Number(String(v ?? '').replace(',', '.')); return v === '' || v == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100; };
 
 const SELECT = `
   SELECT t.id, t.titulo, t.detalle, t.responsable_id, t.negocio, t.local_id, t.area, t.microobjetivo_id,
@@ -69,9 +96,10 @@ async function tareaPorId(id) {
 }
 
 async function evento(tareaId, usuarioId, tipo, texto, datos = {}) {
-  await pool.query('INSERT INTO tarea_duenos_eventos (tarea_id, usuario_id, tipo, texto, datos) VALUES ($1,$2,$3,$4,$5::jsonb)',
+  const { rows } = await pool.query('INSERT INTO tarea_duenos_eventos (tarea_id, usuario_id, tipo, texto, datos) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id',
     [tareaId, usuarioId, tipo, texto || null, JSON.stringify(datos)]);
   await pool.query('UPDATE tareas_duenos SET updated_at = NOW() WHERE id = $1', [tareaId]);
+  return rows[0].id;
 }
 
 function avisar(t, quien, tema, texto) {
@@ -81,7 +109,7 @@ function avisar(t, quien, tema, texto) {
 async function microobjetivos() {
   const { rows } = await pool.query(`
     SELECT m.id, m.nombre, m.dueno_id, u.nombre AS dueno_nombre, m.negocio, m.local_ids, m.area, m.meta,
-           m.mes::text AS mes, m.semaforo, m.nota, m.nota_at,
+           m.mes::text AS mes, m.semaforo, m.nota, m.nota_at, m.aporte_pts::float AS aporte_pts,
            (SELECT COUNT(*) FROM tareas_duenos t WHERE t.microobjetivo_id = m.id)::int AS tareas,
            (SELECT COUNT(*) FROM tareas_duenos t WHERE t.microobjetivo_id = m.id AND t.estado = 'terminada')::int AS cerradas,
            (SELECT COUNT(*) FROM tareas t WHERE t.microobjetivo_id = m.id)::int AS tareas_gordo,
@@ -218,6 +246,8 @@ router.get('/:id(\\d+)', async (req, res) => {
       FROM tarea_duenos_eventos e LEFT JOIN usuarios u ON u.id = e.usuario_id
       WHERE e.tarea_id = $1 ORDER BY e.created_at, e.id
     `, [t.id])).rows.map(e => ({ ...e, usuario: nombreCorto(e.usuario) }));
+    const adjuntos = (await pool.query('SELECT id, evento_id, mime, nombre, created_at FROM tarea_duenos_adjuntos WHERE tarea_id = $1 ORDER BY id', [t.id])).rows;
+    for (const e of eventos) e.adjuntos = adjuntos.filter(a => a.evento_id === e.id);
     const antes = (await pool.query(`
       WITH previa AS (SELECT visto_at FROM tarea_duenos_vistas WHERE usuario_id = $1 AND tarea_id = $2)
       INSERT INTO tarea_duenos_vistas (usuario_id, tarea_id, visto_at) VALUES ($1, $2, NOW())
@@ -235,7 +265,7 @@ router.get('/:id(\\d+)', async (req, res) => {
 // { accion: comentar | tomar | pedir_cierre | cerrar | devolver | volver, texto?, plazo? }
 // El responsable la toma (dice para cuándo) y pide el cierre contando qué hizo. La cierra
 // o la devuelve otro dueño. Comentar, cualquiera.
-router.post('/:id(\\d+)/accion', async (req, res) => {
+router.post('/:id(\\d+)/accion', conArchivos, async (req, res) => {
   try {
     const t = await tareaPorId(req.params.id);
     if (!t) return fail(res, 404, 'No existe esa tarea');
@@ -244,10 +274,13 @@ router.post('/:id(\\d+)/accion', async (req, res) => {
     const yo = req.user.id, esResponsable = t.responsable_id === yo;
     const hoy = T.hoyMendoza();
 
+    const archivos = req.files || [];
+    // Las fotos y los PDF quedan pegados al mensaje que se manda con ellos.
+    let evId = null;
     if (accion === 'comentar') {
-      if (!texto) return fail(res, 400, 'Escribí el comentario');
-      await evento(t.id, yo, 'comentario', texto);
-      avisar(t, req.user, 'comentario', texto);
+      if (!texto && !archivos.length) return fail(res, 400, 'Escribí el comentario o subí una foto o un PDF');
+      evId = await evento(t.id, yo, 'comentario', texto);
+      avisar(t, req.user, 'comentario', texto || (archivos.length === 1 ? 'Subió un archivo' : `Subió ${archivos.length} archivos`));
     } else if (accion === 'tomar') {
       if (!esResponsable) return fail(res, 403, `La toma ${nombreCorto(t.responsable_nombre)}, que es quien la hace`);
       if (t.estado !== 'nueva') return fail(res, 409, 'Ya está en proceso');
@@ -255,13 +288,13 @@ router.post('/:id(\\d+)/accion', async (req, res) => {
       if (!plazo) return fail(res, 400, 'Poné para cuándo');
       if (plazo < hoy) return fail(res, 400, 'La fecha no puede ser anterior a hoy');
       await pool.query(`UPDATE tareas_duenos SET estado = 'en_curso', plazo = $2 WHERE id = $1`, [t.id, plazo]);
-      await evento(t.id, yo, 'mov', texto || null, { a: 'en_curso', plazo });
+      evId = await evento(t.id, yo, 'mov', texto || null, { a: 'en_curso', plazo });
     } else if (accion === 'pedir_cierre') {
       if (!esResponsable) return fail(res, 403, `El cierre lo pide ${nombreCorto(t.responsable_nombre)}, que es quien la hace`);
       if (!['nueva', 'en_curso'].includes(t.estado)) return fail(res, 409, 'Ya está esperando el cierre');
       if (texto.length < 3) return fail(res, 400, 'Contá qué hiciste, así el que la cierra sabe qué mirar');
       await pool.query(`UPDATE tareas_duenos SET estado = 'por_aprobar', pedido_cierre_at = NOW() WHERE id = $1`, [t.id]);
-      await evento(t.id, yo, 'pidio_cierre', texto);
+      evId = await evento(t.id, yo, 'pidio_cierre', texto);
       avisar(t, req.user, 'cierre');
     } else if (accion === 'cerrar' || accion === 'devolver') {
       if (t.estado !== 'por_aprobar') return fail(res, 409, 'No está esperando el cierre');
@@ -269,24 +302,40 @@ router.post('/:id(\\d+)/accion', async (req, res) => {
       if (accion === 'devolver' && texto.length < 3) return fail(res, 400, 'Escribí qué falta');
       if (accion === 'cerrar') {
         await pool.query(`UPDATE tareas_duenos SET estado = 'terminada', terminada_por = $2, terminada_at = NOW() WHERE id = $1`, [t.id, yo]);
-        await evento(t.id, yo, 'cerrada', texto || null);
+        evId = await evento(t.id, yo, 'cerrada', texto || null);
       } else {
         await pool.query(`UPDATE tareas_duenos SET estado = 'en_curso' WHERE id = $1`, [t.id]);
-        await evento(t.id, yo, 'devuelta', texto);
+        evId = await evento(t.id, yo, 'devuelta', texto);
       }
       avisar(t, req.user, accion === 'cerrar' ? 'cerrada' : 'devuelta', texto);
     } else if (accion === 'volver') {
       // Devolverla a Sin empezar: por ejemplo, si se tomó por error.
       if (t.estado !== 'en_curso') return fail(res, 409, 'Solo una tarea en proceso vuelve a Sin empezar');
       await pool.query(`UPDATE tareas_duenos SET estado = 'nueva' WHERE id = $1`, [t.id]);
-      await evento(t.id, yo, 'mov', texto || null, { a: 'nueva' });
+      evId = await evento(t.id, yo, 'mov', texto || null, { a: 'nueva' });
     } else {
       return fail(res, 400, 'Acción inválida');
     }
+    if (evId && archivos.length) await subirAdjuntos(archivos, t.id, evId, yo);
     res.json({ ok: true });
   } catch (err) {
     console.error('[tareas-duenos/accion]', err);
     fail(res, 500, 'No se pudo guardar');
+  }
+});
+
+// ── GET /adjuntos/:id ────────────────────────────────────────────────────────
+router.get('/adjuntos/:id(\\d+)', async (req, res) => {
+  try {
+    const a = (await pool.query('SELECT r2_key, mime, nombre FROM tarea_duenos_adjuntos WHERE id = $1', [req.params.id])).rows[0];
+    if (!a) return fail(res, 404, 'No se encontró el archivo');
+    const obj = await getFromR2(a.r2_key);
+    res.setHeader('Content-Type', a.mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    obj.Body.pipe(res);
+  } catch (err) {
+    console.error('[tareas-duenos/adjuntos]', err);
+    fail(res, 500, 'No se pudo abrir el archivo');
   }
 });
 
@@ -334,10 +383,14 @@ router.post('/microobjetivos', async (req, res) => {
     if (!T.AREAS[req.body.area]) return fail(res, 400, 'Elegí el área que mueve');
     const mes = /^\d{4}-\d{2}/.test(req.body.mes || '') ? `${req.body.mes.slice(0, 7)}-01` : `${T.hoyMendoza().slice(0, 7)}-01`;
     const localIds = req.body.negocio === 'entre_dos' && Array.isArray(req.body.local_ids) ? req.body.local_ids.map(Number).filter(Boolean) : [];
+    // Pocos y cumplidos: máximo 3 por dueño por mes (regla de "Crecer ordenados").
+    const ya = (await pool.query(`SELECT COUNT(*)::int AS n FROM microobjetivos WHERE activo AND dueno_id = $1 AND mes = $2`, [dueno.id, mes])).rows[0].n;
+    if (ya >= MAX_MICROS) return fail(res, 400, `Ese dueño ya tiene ${MAX_MICROS} microobjetivos este mes. Pocos y cumplidos: cerrá o pasá uno antes de sumar otro.`);
     const { rows } = await pool.query(`
-      INSERT INTO microobjetivos (nombre, dueno_id, negocio, local_ids, area, meta, mes, creado_por)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
-    `, [nombre, dueno.id, req.body.negocio, localIds, req.body.area, escrito(req.body.meta, 200) || null, mes, req.user.id]);
+      INSERT INTO microobjetivos (nombre, dueno_id, negocio, local_ids, area, meta, mes, aporte_pts, aporte_monto, avance, creado_por)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
+    `, [nombre, dueno.id, req.body.negocio, localIds, req.body.area, escrito(req.body.meta, 200) || null, mes, aporte(req.body.aporte_pts),
+        monto(req.body.aporte_monto), escrito(req.body.avance, 120) || null, req.user.id]);
     res.json({ ok: true, data: { id: rows[0].id } });
   } catch (err) {
     console.error('[microobjetivos POST]', err);
@@ -345,18 +398,27 @@ router.post('/microobjetivos', async (req, res) => {
   }
 });
 
-// El semáforo y la nota de la semana los actualiza el dueño responsable.  { semaforo?, nota? }
+// El semáforo y la nota de la semana los pone el dueño responsable; quedan guardados por
+// semana (la del miércoles de la reunión).  { semaforo?, nota?, nombre?, meta?, aporte_pts? }
 router.post('/microobjetivos/:id(\\d+)', async (req, res) => {
   try {
     const m = (await pool.query('SELECT id, dueno_id FROM microobjetivos WHERE id = $1 AND activo', [req.params.id])).rows[0];
     if (!m) return fail(res, 404, 'No existe ese microobjetivo');
-    if ('semaforo' in req.body) {
-      const s = ['verde', 'amarillo', 'rojo'].includes(req.body.semaforo) ? req.body.semaforo : null;
-      await pool.query('UPDATE microobjetivos SET semaforo = $2, updated_at = NOW() WHERE id = $1', [m.id, s]);
+    if ('semaforo' in req.body || 'nota' in req.body) {
+      if (m.dueno_id !== req.user.id) return fail(res, 403, 'El semáforo lo pone el dueño del microobjetivo');
+      const { guardarSemana, miercolesDe } = require('./duenos');
+      const campos = {};
+      if ('semaforo' in req.body) campos.semaforo = req.body.semaforo;
+      if ('nota' in req.body) campos.nota = req.body.nota;
+      await guardarSemana(m.id, miercolesDe(require('../utils/fechas').hoyStr()), campos, req.user.id);
     }
-    if ('nota' in req.body) {
-      await pool.query('UPDATE microobjetivos SET nota = $2, nota_at = NOW(), updated_at = NOW() WHERE id = $1', [m.id, escrito(req.body.nota, 600) || null]);
+    if ('nombre' in req.body && escrito(req.body.nombre, 200).length >= 3) {
+      await pool.query('UPDATE microobjetivos SET nombre = $2, updated_at = NOW() WHERE id = $1', [m.id, escrito(req.body.nombre, 200)]);
     }
+    if ('meta' in req.body) await pool.query('UPDATE microobjetivos SET meta = $2, updated_at = NOW() WHERE id = $1', [m.id, escrito(req.body.meta, 200) || null]);
+    if ('aporte_pts' in req.body) await pool.query('UPDATE microobjetivos SET aporte_pts = $2, updated_at = NOW() WHERE id = $1', [m.id, aporte(req.body.aporte_pts)]);
+    if ('aporte_monto' in req.body) await pool.query('UPDATE microobjetivos SET aporte_monto = $2, updated_at = NOW() WHERE id = $1', [m.id, monto(req.body.aporte_monto)]);
+    if ('avance' in req.body) await pool.query('UPDATE microobjetivos SET avance = $2, updated_at = NOW() WHERE id = $1', [m.id, escrito(req.body.avance, 120) || null]);
     res.json({ ok: true });
   } catch (err) {
     console.error('[microobjetivos POST :id]', err);

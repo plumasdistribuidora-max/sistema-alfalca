@@ -86,22 +86,23 @@ export function useOpciones() {
 }
 
 // Una foto o un PDF de una tarea. Las fotos se ven chicas y se agrandan al tocarlas.
-export function Adjunto({ a }) {
+// base: de dónde se baja (las tareas de los dueños tienen sus propios adjuntos).
+export function Adjunto({ a, base = '/tareas/adjuntos' }) {
   const [url, setUrl] = useState(null);
   const [grande, setGrande] = useState(false);
   useEffect(() => {
     let vivo = true, creada = null;
-    api.get(`/tareas/adjuntos/${a.id}`, { responseType: 'blob' })
+    api.get(`${base}/${a.id}`, { responseType: 'blob' })
       .then(r => { if (!vivo) return; creada = URL.createObjectURL(r.data); setUrl(creada); })
       .catch(() => {});
     return () => { vivo = false; if (creada) URL.revokeObjectURL(creada); };
-  }, [a.id]);
+  }, [a.id, base]);
   const etiqueta = { presupuesto: 'Presupuesto', comprobante: 'Comprobante', foto: 'Foto' }[a.rol] || 'Archivo';
   if (a.mime === 'application/pdf') {
     return (
       <a href={url || '#'} target="_blank" rel="noopener noreferrer"
          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-ahg-accent/50 hover:bg-ahg-bg">
-        📄 {etiqueta} (PDF)
+        📄 {a.nombre || `${etiqueta} (PDF)`}
       </a>
     );
   }

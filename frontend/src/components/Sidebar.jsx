@@ -55,6 +55,7 @@ function enRutas(pathname, rutas) {
 
 // Qué pantallas son de cada bloque: estar en una deja abierto su bloque.
 const RUTAS = {
+  duenos:   ['/duenos', '/tareas-duenos'],
   entreDos: ['/dia', '/tareas', '/tablero', '/reportes', '/red', '/finanzas', '/stock', '/proveedores',
              '/empleados', '/calendario', '/ventas', '/historial-imports'],
   kankay:   ['/marcas/kankay'],
@@ -220,8 +221,15 @@ export default function Sidebar({ open, onClose }) {
           {esDeRed(user) && (
             <>
               <NavItem to="/" icon="inicio" label="Inicio" end />
-              {/* Las tareas de los cuatro, de todos los negocios: va suelta, no dentro de una marca. */}
-              {dueno && <NavItem to="/tareas-duenos" icon="tareas" label="Tareas dueños" />}
+              {/* La sección de los cuatro socios, de todos los negocios (método "Crecer ordenados",
+                  23/10/2026): números del mes → objetivo → microobjetivos → tareas → reuniones. */}
+              {dueno && (
+                <Bloque icon="personal" label="Dueños" rutas={RUTAS.duenos}>
+                  {/* Una sola pantalla con todo (Martín, 24/10/2026); el cierre del mes se abre desde ahí. */}
+                  <NavItem to="/duenos"            icon="tablero"    label="Objetivos del mes" rutas={['/duenos']} />
+                  <NavItem to="/tareas-duenos"     icon="tareas"     label="Tareas" />
+                </Bloque>
+              )}
 
               <Bloque icon="alfajor" label="Entre Dos" rutas={RUTAS.entreDos}>
                 <Grupo {...grupoProps('operacion')} icon="dia" label="Operación">

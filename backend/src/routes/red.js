@@ -2777,3 +2777,5 @@ router.put('/parametros/ipc', requireAuth, requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+// La sección Dueños usa el mismo EERR para la rentabilidad real de cada local.
+module.exports.eerr = { eerrTienda, eerrCafe, historicoDe };

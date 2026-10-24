@@ -51,6 +51,7 @@ app.use('/api/cashflow',  soloDueno, require('./routes/cashflow'));
 app.use('/api/eerr-manual', soloDueno, require('./routes/eerrManual'));
 app.use('/api/kankay',    soloDueno, require('./routes/kankay'));
 app.use('/api/tareas-duenos', soloDueno, require('./routes/tareasDuenos'));
+app.use('/api/duenos',   soloDueno, require('./routes/duenos'));
 // El asistente con Claude: solo el dueño, porque lee toda la base.
 app.use('/api/asistente', soloDueno, require('./routes/asistente'));
 app.use('/api/senzen',    [requireAuth, requireRol(ROLES.VENDEDORA)], require('./routes/senzen'));
@@ -77,6 +78,11 @@ setInterval(() => senzenAvisos.revisar()
 const tareasAvisos = require('./services/tareasAvisos');
 setInterval(() => tareasAvisos.revisar()
   .catch(err => console.warn('[tareas avisos]', err.message)), 10 * 60 * 1000).unref();
+
+// Dueños: el cierre del mes (del 1 al 5), el semáforo de los martes y la reunión del mes.
+const duenosAvisos = require('./services/duenosAvisos');
+setInterval(() => duenosAvisos.revisar()
+  .catch(err => console.warn('[duenos avisos]', err.message)), 10 * 60 * 1000).unref();
 
 if (isProd) {
   const distPath = path.join(__dirname, '../../frontend/dist');

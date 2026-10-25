@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Cargando, MensajeError, ddmm } from '../tareas/comunes';
@@ -64,7 +64,6 @@ export default function Mes() {
           {vista === 'mes' && d.cerrado && <span className="text-xs text-white bg-white/15 rounded-full px-2.5 py-1">Mes cerrado · queda guardado así</span>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Link to="/duenos/cierre" className="text-xs text-white/75 underline">Números de {d.cierre.nombre_mes}: {d.cierre.listos} de {d.cierre.total} listos</Link>
           <div className="inline-flex bg-white/10 rounded-[10px] p-[3px] gap-0.5" role="group" aria-label="Qué ver">
             {VISTAS.map(([k, l]) => (
               <button key={k} type="button" aria-pressed={vista === k} onClick={() => { setVista(k); if (k !== 'mes' && !d.es_plan) irMes(null); }}

@@ -117,11 +117,10 @@ router.get('/mes', async (req, res) => {
     const cerrado = mes < D.mesActual();
     const semana = miercolesDe(hoyStr());
     const anterior = D.sumarMeses(mes, -1);
-    const [obj, micros, ds, numsAnt, numsMes, listos] = await Promise.all([
+    const [obj, micros, ds, numsAnt, numsMes] = await Promise.all([
       objetivosCompletos(mes), microsDe(mes), duenos(),
       D.numerosDe(D.UNIDADES, anterior),
       cerrado ? D.numerosDe(D.UNIDADES, mes) : Promise.resolve({}),
-      pool.query('SELECT COUNT(*)::int AS n FROM cierres_mes WHERE mes = $1', [D.mesACerrar()]),
     ]);
     const tareas = await tareasDe(micros.map(m => m.id));
     const conObjetivo = UNIDADES_PANTALLA.filter(u => obj[u.k] || micros.some(m => unidadDe(m) === u.k));
@@ -153,7 +152,6 @@ router.get('/mes', async (req, res) => {
       mes, nombre_mes: D.nombreMes(mes), cerrado, es_plan: mes === D.mesPlan(), semana, hoy: hoyStr(),
       anterior, nombre_anterior: D.nombreMes(anterior),
       unidades, sin_objetivo: UNIDADES_PANTALLA.filter(u => !conObjetivo.includes(u)),
-      cierre: { mes: D.mesACerrar(), nombre_mes: D.nombreMes(D.mesACerrar()), listos: listos.rows[0].n, total: D.A_CERRAR.length },
       duenos: ds.map(d => ({ ...d, micros: micros.filter(m => m.dueno_id === d.id).length })), max_micros: MAX_MICROS,
     } });
   } catch (err) {
@@ -202,44 +200,16 @@ router.get('/resumen', async (req, res) => {
   }
 });
 
-// ── Cierre del mes ───────────────────────────────────────────────────────────
-router.get('/cierre', async (req, res) => {
+// ── Gastos de Senzen ─────────────────────────────────────────────────────────
+// Senzen no tenía EERR: la venta y el costo salen de Dux y los gastos se cargan en
+// Senzen → Números → Gastos.
+router.get('/senzen-gastos/:mes', async (req, res) => {
   try {
-    const mes = D.esMes(req.query.mes) ? req.query.mes : D.mesACerrar();
-    res.json({ ok: true, data: await D.cierre(mes) });
+    if (!D.esMes(req.params.mes)) return fail(res, 400, 'Mes inválido');
+    res.json({ ok: true, data: await D.senzenMes(req.params.mes) });
   } catch (err) {
-    console.error('[duenos/cierre]', err);
-    fail(res, 500, 'No se pudo cargar el cierre');
-  }
-});
-
-// Números listos de una unidad. Pide que tenga los gastos cargados y las ventas del mes
-// entero: sin eso la rentabilidad no es la real.
-router.post('/cierre/:unidad/listo', async (req, res) => {
-  try {
-    const u = D.A_CERRAR.find(x => x.k === req.params.unidad);
-    const mes = req.body.mes;
-    if (!u || !D.esMes(mes)) return fail(res, 400, 'Unidad o mes inválido');
-    const n = (await D.numerosDe([u], mes))[u.k];
-    if (!n.gastos_cargados) return fail(res, 400, `Faltan cargar los gastos de ${u.nombre}`);
-    if (!n.ventas_completas) return fail(res, 400, `Las ventas de ${u.nombre} llegan hasta el ${n.ventas_hasta || '—'}: falta el final del mes`);
-    await pool.query(`INSERT INTO cierres_mes (unidad, mes, listo_por) VALUES ($1,$2,$3)
-                      ON CONFLICT (unidad, mes) DO UPDATE SET listo_por = $3, listo_at = NOW()`, [u.k, mes, req.user.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[duenos/cierre listo]', err);
-    fail(res, 500, 'No se pudo marcar');
-  }
-});
-
-router.post('/cierre/:unidad/reabrir', async (req, res) => {
-  try {
-    if (!D.esMes(req.body.mes)) return fail(res, 400, 'Mes inválido');
-    await pool.query('DELETE FROM cierres_mes WHERE unidad = $1 AND mes = $2', [req.params.unidad, req.body.mes]);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[duenos/cierre reabrir]', err);
-    fail(res, 500, 'No se pudo reabrir');
+    console.error('[duenos/senzen-gastos GET]', err);
+    fail(res, 500, 'No se pudieron cargar los gastos');
   }
 });
 

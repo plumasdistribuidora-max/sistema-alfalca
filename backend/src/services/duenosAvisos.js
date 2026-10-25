@@ -1,6 +1,7 @@
 // Los avisos de la sección Dueños (23/10/2026). Se revisan cada diez minutos y cada uno
 // sale una sola vez (avisos_enviados):
-//   · del 1 al 5, a las 9: al responsable del cierre (Tincho), qué unidades le faltan;
+//   · del 1 al 5, a las 9: al responsable de los EERR (Tincho), a qué unidades les faltan
+//     los gastos del mes anterior;
 //   · el 6 a las 9, si quedó algo sin cerrar: a los cuatro dueños;
 //   · los martes a las 18: a cada dueño, los microobjetivos sin semáforo para el miércoles;
 //   · el día antes de la reunión del mes, a las 18: a los cuatro dueños.
@@ -44,14 +45,14 @@ async function revisar() {
     const faltan = await D.faltanCerrar(mes);
     if (faltan.length && dia <= 5) {
       await unaVez(`duenos-cierre-${hoy}`, async () => mandar([await responsable()], '📊',
-        `Cierre de ${D.nombreMes(mes)} · ${plural(faltan.length, 'unidad falta', 'unidades faltan')}`,
+        `EERR de ${D.nombreMes(mes)} · ${plural(faltan.length, 'unidad sin gastos', 'unidades sin gastos')}`,
         `${faltan.map(u => u.nombre).join(', ')}. Hay tiempo hasta el ${ddmm(D.plazoCierre(mes))}: sin números no hay reunión.`,
-        '/duenos/cierre', 'duenos-cierre'));
+        '/finanzas', 'duenos-cierre'));
     }
     if (faltan.length && dia === 6) {
       await unaVez(`duenos-cierre-vencido-${mes}`, async () => mandar(await duenos(), '⚠️',
         `Los números de ${D.nombreMes(mes)} no se cerraron a tiempo`,
-        `Faltan: ${faltan.map(u => u.nombre).join(', ')}. La reunión del mes espera a que estén.`, '/duenos/cierre', 'duenos-cierre'));
+        `Faltan los gastos de: ${faltan.map(u => u.nombre).join(', ')}. La reunión del mes espera a que estén.`, '/finanzas', 'duenos-cierre'));
     }
   }
 

@@ -227,8 +227,8 @@ export function Mensual() {
       {msg && <MensajeError texto={msg} />}
 
       {paso(1, `Números de ${d.nombre_anterior} cerrados`, d.cierre.completo, d.cierre.completo
-        ? <p className="text-sm text-green-800">Las 7 unidades tienen los números listos.</p>
-        : <p className="text-sm">Faltan: <b>{d.cierre.faltan.join(', ')}</b>. Sin números no hay reunión. <Link to="/duenos/cierre" className="underline">Ir al cierre</Link></p>)}
+        ? <p className="text-sm text-green-800">Las 7 unidades tienen el EERR completo: ventas del mes entero y gastos cargados.</p>
+        : <p className="text-sm">Faltan los gastos del EERR de: <b>{d.cierre.faltan.join(', ')}</b>. Sin números no hay reunión. Se cargan en <Link to="/finanzas" className="underline">Finanzas</Link>, <Link to="/marcas/kankay" className="underline">Kankay → Números</Link> y <Link to="/marcas/senzen?tab=gastos" className="underline">Senzen → Gastos</Link>.</p>)}
 
       {paso(2, `Real contra objetivo de ${d.nombre_anterior}`, d.cierre.completo, (
         <div className="overflow-x-auto">

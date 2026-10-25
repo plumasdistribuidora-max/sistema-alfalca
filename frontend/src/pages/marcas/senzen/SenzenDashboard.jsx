@@ -6,6 +6,7 @@ import { esDueno } from '../../../utils/roles';
 import { MARCAS } from '../../../marcas';
 import { Proximamente } from '../../MarcaProximamente';
 import { TAREAS, MEDIOS, RESULTADOS, MOTIVOS, ESTADOS, label, fmt, pc, mesN, cuando, fechaCorta } from './senzenUtils';
+import GastosSenzen from './GastosSenzen';
 import '../kankay/kankay.css';
 
 // Tablero de Senzen para los dueños. Lo que vende sale de Dux de Plumas (sucursal Senzen,
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'prod',  label: 'Productos y stock' },
   { id: 'cob',   label: 'Cobranza' },
   { id: 'pepa',  label: 'Pepa' },
+  { id: 'gastos', label: 'Gastos' },
 ];
 
 export default function SenzenRuta() {
@@ -80,6 +82,7 @@ function SenzenDashboard() {
       {tab === 'prod' && <Productos D={D} />}
       {tab === 'cob'  && <Cobranza D={D} />}
       {tab === 'pepa' && <Pepa D={D} recargar={cargar} />}
+      {tab === 'gastos' && <GastosSenzen />}
     </div>
   );
 }

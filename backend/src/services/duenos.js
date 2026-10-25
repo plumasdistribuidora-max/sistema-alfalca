@@ -174,33 +174,24 @@ async function ventasMes(k, mes) {
 }
 
 // ── Cierre del mes ───────────────────────────────────────────────────────────
+// Una unidad tiene el mes cerrado cuando su EERR tiene los gastos cargados y las ventas del
+// mes entero. No hay que marcar nada aparte (Martín, 25/10/2026: eso ya está en el EERR).
 async function cierre(mes) {
-  const [nums, { rows: listos }, { rows: [resp] }] = await Promise.all([
-    numerosDe(UNIDADES, mes),
-    pool.query(`SELECT c.unidad, c.listo_at, u.nombre FROM cierres_mes c LEFT JOIN usuarios u ON u.id = c.listo_por WHERE c.mes = $1`, [mes]),
-    pool.query(`SELECT u.id, u.nombre FROM parametros p JOIN usuarios u ON u.id = p.valor::int WHERE p.clave = 'cierre_responsable_id'`),
-  ]);
-  const listo = Object.fromEntries(listos.map(l => [l.unidad, l]));
+  const nums = await numerosDe(UNIDADES, mes);
   const unidades = UNIDADES.map(u => ({
-    k: u.k, nombre: u.nombre, negocio: u.negocio, consolidado: !!u.consolidado,
-    ...nums[u.k],
-    listo: u.consolidado
-      ? A_CERRAR.filter(x => x.negocio === 'entre_dos').every(x => listo[x.k])
-      : listo[u.k] ? { por: String(listo[u.k].nombre || '').replace(/\s*\(.*\)\s*$/, ''), at: listo[u.k].listo_at } : null,
+    k: u.k, nombre: u.nombre, negocio: u.negocio, consolidado: !!u.consolidado, ...nums[u.k],
+    listo: !!nums[u.k].gastos_cargados && !!nums[u.k].ventas_completas,
   }));
   const faltan = unidades.filter(u => !u.consolidado && !u.listo);
   return {
     mes, nombre_mes: nombreMes(mes), plazo: plazoCierre(mes), vencido: hoyStr() > plazoCierre(mes) && faltan.length > 0,
-    responsable: resp ? { id: resp.id, nombre: String(resp.nombre).replace(/\s*\(.*\)\s*$/, '') } : null,
     unidades, completo: faltan.length === 0, faltan: faltan.map(u => u.nombre),
-    senzen_gastos: nums.senzen.gastos,
   };
 }
 
 async function faltanCerrar(mes) {
-  const { rows } = await pool.query('SELECT unidad FROM cierres_mes WHERE mes = $1', [mes]);
-  const hechos = new Set(rows.map(r => r.unidad));
-  return A_CERRAR.filter(u => !hechos.has(u.k));
+  const nums = await numerosDe(A_CERRAR, mes);
+  return A_CERRAR.filter(u => !(nums[u.k].gastos_cargados && nums[u.k].ventas_completas));
 }
 
 module.exports = {

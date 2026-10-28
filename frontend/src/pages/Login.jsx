@@ -16,6 +16,11 @@ export default function Login() {
   // La tarjeta arranca en el medio de la pantalla y sube hasta su lugar: la
   // distancia depende del alto del formulario, por eso se mide.
   const [anima, setAnima]       = useState(true);
+  // Del 28/10 al 31/10 la tarjeta se disfraza de Halloween; el 1/11 vuelve la
+  // de siempre. ?tema=halloween la muestra cualquier día para verla.
+  const hoy = new Date();
+  const halloween = params.get('tema') === 'halloween' ||
+    (hoy.getFullYear() === 2026 && hoy.getMonth() === 9 && hoy.getDate() >= 28);
   const escenaRef               = useRef(null);
   const formRef                 = useRef(null);
   // Safari abre solo el cartel de contraseñas guardadas apenas ve un campo de
@@ -69,12 +74,12 @@ export default function Login() {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center bg-ahg-bg px-4 overflow-hidden ${anima ? 'tj-anima' : ''} ${papel ? '' : 'tj-espera'}`}
+      className={`min-h-screen flex items-center justify-center px-4 overflow-hidden ${halloween ? 'tj-noche' : 'bg-ahg-bg'} ${anima ? 'tj-anima' : ''} ${papel ? '' : 'tj-espera'}`}
       onPointerDown={() => setAnima(false)}
     >
       <div className="w-full max-w-sm">
         <div ref={escenaRef} className="tj-escena mb-10">
-          <TarjetaIntro />
+          <TarjetaIntro halloween={halloween} />
         </div>
 
         <form ref={formRef} onSubmit={handleSubmit} className="tj-form card p-6 space-y-4">

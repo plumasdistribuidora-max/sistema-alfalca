@@ -97,6 +97,43 @@
 .tj-bajada { margin-top: 6px; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: #c3c2bd; }
 .tj-est { margin-top: 7px; text-align: center; font-size: 8.5px; font-weight: 600; letter-spacing: .24em; padding-left: .24em; text-transform: uppercase; color: #c3c2bd; }
 
+/* Versión Halloween (28/10 al 31/10): cartulina casi negra, tinta calabaza,
+   telaraña en la esquina y tres murciélagos que salen de atrás al girar. */
+.tj-halloween .tj-cara {
+  background-color: #1b1a1c;
+  background-image: radial-gradient(120% 90% at 30% 40%, rgba(242, 125, 32, .16), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(rgba(14, 12, 14, .72), rgba(14, 12, 14, .72)), url('/marca/papel-grafito.jpg');
+}
+.tj-halloween .tj-dorso, .tj-halloween .tj-frente {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05),
+    0 1px 0 #2a292b, 0 2px 0 #252426, 0 3px 0 #201f21, 0 4px 0 #1b1a1c,
+    0 22px 40px -18px rgba(20, 12, 4, .6), 0 0 46px -10px rgba(242, 125, 32, .35);
+}
+.tj-halloween .tj-tinta { fill: #f27d20; }
+.tj-halloween .tj-iso   { filter: drop-shadow(0 0 6px rgba(242, 125, 32, .45)); }
+.tj-halloween .tj-nombre { color: #f27d20; text-shadow: 0 0 14px rgba(242, 125, 32, .35), 0 1px 1px rgba(0, 0, 0, .5); }
+.tj-halloween .tj-bajada, .tj-halloween .tj-est { color: #b9b2a8; }
+.tj-telarana { position: absolute; top: 0; right: 0; width: 26%; color: rgba(236, 232, 224, .32); pointer-events: none; }
+.tj-murcielago { position: absolute; z-index: 2; fill: #0b0a0c; pointer-events: none; filter: drop-shadow(0 0 3px rgba(242, 125, 32, .7)); }
+/* Fondo de la entrada en Halloween: noche en la cordillera con niebla y
+   calabazas (generada con Higgsfield). Arriba se oscurece para que la tarjeta
+   se lea; abajo quedan las calabazas. */
+.tj-noche {
+  background-color: #0d0f14;
+  background-image: radial-gradient(60% 45% at 50% 42%, rgba(8, 9, 12, .55), rgba(8, 9, 12, 0) 70%),
+    url('/marca/halloween-noche.jpg');
+  background-size: cover; background-position: center bottom;
+}
+.tj-noche .tj-form { background: rgba(250, 249, 246, .94); box-shadow: 0 20px 50px -20px rgba(0, 0, 0, .7); }
+@media (max-aspect-ratio: 1/1) { /* en el celular se ve la luna y la calabaza de la derecha */
+  .tj-noche { background-position: center, 90% bottom; }
+}
+.tj-noche .btn-primary { background: #e0701a; color: #fff; }
+.tj-noche .btn-primary:hover { background: #c95f12; }
+.tj-m1 { width: 34px; left: 4%;  top: -30px; transform: rotate(-12deg); }
+.tj-m2 { width: 24px; right: 8%; top: -42px; transform: rotate(10deg); }
+.tj-m3 { width: 18px; right: 30%; top: -60px; transform: rotate(-4deg); }
+
 @media (prefers-reduced-motion: no-preference) {
   .tj-anima .tj-escena       { animation: tj-sube 4.2s both; }
   .tj-anima .tj-entra        { animation: tj-entra 4.2s both, tj-aparece .25s ease-out both; }
@@ -104,6 +141,10 @@
   .tj-anima .tj-sombra       { animation: tj-sombra 4.2s both; }
   .tj-anima .tj-cara::after  { animation: tj-brillo 4.2s both; }
   .tj-anima .tj-form         { animation: tj-form 4.2s both; }
+  .tj-anima .tj-murcielago   { animation: tj-vuela 4.2s both; }
+  .tj-anima .tj-m2           { animation-delay: .15s; }
+  .tj-anima .tj-m3           { animation-delay: .3s; }
+  .tj-murcielago path        { animation: tj-aletea .28s ease-in-out infinite alternate; transform-origin: 50% 40%; transform-box: fill-box; }
   /* Hasta que baja la foto del papel, todo queda quieto en el primer cuadro
      (tarjeta invisible): así nunca se ve sin su papel. */
   .tj-espera, .tj-espera *, .tj-espera *::after { animation-play-state: paused !important; }
@@ -136,6 +177,12 @@
   0%, 76% { transform: translateY(var(--tj-baja, 160px)) scale(1.15); animation-timing-function: cubic-bezier(.5, 0, .2, 1); }
   100% { transform: none; }
 }
+@keyframes tj-vuela { /* salen de atrás de la tarjeta cuando termina de girar */
+  0%, 50% { opacity: 0; translate: 0 70px; scale: .3; }
+  58%     { opacity: 1; }
+  76%, 100% { opacity: 1; translate: 0 0; scale: 1; }
+}
+@keyframes tj-aletea { to { transform: scaleY(.55); } }
 @keyframes tj-form {
   0%, 79% { opacity: 0; transform: translateY(18px); animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
   100% { opacity: 1; transform: none; }

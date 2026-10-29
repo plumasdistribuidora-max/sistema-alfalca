@@ -25,9 +25,6 @@ const sinParentesis = n => String(n || '').replace(/\s*\(.*\)\s*$/, '');
 const devuelta = t => t.estado === 'en_curso' && ['pidio_mas', 'rechazada'].includes(t.ultimo?.tipo);
 const vencida = t => t.dias_vencida > 0;
 const venceHoy = t => t.estado !== 'por_aprobar' && t.plazo === hoyStr();
-// Lo cargado por un dueño lo cierra ese dueño; lo que salió de un reporte, cualquiera.
-const puedeCerrar = (t, user) => t.tipo !== 'encargo' || !t.cargada_por_id || t.cargada_por_id === user.id;
-
 // Lo que más apura arriba: vencidas y devueltas, después por fecha.
 const orden = (a, b) => (Number(!(vencida(b) || devuelta(b))) - Number(!(vencida(a) || devuelta(a))))
   || (a.plazo || a.fecha).localeCompare(b.plazo || b.fecha) || a.id - b.id;
@@ -249,7 +246,7 @@ export default function TableroGordo() {
     { id: 'todas', nombre: 'Todas', f: () => true },
     ...(dueno ? [
       { id: 'cargue', nombre: 'Las que cargué yo', f: t => t.cargada_por_id === user.id },
-      { id: 'cerrar', nombre: 'Para cerrar', f: t => t.estado === 'por_aprobar' && puedeCerrar(t, user) },
+      { id: 'cerrar', nombre: 'Para cerrar', f: t => t.estado === 'por_aprobar' },
     ] : [
       { id: 'piden', nombre: 'Me piden algo', f: t => !!t.pedido_foto || devuelta(t) },
     ]),

@@ -54,21 +54,17 @@ async function unaVez(clave, fn) {
   if (rowCount) await fn();
 }
 
-// Lo que espera el cierre de cada dueño: lo que salió de un reporte, para todos; lo que
-// cargó un dueño, solo para él.
-async function paraCerrarDe(duenoId) {
+// Lo que espera el cierre. Cualquier dueño cierra cualquier tarea, aunque la haya cargado otro.
+async function paraCerrar() {
   return (await pool.query(`
-    SELECT t.id, t.titulo FROM tareas t
-    LEFT JOIN LATERAL (SELECT e.usuario_id FROM tarea_eventos e WHERE e.tarea_id = t.id AND e.tipo = 'encargo' ORDER BY e.id LIMIT 1) ec ON true
-    WHERE t.estado = 'por_aprobar' AND (t.tipo <> 'encargo' OR ec.usuario_id IS NULL OR ec.usuario_id = $1)
-    ORDER BY t.pedido_cierre_at
-  `, [duenoId])).rows;
+    SELECT t.id, t.titulo FROM tareas t WHERE t.estado = 'por_aprobar' ORDER BY t.pedido_cierre_at
+  `)).rows;
 }
 
 async function avisarParaCerrar(duenos) {
+  const lista = await paraCerrar();
+  if (!lista.length) return;
   await Promise.all(duenos.map(async id => {
-    const lista = await paraCerrarDe(id);
-    if (!lista.length) return;
     // La etiqueta es la misma: el aviso nuevo reemplaza al anterior en el celular.
     await mandar([id], 'cerrar', `Para cerrar · ${plural(lista.length, 'tarea espera', 'tareas esperan')} tu cierre`,
       lista.slice(0, 3).map(t => corto(t.titulo, 50)).join(' · ') + (lista.length > 3 ? ` y ${lista.length - 3} más` : ''),
@@ -79,7 +75,7 @@ async function avisarParaCerrar(duenos) {
 // Un cambio en una tarea. tema:
 //   comentario · cualquier mensaje, avance, fecha nueva o foto: al encargado y al que la cargó.
 //   encargo    · un dueño le cargó una tarea al encargado.
-//   cierre     · el encargado pide cerrarla (o descartarla): a los dueños que la pueden cerrar.
+//   cierre     · el encargado pide cerrarla (o descartarla): a todos los dueños.
 //   pedido     · un dueño pide una foto o algo más: al encargado.
 //   devuelta   · un dueño no la aprobó: al encargado.
 //   cerrada    · un dueño la cerró: al encargado y al que la cargó.
@@ -94,8 +90,7 @@ async function cambioEnTarea(t, quien, tema, texto) {
   const lugar = localCorto(t.local_nombre) || 'Entre Dos';
 
   if (tema === 'cierre') {
-    const pueden = t.tipo === 'encargo' && t.cargada_por_id ? [t.cargada_por_id] : duenos;
-    return avisarParaCerrar(fuera(pueden));
+    return avisarParaCerrar(fuera(duenos));
   }
   if (tema === 'encargo') return mandar(fuera(encargados), 'hoy', `${yo} te cargó una tarea`, `${t.titulo}${texto ? ` · ${texto}` : ''}`, url, `tarea-${t.id}`, lugar);
   if (tema === 'pedido') return mandar(fuera(encargados), 'pedido', `${yo} te pidió ${texto.foto ? 'una foto o PDF' : 'algo más'} · ${titulo}`, texto.texto, url, `tarea-${t.id}`, lugar);
@@ -170,8 +165,8 @@ async function revisar() {
     SELECT t.id, t.titulo, t.responsable_id, t.estado, t.plazo::text AS plazo, t.negocio, l.nombre AS local_nombre
     FROM tareas_duenos t LEFT JOIN locales l ON l.id = t.local_id WHERE t.estado <> 'terminada'
   `)).rows.map(t => ({ ...t, lugar: (t.negocio === 'entre_dos' && localCorto(t.local_nombre)) || NEGOCIOS[t.negocio] }));
+  const cerrar = await paraCerrar();
   for (const id of duenos) {
-    const cerrar = await paraCerrarDe(id);
     const cargadas = delEncargado.filter(t => t.cargada_por_id === id);
     const mias = deDuenos.filter(t => t.responsable_id === id && t.estado !== 'por_aprobar');
     const miasHoy = mias.filter(t => t.plazo === hoy);

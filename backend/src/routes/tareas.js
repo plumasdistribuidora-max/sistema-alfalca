@@ -1004,11 +1004,7 @@ router.post('/:id/responder', requireAuth, requireAdmin, async (req, res) => {
     }
 
     if (accion === 'aprobar') {
-      // Lo que cargó un dueño lo cierra ese dueño; lo que salió de un reporte, cualquiera
-      // (pedido de los dueños, 22/10/2026).
-      if (t.tipo === 'encargo' && t.cargada_por_id && t.cargada_por_id !== req.user.id) {
-        return fail(res, 403, `La cierra ${t.cargada_por_nombre}, que fue quien la cargó`);
-      }
+      // Cualquier dueño la cierra, aunque la haya cargado otro (pedido de los dueños, 29/10/2026).
       let causaId = null;
       if (req.body.causa_conocida && t.tipo === 'ventas' && t.cierre_tipo === 'resultado' && t.local_id) {
         const ya = (await pool.query(

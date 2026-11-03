@@ -82,6 +82,9 @@ export default function MiSemana() {
   const nombre = (user?.nombre || '').split(' ')[0];
   const hechos = nuevos.length, aprobados = nuevos.filter(n => n.aprobacion === 'aprobado').length;
   const faltan = meta ? Math.max(0, meta - hechos) : null;
+  // Cumplida la meta puede seguir cargando: si pasó por un local que no estaba en la lista, lo carga igual.
+  const textoCargar = meta && hechos < meta ? `Cargar visita a un comercio nuevo · ${hechos + 1} de ${meta}`
+    : meta ? 'Cargar otro comercio nuevo' : 'Cargar visita a un comercio nuevo';
   // Con el plan repartido por día: cuántos le tocan el día elegido y lo que le quedó de días
   // anteriores, que se suma a hoy.
   const porDia = D.plan?.por_dia || null;
@@ -110,9 +113,9 @@ export default function MiSemana() {
         </span>
       </div>
       {meta ? <div className="h-2 rounded bg-stone-100 overflow-hidden flex" aria-hidden="true"><b style={{ width: `${100 * aprobados / meta}%`, background: SENZEN }} /><b style={{ width: `${100 * (hechos - aprobados) / meta}%`, background: '#a9c2ad' }} /></div> : null}
-      {dia === hoy && faltan > 0 && (
+      {dia === hoy && (
         <button onClick={() => setForm({ tipo: 'nuevo' })} className="w-full rounded-xl py-3 font-semibold text-white" style={{ background: SENZEN }}>
-          Cargar visita a un comercio nuevo · {hechos + 1} de {meta}
+          {textoCargar}
         </button>
       )}
       {nuevos.filter(n => n.fecha === dia || n.aprobacion === 'devuelto').map(n => {
@@ -134,11 +137,9 @@ export default function MiSemana() {
         <span className="text-xs text-ahg-text/60">{meta == null ? 'los dueños todavía no pusieron cuántos' : faltan ? `te ${faltan === 1 ? 'falta 1' : `faltan ${faltan}`}` : '¡completaste la semana!'}{hechos > aprobados ? ` · ${hechos - aprobados} esperando aprobación` : ''}</span>
       </div>
       {meta ? <div className="h-2 rounded bg-stone-100 overflow-hidden flex" aria-hidden="true"><b style={{ width: `${100 * aprobados / meta}%`, background: SENZEN }} /><b style={{ width: `${100 * (hechos - aprobados) / meta}%`, background: '#a9c2ad' }} /></div> : null}
-      {(faltan === null || faltan > 0) && (
-        <button onClick={() => setForm({ tipo: 'nuevo' })} className="w-full rounded-xl py-3 font-semibold text-white" style={{ background: SENZEN }}>
-          Cargar visita a un comercio nuevo{meta ? ` · ${hechos + 1} de ${meta}` : ''}
-        </button>
-      )}
+      <button onClick={() => setForm({ tipo: 'nuevo' })} className="w-full rounded-xl py-3 font-semibold text-white" style={{ background: SENZEN }}>
+        {textoCargar}
+      </button>
       {nuevos.map(n => {
         const e = ESTADO_NUEVO[n.aprobacion];
         return (
@@ -188,6 +189,7 @@ export default function MiSemana() {
       ...tareas.map(t => ({ clave: `t${t.id}`, e: estadoDe(t, hoy), t })),
       ...nuevos.map(n => ({ clave: `n${n.id}`, e: ESTADO_NUEVO[n.aprobacion], n })),
       ...Array.from({ length: faltan || 0 }, (_, i) => ({ clave: `h${i}`, e: 'pend', hueco: hechos + i + 1 })),
+      ...(faltan ? [] : [{ clave: 'otro', e: 'pend' }]),
     ];
     const cols = [['Para hacer', ['pend', 'atr', 'dev'], '#8d9095'], ['Esperando aprobación', ['esp'], '#2d68b0'], ['Aprobadas', ['ok'], '#3f6e3b']];
     cuerpo = (
@@ -206,8 +208,8 @@ export default function MiSemana() {
                   </div>
                 ) : (
                   <div key={x.clave} className="bg-white rounded-[10px] border border-dashed border-ahg-accent/70 px-3 py-2.5 grid gap-1.5">
-                    <b className="text-sm">Comercio nuevo {x.hueco} de {meta}</b>
-                    <p className="text-xs text-ahg-text/60">Elegí uno y cargá la visita.</p>
+                    <b className="text-sm">{x.hueco ? `Comercio nuevo ${x.hueco} de ${meta}` : meta ? 'Otro comercio nuevo' : 'Comercio nuevo'}</b>
+                    <p className="text-xs text-ahg-text/60">{x.hueco || !meta ? 'Elegí uno y cargá la visita.' : 'Si pasaste por uno que no estaba en la lista, cargalo igual.'}</p>
                     <div><button onClick={() => setForm({ tipo: 'nuevo' })} className="text-sm font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: SENZEN }}>Cargar visita</button></div>
                   </div>
                 ))}
@@ -237,8 +239,8 @@ export default function MiSemana() {
       <AvisosBoton />
       {aviso && <p className="text-sm rounded-lg px-3 py-2 bg-green-50 text-green-800 font-medium">{aviso}</p>}
       {cuerpo}
-      {form?.tipo === 'nuevo' && <NuevaVisita corregir={form.corregir} paso={!form.corregir && meta ? `${hechos + 1} de ${meta}` : null}
-        onCerrar={() => setForm(null)} onListo={() => listo(form.corregir ? 'Enviado de nuevo. Lo vuelve a mirar un dueño.' : `Listo${meta ? `, van ${hechos + 1} de ${meta}` : ''}. Un dueño lo tiene que aprobar.`)} />}
+      {form?.tipo === 'nuevo' && <NuevaVisita corregir={form.corregir} paso={!form.corregir && meta && hechos < meta ? `${hechos + 1} de ${meta}` : null}
+        onCerrar={() => setForm(null)} onListo={() => listo(form.corregir ? 'Enviado de nuevo. Lo vuelve a mirar un dueño.' : `Listo${meta && hechos < meta ? `, van ${hechos + 1} de ${meta}` : ''}. Un dueño lo tiene que aprobar.`)} />}
       {form?.tipo === 'contacto' && <ContarComoFue tarea={form.tarea} corregir={form.corregir}
         onCerrar={() => setForm(null)} onListo={() => listo(form.corregir ? 'Enviado de nuevo. Lo vuelve a mirar un dueño.' : 'Enviado. Cuando un dueño lo apruebe, queda hecho.')} />}
     </div>

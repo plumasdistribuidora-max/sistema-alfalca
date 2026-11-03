@@ -86,9 +86,12 @@ setInterval(() => duenosAvisos.revisar()
 
 if (isProd) {
   const distPath = path.join(__dirname, '../../frontend/dist');
-  app.use(express.static(distPath));
+  // index.html sin caché: así cada vez que se abre el sistema trae la versión que está subida.
+  const sinCache = res => res.setHeader('Cache-Control', 'no-cache');
+  app.use(express.static(distPath, { setHeaders: (res, archivo) => archivo.endsWith('index.html') && sinCache(res) }));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+    sinCache(res);
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

@@ -4,10 +4,10 @@ import api from '../../api';
 import { formatARS, formatDate, firstOfMonth, today } from '../../utils/format';
 
 const MEDIOS = ['', 'Efectivo', 'Tarj. Débito', 'Tarj. Crédito', 'Efectivo-Tarj. Débito'];
-const ESTADOS = ['', 'cerrada', 'eliminada', 'en_curso'];
+const ESTADOS = ['', 'cerrada', 'eliminada', 'en_curso', 'ficticia'];
 
 function estadoBadge(estado) {
-  const map = { cerrada: 'badge-cerrada', eliminada: 'badge-eliminada', en_curso: 'badge-en_curso' };
+  const map = { cerrada: 'badge-cerrada', eliminada: 'badge-eliminada', en_curso: 'badge-en_curso', ficticia: 'badge-eliminada' };
   return <span className={map[estado] || ''}>{estado}</span>;
 }
 

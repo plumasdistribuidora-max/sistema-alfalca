@@ -10,6 +10,7 @@ const {
   estaDefinido,
   loadMaestro: recargarMaestro,
 } = require('../services/maestroDocenas');
+const { marcarFicticias } = require('../utils/ficticias');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -903,6 +904,11 @@ router.post('/import', requireAuth, upload.single('archivo'), async (req, res) =
         throw new Error(`no cuadra con el Excel, no se guardó nada (${noCuadra.join('; ')})`);
       }
       debugLog.push('Control OK: productos, pagos, descuentos y facturación iguales al Excel');
+
+      // Las ventas ficticias siguen en Fudo (Entre Dos las usa para una nota de crédito), así que
+      // cada import las vuelve a traer como cerradas: se marcan de nuevo después del control.
+      const ficticias = await marcarFicticias(client, local_id);
+      if (ficticias) debugLog.push(`${ficticias} ventas ficticias marcadas (cliente "-")`);
 
       // ── Cálculos de resumen ────────────────────────────────────────────
 

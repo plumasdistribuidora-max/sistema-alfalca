@@ -1686,7 +1686,8 @@ function gastosDelMes(record, plantilla, fallback) {
   return g?.bloques?.length > 0 ? g : (plantilla || fallback);
 }
 
-// Lo que cobran las tarjetas: un % de toda la venta bruta (con y sin factura), 2% por defecto.
+// Lo que cobran las tarjetas: un % de toda la venta bruta (con y sin factura), 4,6% por defecto: Getnet se
+// queda con ~6% de lo cobrado con tarjeta, y la tarjeta es ~76% de la venta (jun–sep 2026).
 function costoTarjetas(fiscalData, pct) {
   return (fiscalData.bruto_fiscal + fiscalData.bruto_no_fiscal) * pct / 100;
 }
@@ -1699,7 +1700,7 @@ function calcEerr(fiscalData, record, plantilla = null) {
   const cmv_alim_pct  = record != null ? n(record.cmv_alim_pct) : 70;
   const fee_marca_pct = record?.fee_marca_pct != null ? n(record.fee_marca_pct) : 2;
   const fee_mkt_pct   = record?.fee_mkt_pct   != null ? n(record.fee_mkt_pct)   : 2;
-  const tarjeta_pct   = record?.tarjeta_pct   != null ? n(record.tarjeta_pct)   : 2;
+  const tarjeta_pct   = record?.tarjeta_pct   != null ? n(record.tarjeta_pct)   : 4.6;
   const gastos       = gastosDelMes(record, plantilla, DEFAULT_GASTOS);
   const imp          = record?.impuestos || { iibb: 0, novecientos31: 0, ganancias: 0 };
 
@@ -2516,7 +2517,7 @@ async function eerrCafe(local_id, mes) {
     rubrosBrutos:    rubrosR.rows.map(r => ({ rubro: r.rubro, venta: n(r.venta) })).filter(r => r.venta > 0),
     pctMap:          Object.fromEntries(pctR.rows.map(r => [r.categoria, n(r.cmv_pct)])),
     gastos:          gastosDelMes(gastosR.rows[0], plantilla, DEFAULT_GASTOS_CAFETERIA),
-    tarjetaPct:      gastosR.rows[0]?.tarjeta_pct != null ? n(gastosR.rows[0].tarjeta_pct) : 2,
+    tarjetaPct:      gastosR.rows[0]?.tarjeta_pct != null ? n(gastosR.rows[0].tarjeta_pct) : 4.6,
     impuestosRecord: impR.rows[0] || null,
     impuestosMontos: gastosR.rows[0]?.impuestos,
   });

@@ -130,6 +130,71 @@ async function numerosDe(unidades, mes, ctx = {}) {
   return out;
 }
 
+// ── Números del grupo (3/11/2026) ───────────────────────────────────────────
+// Cada negocio traducido a las mismas líneas para poder sumarlos: venta neta, costo,
+// gastos, impuestos y extraordinarios. Lo demás (margen, resultado antes de impuestos,
+// ganancia) se calcula igual para todos. En las tiendas los gastos incluyen fees y tarjetas;
+// en Kankay, la comisión de tarjetas, y la nota de crédito va en extraordinarios para que no
+// tape cómo anduvo el mes. Senzen no tiene renglón de impuestos todavía.
+// cerrado = tiene gastos cargados: sin eso, gastos y ganancia no se muestran ni se suman.
+function lineas(x) {
+  const mb = x.venta_neta - x.costo;
+  const rai = mb - x.gastos;
+  const res = rai - x.impuestos;
+  return { ...x, margen_bruto: mb, antes_impuestos: rai, ganancia: res, total: res + x.extra };
+}
+
+async function grupoMes(mes) {
+  const tiendas = UNIDADES.filter(u => u.local_id);
+  const [eerrs, K, kManual, sz] = await Promise.all([
+    Promise.all(tiendas.map(u => (u.cafe ? eerr.eerrCafe(u.local_id, mes) : eerr.eerrTienda(u.local_id, mes)))),
+    kankay.datos(), kankay.eerrManual(), senzenMes(mes),
+  ]);
+  const out = {};
+  tiendas.forEach((u, i) => {
+    const e = eerrs[i];
+    out[u.k] = lineas({
+      venta_neta: e.venta_neta,
+      costo: u.cafe ? e.cmv_total : e.cmv,
+      gastos: (e.fees?.total || 0) + (e.tarjetas?.monto || 0) + e.total_gastos,
+      impuestos: e.impuestos.total,
+      extra: 0,
+      cerrado: e.gastos_cargados,
+    });
+  });
+
+  const M = K.vacio ? null : K.meses[mes];
+  const km = kManual.meses[mes];
+  const kCargado = !!km && km.gastos.some(g => g[1] !== null);
+  const kNeto = M?.neto || 0;
+  out.kankay = lineas({
+    venta_neta: kNeto,
+    costo: M?.cmv || 0,
+    gastos: (kCargado ? km.gastos.reduce((s, g) => s + (g[1] || 0), 0) : 0) + kNeto * kManual.comisionPct / 100,
+    impuestos: kCargado ? (km.iibb || 0) + (km.f931 || 0) : 0,
+    extra: kCargado ? km.nc || 0 : 0,
+    cerrado: kCargado,
+  });
+
+  out.senzen = lineas({
+    venta_neta: sz.venta_neta, costo: sz.costo, gastos: sz.total_gastos, impuestos: 0, extra: 0,
+    cerrado: sz.gastos_cargados,
+  });
+
+  const juntar = keys => {
+    const xs = keys.map(k => out[k]);
+    const s = f => xs.reduce((a, x) => a + x[f], 0);
+    return lineas({
+      venta_neta: s('venta_neta'), costo: s('costo'), gastos: s('gastos'), impuestos: s('impuestos'), extra: s('extra'),
+      cerrado: xs.every(x => x.cerrado),
+      faltan: keys.filter(k => !out[k].cerrado).map(k => UNIDAD[k].nombre),
+    });
+  };
+  out.entre_dos = juntar(tiendas.map(u => u.k));
+  out.grupo = juntar([...tiendas.map(u => u.k), 'kankay', 'senzen']);
+  return out;
+}
+
 // ── Ventas del mes, en vivo ──────────────────────────────────────────────────
 // Para los objetivos de ventas: lo que se cobró (con IVA), como lo muestran Fudo y Dux.
 // hasta = el último día con datos, para calcular el ritmo.
@@ -195,6 +260,6 @@ async function faltanCerrar(mes) {
 }
 
 module.exports = {
-  UNIDADES, UNIDAD, A_CERRAR, numerosDe, ventasMes, cierre, faltanCerrar, senzenMes,
+  UNIDADES, UNIDAD, A_CERRAR, numerosDe, grupoMes, ventasMes, cierre, faltanCerrar, senzenMes,
   DESDE, sumarMeses, ultimoDia, mesActual, mesPlan, mesDeSemana, mesACerrar, plazoCierre, nombreMes, esMes,
 };

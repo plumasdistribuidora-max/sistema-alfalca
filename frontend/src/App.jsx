@@ -31,6 +31,7 @@ import SemanaPepa            from './pages/marcas/senzen/SemanaPepa';
 import TableroGordo          from './pages/tareas/TableroGordo';
 import TableroDuenos         from './pages/tareas/TableroDuenos';
 import DuenosMes             from './pages/duenos/Mes';
+import DuenosGrupo           from './pages/duenos/Grupo';
 import DetalleTarea          from './pages/tareas/DetalleTarea';
 import Tablero               from './pages/tareas/Tablero';
 import ReporteDia            from './pages/tareas/ReporteDia';
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="tareas"               element={soloRed(<Solapas grupo="tareas"><TableroGordo /></Solapas>)} />
             <Route path="tareas-duenos"        element={soloDueno(<TableroDuenos />)} />
             <Route path="duenos"               element={soloDueno(<DuenosMes />)} />
+            <Route path="duenos/grupo"         element={soloDueno(<DuenosGrupo />)} />
             <Route path="duenos/cierre"        element={<Navigate to="/duenos" replace />} />
             <Route path="duenos/objetivos"     element={<Navigate to="/duenos" replace />} />
             <Route path="duenos/reuniones"     element={<Navigate to="/duenos" replace />} />

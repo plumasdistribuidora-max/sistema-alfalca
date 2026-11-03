@@ -160,6 +160,21 @@ router.get('/mes', async (req, res) => {
   }
 });
 
+// ── GET /grupo ───────────────────────────────────────────────────────────────
+// Números del grupo (3/11/2026): el estado de resultados de cada negocio traducido a las
+// mismas líneas, con la columna Grupo. Arranca en el último mes que se cierra.
+router.get('/grupo', async (req, res) => {
+  try {
+    const mes = D.esMes(req.query.mes) ? req.query.mes : D.mesACerrar();
+    const nums = await D.grupoMes(mes);
+    const unidades = D.UNIDADES.filter(u => !u.consolidado).map(u => ({ k: u.k, nombre: u.nombre, negocio: u.negocio, local: !!u.local_id }));
+    res.json({ ok: true, data: { mes, nombre_mes: D.nombreMes(mes), en_curso: mes >= D.mesActual(), unidades, nums } });
+  } catch (err) {
+    console.error('[duenos/grupo]', err);
+    fail(res, 500, 'No se pudieron cargar los números del grupo');
+  }
+});
+
 // ── Resumen ──────────────────────────────────────────────────────────────────
 // Lo primero que ven los dueños: cómo viene cada unidad contra su objetivo y lo que pide
 // atención esta semana.

@@ -226,7 +226,8 @@ export default function Sidebar({ open, onClose }) {
               {dueno && (
                 <Bloque icon="personal" label="Dueños" rutas={RUTAS.duenos}>
                   {/* Una sola pantalla con todo (Martín, 24/10/2026); el cierre del mes se abre desde ahí. */}
-                  <NavItem to="/duenos"            icon="tablero"    label="Objetivos del mes" rutas={['/duenos']} />
+                  <NavItem to="/duenos"            icon="tablero"    label="Objetivos del mes" end />
+                  <NavItem to="/duenos/grupo"      icon="finanzas"   label="Números del grupo" />
                   <NavItem to="/tareas-duenos"     icon="tareas"     label="Tareas" />
                 </Bloque>
               )}

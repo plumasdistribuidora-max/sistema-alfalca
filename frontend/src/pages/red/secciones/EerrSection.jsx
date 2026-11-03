@@ -202,7 +202,7 @@ function GastosContent({ ventaNeta, editGastos, setEditGastos }) {
                       className="flex-1 rounded-lg border border-stone-100 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400 bg-stone-50"
                     />
                     <input
-                      type="number" value={c.monto} min="0" placeholder="0"
+                      type="number" value={c.monto} placeholder="0"
                       onChange={e => updMonto(bi, ci, e.target.value)}
                       className="w-28 text-right rounded-lg border border-stone-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400"
                     />

@@ -237,29 +237,31 @@ function GastosModal({ ventaNeta, editGastos, setEditGastos, onClose, onSave, sa
 
 // ── Popup: Impuestos ───────────────────────────────────────────────────────────
 
-function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, localId, mes }) {
-  const [edit,   setEdit]   = useState({
-    iibb_pct:      String(impuestosData?.iibb_pct      ?? 3),
-    imp_gen_pct:   String(impuestosData?.imp_gen_pct   ?? 0),
+function ImpuestosModal({ ventaNeta, impuestosData, onClose, onSaved, localId, mes }) {
+  // Igual que en las tiendas: se carga el monto de cada impuesto. Si el mes todavía tiene la
+  // estimación vieja, el IIBB arranca con ese monto para no perderlo al guardar.
+  const [edit, setEdit] = useState({
+    iibb:          String(impuestosData?.iibb          ?? 0),
+    novecientos31: String(impuestosData?.novecientos31 ?? 0),
+    ganancias:     String(impuestosData?.ganancias     ?? 0),
   });
   const [saving, setSaving] = useState(false);
 
-  const ebitda_base = Math.max(ebitda, 0);
-  // IIBB se paga sobre la venta; el resto, sobre el EBITDA.
   const items = [
-    { key: 'iibb_pct',      label: 'Ingresos Brutos',     base: ventaNeta,   sobre: 'de la venta' },
-    { key: 'imp_gen_pct',   label: 'Impuestos generales', base: ebitda_base, sobre: 'del EBITDA' },
-  ];
-  const monto      = it => Math.round(it.base * (parseFloat(edit[it.key]) || 0) / 100);
-  const totalMonto = items.reduce((s, it) => s + monto(it), 0);
+    { key: 'iibb',          label: 'IIBB' },
+    { key: 'novecientos31', label: '931' },
+    { key: 'ganancias',     label: 'Ganancias' },
+  ].map(it => ({ ...it, val: parseFloat(edit[it.key]) || 0 }));
+  const total = items.reduce((s, it) => s + it.val, 0);
 
   async function save() {
     setSaving(true);
     try {
       await api.post('/red/eerr/cafeteria/impuestos', {
         local_id: localId, mes,
-        iibb_pct:      parseFloat(edit.iibb_pct)      || 0,
-        imp_gen_pct:   parseFloat(edit.imp_gen_pct)   || 0,
+        iibb:          parseFloat(edit.iibb)          || 0,
+        novecientos31: parseFloat(edit.novecientos31) || 0,
+        ganancias:     parseFloat(edit.ganancias)     || 0,
       });
       onSaved();
     } catch (err) {
@@ -273,32 +275,32 @@ function ImpuestosModal({ ventaNeta, ebitda, impuestosData, onClose, onSaved, lo
   return (
     <ModalShell title={`Impuestos · ${mesLabel(mes)}`} onClose={onClose} onSave={save} saving={saving}>
       <div className="text-sm space-y-3">
-        <p className="text-stone-400 text-xs">Venta neta {fmt$(ventaNeta)} · EBITDA {fmt$(ebitda_base)}</p>
+        {impuestosData?.estimado && (
+          <p className="text-amber-700 text-xs">Este mes todavía no tiene impuestos cargados: el IIBB es el {impuestosData.iibb_pct}% estimado de la venta. Poné los montos reales.</p>
+        )}
         <div className="rounded-xl border border-stone-100 overflow-hidden">
-          {items.map((item, i) => {
-            return (
-              <div key={item.key} className={`flex items-center justify-between px-4 py-3 border-b border-stone-50 ${i % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}>
-                <span className="flex-1">
-                  <span className="font-medium text-stone-700">{item.label}</span>
-                  <span className="block text-xs text-stone-400">% {item.sobre}</span>
+          {items.map((item, i) => (
+            <div key={item.key} className={`flex items-center justify-between px-4 py-3 border-b border-stone-50 ${i % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}>
+              <span className="font-medium text-stone-700">{item.label}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-stone-400 text-xs w-12 text-right">
+                  {fmtP(ventaNeta > 0 ? item.val / ventaNeta * 100 : 0)}
                 </span>
-                <span className="text-stone-400 text-xs w-24 text-right mr-3">{fmt$(monto(item))}</span>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number" min="0" max="100" step="0.5"
-                    value={edit[item.key]}
-                    onChange={e => setEdit(p => ({ ...p, [item.key]: e.target.value }))}
-                    className="w-16 text-right rounded-lg border border-stone-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-                  />
-                  <span className="text-stone-400 text-xs">%</span>
-                </div>
+                <input
+                  type="number" min="0" placeholder="0"
+                  value={edit[item.key]}
+                  onChange={e => setEdit(p => ({ ...p, [item.key]: e.target.value }))}
+                  className="w-36 text-right rounded-lg border border-stone-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                />
               </div>
-            );
-          })}
+            </div>
+          ))}
           <div className="flex items-center justify-between px-4 py-3 bg-violet-50">
             <span className="font-bold text-violet-900">Total</span>
-
-            <span className="font-bold text-violet-900 text-base">{fmt$(totalMonto)}</span>
+            <div className="text-right">
+              <span className="font-bold text-violet-900 text-base">{fmt$(total)}</span>
+              <span className="ml-2 text-xs text-violet-500">{fmtP(ventaNeta > 0 ? total / ventaNeta * 100 : 0)}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -330,8 +332,14 @@ function filasCafe(d, abrir, abrirGastos) {
     ))),
     { tipo: 'sub', label: 'EBITDA', actual: d.ebitda, incompleto: sinGastos },
     { tipo: 'grp', label: 'Impuestos', actual: imp.total, costo: true, onEditar: () => abrir('impuestos') },
-    { tipo: 'det', label: `Ingresos brutos · ${imp.iibb_pct}% de la venta`, actual: imp.iibb, costo: true },
-    ...(imp.imp_gen_pct ? [{ tipo: 'det', label: `Impuestos generales · ${imp.imp_gen_pct}% del EBITDA`, actual: imp.imp_gen, costo: true }] : []),
+    ...(imp.estimado ? [
+      { tipo: 'det', label: `Ingresos brutos · ${imp.iibb_pct}% estimado de la venta`, actual: imp.iibb, costo: true },
+      ...(imp.imp_gen_pct ? [{ tipo: 'det', label: `Impuestos generales · ${imp.imp_gen_pct}% del EBITDA`, actual: imp.imp_gen, costo: true }] : []),
+    ] : [
+      { tipo: 'det', label: 'Ingresos brutos', actual: imp.iibb, costo: true },
+      { tipo: 'det', label: '931', actual: imp.novecientos31, costo: true },
+      ...(imp.ganancias ? [{ tipo: 'det', label: 'Ganancias', actual: imp.ganancias, costo: true }] : []),
+    ]),
     { tipo: 'fin', label: 'Resultado neto', actual: d.resultado_neto, incompleto: sinGastos },
   ];
 }
@@ -454,7 +462,6 @@ export default function EerrCafeteriaSection({ localId, mes }) {
       {openModal === 'impuestos' && (
         <ImpuestosModal
           ventaNeta={data.venta_neta}
-          ebitda={data.ebitda}
           impuestosData={data.impuestos}
           localId={localId}
           mes={mes}

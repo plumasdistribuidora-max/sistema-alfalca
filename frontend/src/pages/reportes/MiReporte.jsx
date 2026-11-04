@@ -260,6 +260,36 @@ export default function MiReporte() {
       .catch(() => {});
   }
 
+  // Pone en pantalla un reporte, o el formulario en blanco de ese turno si no hay ninguno.
+  function mostrarReporte(reporte, turnoElegido) {
+    setTurno(turnoElegido);
+    setRespuestas(reporte?.respuestas || {});
+    setReporteId(reporte?.id || null);
+    setAperturaAt(reporte?.apertura_at || null);
+    setEstadoReporte(reporte?.estado || null);
+    setAdjuntos(reporte?.adjuntos || []);
+    setFacturas(reporte?.facturas || []);
+    setFaltan([]);
+    setEnviado(reporte?.estado === 'enviado' || reporte?.estado === 'aprobado');
+    setError('');
+  }
+
+  // Quien hace los dos turnos carga un reporte por cada uno. Si ese turno ya tiene
+  // reporte se retoma; si no, arranca en blanco, sin arrastrar lo del otro turno.
+  async function abrirTurno(t) {
+    clearTimeout(debounce.current);
+    try {
+      const r = await api.get('/reportes/mio', {
+        params: { local_id: data.local?.id, plantilla: data.plantilla?.codigo, fecha: data.fecha },
+      });
+      setData(r.data.data);
+      mostrarReporte(r.data.data.reportes.find(x => x.turno === t), t);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo abrir ese turno');
+    }
+  }
+
   // Carga la pantalla para un local y formulario. Sin argumentos, el backend elige:
   // lo que ya venía cargando hoy, o si no el local propio. Con un pendiente, abre ese
   // reporte puntual de otro día.
@@ -274,16 +304,7 @@ export default function MiReporte() {
       setCorrigiendo(pendiente);
       const reportes = r.data.data.reportes;
       const previo = (pendiente && reportes.find(x => x.id === pendiente.id)) || reportes[0];
-      setTurno(previo?.turno || '');
-      setRespuestas(previo?.respuestas || {});
-      setReporteId(previo?.id || null);
-      setAperturaAt(previo?.apertura_at || null);
-      setEstadoReporte(previo?.estado || null);
-      setAdjuntos(previo?.adjuntos || []);
-      setFacturas(previo?.facturas || []);
-      setFaltan([]);
-      setEnviado(previo?.estado === 'enviado' || previo?.estado === 'aprobado');
-      setError('');
+      mostrarReporte(previo, previo?.turno || '');
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo cargar tu reporte');
     } finally {
@@ -292,6 +313,20 @@ export default function MiReporte() {
   }
 
   useEffect(() => { cargar(); cargarPendientes(); }, []);
+
+  // Después de enviar: qué turnos quedan por cargar y lo que este turno dejó en
+  // mantenimiento, sin tocar lo que está en pantalla.
+  function refrescarReportes() {
+    const params = { local_id: data.local?.id, plantilla: data.plantilla?.codigo };
+    if (corrigiendo) params.fecha = corrigiendo.fecha;
+    api.get('/reportes/mio', { params })
+      .then(r => setData(d => ({
+        ...d,
+        reportes: r.data.data.reportes,
+        mantenimiento_pendientes: r.data.data.mantenimiento_pendientes || [],
+      })))
+      .catch(() => {});
+  }
 
   function refrescarPendientesMantenimiento() {
     if (!data) return;
@@ -376,6 +411,15 @@ export default function MiReporte() {
   }
 
   async function elegirTurno(t) {
+    // Sobre un reporte ya enviado, cambiar el turno es cargar el otro: copiarle las
+    // respuestas le pondría las ventas de un turno al otro.
+    const cerrado = estadoReporte === 'enviado' || estadoReporte === 'aprobado';
+    if (cerrado) return abrirTurno(t);
+    if (data.reportes.some(r => r.turno === t)) {
+      clearTimeout(debounce.current);
+      await guardar(turno, respuestas);   // lo último tipeado no se pierde al cambiar
+      return abrirTurno(t);
+    }
     setTurno(t);
     await guardar(t, respuestas);
   }
@@ -441,7 +485,9 @@ export default function MiReporte() {
       if (!id) return;
       await api.post(`/reportes/${id}/enviar`);
       setEnviado(true);
+      setEstadoReporte('enviado');
       cargarPendientes();
+      refrescarReportes();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       const d = err.response?.data;
@@ -481,6 +527,10 @@ export default function MiReporte() {
   const otrosPendientes = pendientes.filter(p => p.id !== reporteId);
   const etiquetaOpcion = o => plantilla_es_sector(o) ? `${o.plantilla_nombre} · ${o.local_nombre}` : o.local_nombre;
   const campoTurno = plantilla.campos.find(c => c.tipo === 'seleccion' && c.codigo === 'turno');
+  // Los turnos de este local que esta persona todavía no envió.
+  const turnosPorCargar = (campoTurno?.opciones || []).filter(t => t !== turno && !(data.reportes || []).some(
+    r => r.turno === t && (r.estado === 'enviado' || r.estado === 'aprobado')
+  ));
   // Un campo que cuelga de otro (solo_si) aparece recién cuando esa respuesta lo pide:
   // la foto de la máquina sucia no está ahí molestando si la recibieron bien.
   const resto = plantilla.campos
@@ -530,6 +580,11 @@ export default function MiReporte() {
             Ir al reporte de hoy
           </button>
         )}
+        {!corrigiendo && turnosPorCargar.map(t => (
+          <button key={t} onClick={() => abrirTurno(t)} className="btn-primary w-full">
+            También hice el turno {t.toLowerCase()}: cargarlo
+          </button>
+        ))}
         <button onClick={() => setEnviado(false)} className="btn-secondary w-full">
           Ver mi reporte
         </button>

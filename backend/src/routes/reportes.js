@@ -407,8 +407,11 @@ router.get('/mio', requireAuth, async (req, res) => {
         equipo:    await equipoDe(elegida.local_id),
         // Lo que sigue abierto en ese local, para que el turno diga si se solucionó.
         // Se pide como si fuera la tarde (lo de días anteriores más lo de la mañana de
-        // hoy): la pantalla filtra según el turno elegido, con la misma regla.
-        mantenimiento_pendientes: await pendientesDe(elegida.local_id, propios.map(r => r.id), fecha, 'Tarde', elegida.plantilla_codigo),
+        // hoy): la pantalla filtra según el turno elegido, con la misma regla. No se
+        // excluyen los reportes propios: quien hace los dos turnos tiene que contestar
+        // a la tarde lo que anotó a la mañana, y si acá no aparece, al enviar el
+        // servidor se lo pide y no tiene dónde responderlo.
+        mantenimiento_pendientes: await pendientesDe(elegida.local_id, [], fecha, 'Tarde', elegida.plantilla_codigo),
         // Los rubros del maestro: el empleado elige de ahí, no escribe el nombre.
         mantenimiento_rubros: await rubrosActivos(),
         // Lo mismo para el check de vencimientos: producto de la lista, fecha del paquete.

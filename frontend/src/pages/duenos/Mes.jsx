@@ -96,7 +96,7 @@ export default function Mes() {
             const ms = u.micros.filter(m => filtro === 'todos' || m.dueno_id === user.id);
             if (filtro === 'mios' && !ms.length) return null;
             return (
-              <Unidad key={u.k} u={u} d={d} micros={ms} onObjetivo={() => setObjetivo(u)} onMicro={m => setMicro(m.id)}
+              <Unidad key={u.k} u={u} d={d} micros={ms} onObjetivo={x => setObjetivo(x || u)} onMicro={m => setMicro(m.id)}
                       onTarea={abrirTarea} onNuevaTarea={m => setNuevaTarea({ m, nueva: true })} onNuevoMicro={() => setNuevoMicro(u)} />
             );
           })}
@@ -121,7 +121,7 @@ export default function Mes() {
       {objetivo && <FichaObjetivo u={objetivo} d={d} onCerrar={() => setObjetivo(null)} onListo={() => { setObjetivo(null); cargar(); }} />}
       {nuevoMicro && base && (
         <NuevoMicro d={base} user={user} mes={mes} onCerrar={() => setNuevoMicro(null)} onListo={() => { setNuevoMicro(null); cargar(); }}
-                    inicial={{ negocio: nuevoMicro.negocio, local_ids: nuevoMicro.local_id ? [nuevoMicro.local_id] : [] }} />
+                    inicial={{ negocio: nuevoMicro.negocio, local_ids: nuevoMicro.local_ids || (nuevoMicro.local_id ? [nuevoMicro.local_id] : []) }} />
       )}
       {nuevaTarea && (
         <PedirAyuda m={nuevaTarea.m} d={d} user={user} nueva={nuevaTarea.nueva} onCerrar={() => setNuevaTarea(null)} onListo={() => { setNuevaTarea(null); cargar(); }} />
@@ -144,7 +144,11 @@ function Unidad({ u, d, micros, onObjetivo, onMicro, onTarea, onNuevaTarea, onNu
       <h2 className="flex items-center gap-2.5 mb-2 text-lg font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
         <span className="w-3 h-3 rounded-[3px]" style={{ background: color }} />{u.nombre}
       </h2>
-      <BarraObjetivo u={u} d={d} color={color} onClick={onObjetivo} />
+      {u.tiendas ? (
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          {u.tiendas.map(t => <ObjetivoTienda key={t.k} u={t} d={d} color={color} onClick={() => onObjetivo(t)} />)}
+        </div>
+      ) : <BarraObjetivo u={u} d={d} color={color} onClick={() => onObjetivo()} />}
       {n > 0 && (
         <>
           <div className="relative h-6 hidden lg:block" aria-hidden="true">
@@ -155,7 +159,7 @@ function Unidad({ u, d, micros, onObjetivo, onMicro, onTarea, onNuevaTarea, onNu
             {columnas.map(c => (
               <div key={c.id} className="grid gap-3 content-start min-w-0">
                 <span className="justify-self-center text-[13px] font-semibold rounded-full px-3.5 py-1 text-white" style={{ background: '#55585c' }}>{c.dueno}</span>
-                {c.micros.map(m => <Caja key={m.id} m={m} d={d} color={color} onMicro={onMicro} onTarea={onTarea} onNuevaTarea={onNuevaTarea} />)}
+                {c.micros.map(m => <Caja key={m.id} m={m} d={d} color={color} soloDe={u.tiendas && m.local_ids.length < u.tiendas.length ? m.unidades.join(', ') : null} onMicro={onMicro} onTarea={onTarea} onNuevaTarea={onNuevaTarea} />)}
               </div>
             ))}
           </div>
@@ -169,6 +173,31 @@ function Unidad({ u, d, micros, onObjetivo, onMicro, onTarea, onNuevaTarea, onNu
         </div>
       )}
     </section>
+  );
+}
+
+// El objetivo de cada tienda, en chico: van las cuatro en una fila.
+function ObjetivoTienda({ u, d, color, onClick }) {
+  const o = u.objetivo;
+  const v = u.ventas;
+  const meta = !o ? 'Sin cargar' : o.tipo === 'ventas' ? `Vender ${pesos(o.monto)}` : o.tipo === 'meta' ? o.texto : `${pct(o.pct)} de rentabilidad`;
+  const real = o?.tipo === 'ventas' ? pesos(v?.total || 0) : o?.tipo === 'rent' ? (u.real == null ? 'sin cerrar' : pct(u.real)) : (o?.cumplido ? 'Hecho' : o?.cumplido === false ? 'No se hizo' : 'sin marcar');
+  return (
+    <button type="button" onClick={onClick} className="text-left bg-white border border-ahg-accent/50 rounded-2xl px-4 py-3 grid gap-1 content-start hover:border-ahg-text/40 min-w-0" style={{ borderTop: `4px solid ${color}` }}>
+      <span className="text-[13px] text-ahg-text/60">{u.nombre}</span>
+      <span className={`font-extrabold leading-snug ${o ? 'text-[17px]' : 'text-[15px] text-ahg-text/50'}`} style={{ fontFamily: 'Nunito, sans-serif' }}>{meta}</span>
+      {!o && !d.cerrado && <span className="text-xs text-ahg-text/50">Tocá para cargarlo</span>}
+      {o && d.cerrado && (
+        <span className="flex flex-wrap items-center gap-2 text-xs text-ahg-text/60">Resultado: <b className="text-ahg-text">{real}</b>{u.cumplido != null && <Resultado ok={u.cumplido} />}</span>
+      )}
+      {o && !d.cerrado && o.tipo === 'ventas' && v && (
+        <>
+          <span className="h-2 rounded-full bg-ahg-bg border border-ahg-accent/50 overflow-hidden"><span className="block h-full" style={{ width: `${Math.max(0, Math.min(100, (v.total / o.monto) * 100))}%`, background: color }} /></span>
+          <span className="text-xs tabular-nums">Vamos <b>{pesos(v.total)}</b> · {Math.round((v.total / o.monto) * 100)} %</span>
+        </>
+      )}
+      {o && !d.cerrado && o.tipo === 'rent' && u.real_anterior != null && <span className="text-xs text-ahg-text/60">{d.nombre_anterior}: {pct(u.real_anterior)}</span>}
+    </button>
   );
 }
 
@@ -234,12 +263,13 @@ function Resultado({ ok }) {
   return <span className={`inline-flex items-center gap-1 text-xs font-bold rounded-full px-2.5 py-0.5 ${ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>{ok ? '✓ Cumplido' : '✗ No se cumplió'}</span>;
 }
 
-function Caja({ m, d, color, onMicro, onTarea, onNuevaTarea }) {
+function Caja({ m, d, color, soloDe, onMicro, onTarea, onNuevaTarea }) {
   const hechas = m.tareas.filter(t => t.estado === 'terminada').length;
   return (
     <article className="bg-white border border-ahg-accent/50 rounded-2xl p-3.5 flex flex-col gap-2.5 min-w-0" style={{ borderTop: `4px solid ${color}` }}>
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs rounded-full px-2.5 py-0.5 bg-ahg-bg border border-ahg-accent/50">{m.area_label}</span>
+        {soloDe && <span className="text-xs font-semibold rounded-full px-2.5 py-0.5 border border-ahg-text/40">{soloDe}</span>}
         <span className="ml-auto">{d.cerrado ? (m.resultado && <Resultado ok={m.resultado === 'cumplido'} />) : <PuntoSemaforo s={m.semaforo} size={13} />}</span>
       </div>
       <button type="button" onClick={() => onMicro(m)} className="text-left hover:underline">

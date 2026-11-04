@@ -80,10 +80,17 @@ async function objetivosCompletos(mes) {
   return Object.fromEntries(rows.map(r => [r.unidad, r]));
 }
 
-// En qué unidad se muestra un microobjetivo: el local si eligió uno solo; Entre Dos si
-// eligió varios o ninguno; Kankay, Senzen o General por su negocio.
+// Las cuatro tiendas comparten microobjetivos: cada una tiene su objetivo, pero en la pantalla
+// van bajo Tiendas de Alfajores (Martín, 4/11/2026). El Café queda aparte.
+const TIENDAS = D.UNIDADES.filter(u => u.local_id && !u.cafe);
+const esTienda = k => TIENDAS.some(t => t.k === k);
+const LOCALES_TIENDAS = TIENDAS.map(t => t.local_id);
+
+// En qué sección se muestra un microobjetivo: Tiendas de Alfajores si es de una o más tiendas;
+// el Café si es solo suyo; Entre Dos si mezcla o no eligió ninguno; si no, por su negocio.
 function unidadDe(m) {
   if (m.negocio !== 'entre_dos') return m.negocio;
+  if (m.local_ids.length && m.local_ids.every(id => LOCALES_TIENDAS.includes(id))) return 'tiendas';
   if (m.local_ids.length === 1) return D.UNIDADES.find(u => u.local_id === m.local_ids[0])?.k || 'entre_dos';
   return 'entre_dos';
 }
@@ -122,8 +129,18 @@ router.get('/mes', async (req, res) => {
       cerrado ? D.numerosDe(D.UNIDADES, mes) : Promise.resolve({}),
     ]);
     const tareas = await tareasDe(micros.map(m => m.id));
-    const conObjetivo = UNIDADES_PANTALLA.filter(u => obj[u.k] || micros.some(m => unidadDe(m) === u.k));
-    const unidades = await Promise.all(conObjetivo.map(async u => {
+    const sueltas = UNIDADES_PANTALLA.filter(u => !esTienda(u.k));
+    const conObjetivo = sueltas.filter(u => obj[u.k] || micros.some(m => unidadDe(m) === u.k));
+    const fichaMicro = m => ({
+      id: m.id, nombre: m.nombre, dueno_id: m.dueno_id, dueno: m.dueno, area: m.area, area_label: m.area_label, negocio: m.negocio,
+      local_ids: m.local_ids, unidades: m.unidades, aporte_pts: m.aporte_pts, aporte_monto: m.aporte_monto, avance: m.avance, meta: m.meta,
+      resultado: m.resultado, pasado: m.pasado,
+      semaforo: m.semanas.find(x => x.semana === semana)?.semaforo || null,
+      nota: m.semanas.find(x => x.semana === semana)?.nota || null,
+      semanas: m.semanas,
+      tareas: tareas.filter(t => t.microobjetivo_id === m.id),
+    });
+    const armar = async u => {
       const o = obj[u.k] || null;
       const necesitaVentas = u.k !== 'general' && (o?.tipo === 'ventas' || o?.tipo === 'rent' || !o);
       const ventas = necesitaVentas ? await D.ventasMes(u.k, mes) : null;
@@ -136,21 +153,24 @@ router.get('/mes', async (req, res) => {
       }
       return {
         ...u, objetivo: o, real, real_anterior: numsAnt[u.k]?.pct ?? null, ventas, cumplido,
-        micros: micros.filter(m => unidadDe(m) === u.k).map(m => ({
-          id: m.id, nombre: m.nombre, dueno_id: m.dueno_id, dueno: m.dueno, area: m.area, area_label: m.area_label, negocio: m.negocio,
-          local_ids: m.local_ids, unidades: m.unidades, aporte_pts: m.aporte_pts, aporte_monto: m.aporte_monto, avance: m.avance, meta: m.meta,
-          resultado: m.resultado, pasado: m.pasado,
-          semaforo: m.semanas.find(x => x.semana === semana)?.semaforo || null,
-          nota: m.semanas.find(x => x.semana === semana)?.nota || null,
-          semanas: m.semanas,
-          tareas: tareas.filter(t => t.microobjetivo_id === m.id),
-        })),
+        micros: micros.filter(m => unidadDe(m) === u.k).map(fichaMicro),
       };
-    }));
+    };
+    const [tiendas, otras] = await Promise.all([
+      Promise.all(UNIDADES_PANTALLA.filter(u => esTienda(u.k)).map(armar)),
+      Promise.all(conObjetivo.map(armar)),
+    ]);
+    const microsTiendas = micros.filter(m => unidadDe(m) === 'tiendas').map(fichaMicro);
+    // Un mes que ya pasó muestra la sección solo si tuvo algo cargado.
+    const hayTiendas = !cerrado || microsTiendas.length > 0 || tiendas.some(t => t.objetivo);
+    const unidades = [
+      ...(hayTiendas ? [{ k: 'tiendas', nombre: 'Tiendas de Alfajores', negocio: 'entre_dos', local_ids: LOCALES_TIENDAS, tiendas, micros: microsTiendas }] : []),
+      ...otras,
+    ];
     res.json({ ok: true, data: {
       mes, nombre_mes: D.nombreMes(mes), cerrado, es_plan: mes === D.mesPlan(), semana, hoy: hoyStr(),
       anterior, nombre_anterior: D.nombreMes(anterior),
-      unidades, sin_objetivo: UNIDADES_PANTALLA.filter(u => !conObjetivo.includes(u)),
+      unidades, sin_objetivo: sueltas.filter(u => !conObjetivo.includes(u)),
       duenos: ds.map(d => ({ ...d, micros: micros.filter(m => m.dueno_id === d.id).length })),
     } });
   } catch (err) {

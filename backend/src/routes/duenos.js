@@ -16,7 +16,6 @@ const router = express.Router();
 const fail = (res, status, error) => res.status(status).json({ ok: false, error });
 const nombreCorto = n => String(n || '').replace(/\s*\(.*\)\s*$/, '');
 const NEGOCIOS = { entre_dos: 'Entre Dos', kankay: 'Kankay', senzen: 'Senzen', general: 'General' };
-const MAX_MICROS = 3;
 
 const sumarDias = (f, n) => { const d = new Date(`${f}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 // La reunión semanal es los miércoles (Martín, 23/10/2026): la semana de hoy es la del
@@ -152,7 +151,7 @@ router.get('/mes', async (req, res) => {
       mes, nombre_mes: D.nombreMes(mes), cerrado, es_plan: mes === D.mesPlan(), semana, hoy: hoyStr(),
       anterior, nombre_anterior: D.nombreMes(anterior),
       unidades, sin_objetivo: UNIDADES_PANTALLA.filter(u => !conObjetivo.includes(u)),
-      duenos: ds.map(d => ({ ...d, micros: micros.filter(m => m.dueno_id === d.id).length })), max_micros: MAX_MICROS,
+      duenos: ds.map(d => ({ ...d, micros: micros.filter(m => m.dueno_id === d.id).length })),
     } });
   } catch (err) {
     console.error('[duenos/mes]', err);
@@ -273,7 +272,7 @@ router.get('/objetivos', async (req, res) => {
     const locales = (await pool.query('SELECT id, nombre FROM locales WHERE activo ORDER BY id')).rows.map(l => ({ id: l.id, nombre: corto(l.nombre) }));
     res.json({ ok: true, data: {
       mes, nombre_mes: D.nombreMes(mes), anterior, nombre_anterior: D.nombreMes(anterior),
-      unidades, micros, duenos: porDueno, max_micros: MAX_MICROS, locales, negocios: NEGOCIOS, areas: T.AREAS,
+      unidades, micros, duenos: porDueno, locales, negocios: NEGOCIOS, areas: T.AREAS,
     } });
   } catch (err) {
     console.error('[duenos/objetivos]', err);
@@ -337,8 +336,6 @@ router.post('/microobjetivos/:id(\\d+)/pasar', async (req, res) => {
     const sig = D.sumarMeses(m.ym, 1);
     const ya = (await pool.query(`SELECT 1 FROM microobjetivos WHERE viene_de = $1 AND activo`, [m.id])).rows[0];
     if (ya) return fail(res, 400, 'Ya está pasado al mes siguiente');
-    const n = (await pool.query(`SELECT COUNT(*)::int AS n FROM microobjetivos WHERE activo AND dueno_id = $1 AND to_char(mes, 'YYYY-MM') = $2`, [m.dueno_id, sig])).rows[0].n;
-    if (n >= MAX_MICROS) return fail(res, 400, `Ese dueño ya tiene ${MAX_MICROS} microobjetivos en ${D.nombreMes(sig)}`);
     const nuevo = (await pool.query(`
       INSERT INTO microobjetivos (nombre, dueno_id, negocio, local_ids, area, meta, mes, aporte_pts, aporte_monto, avance, viene_de, creado_por)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
@@ -457,7 +454,6 @@ router.get('/reunion-mensual', async (req, res) => {
       cierre: { completo: cierre.completo, faltan: cierre.faltan, plazo: cierre.plazo },
       unidades, micros_anterior: microsAnt,
       por_dueno: ds.map(d => ({ ...d, micros: microsMes.filter(m => m.dueno_id === d.id).length })),
-      max_micros: MAX_MICROS,
     } });
   } catch (err) {
     console.error('[duenos/reunion-mensual]', err);

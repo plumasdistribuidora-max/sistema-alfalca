@@ -217,7 +217,7 @@ export function NuevoMicro({ d, user, mes, inicial, onCerrar, onListo }) {
         <label className={etiq}>Cómo va (opcional, se actualiza durante el mes)
           <input id="nm-avance" className="input" maxLength={120} value={f.avance} onChange={campo('avance')} placeholder="Ej.: 0 de 5 clientes" />
         </label>
-        <p className="text-[11px] text-ahg-text/50 -mt-1">Si el objetivo es de rentabilidad, el aporte va en puntos (+1 = un punto más de ganancia sobre la venta neta). Si es de ventas, en pesos. Máximo 3 microobjetivos por dueño por mes.</p>
+        <p className="text-[11px] text-ahg-text/50 -mt-1">Si el objetivo es de rentabilidad, el aporte va en puntos (+1 = un punto más de ganancia sobre la venta neta). Si es de ventas, en pesos.</p>
         {error && <p className="text-sm text-red-700">{error}</p>}
         <div className="flex gap-2">
           <button type="submit" className="btn-primary" disabled={guardando || f.nombre.trim().length < 3}>{guardando ? 'Guardando…' : 'Guardar'}</button>

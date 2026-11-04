@@ -42,7 +42,6 @@ const esFecha = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '');
 const NEGOCIOS = { entre_dos: 'Entre Dos', kankay: 'Kankay', senzen: 'Senzen', general: 'General' };
 const ESTADOS = ['nueva', 'en_curso', 'por_aprobar', 'terminada'];
 const nombreCorto = n => String(n || '').replace(/\s*\(.*\)\s*$/, '');
-const MAX_MICROS = 3;
 // Puntos de rentabilidad que aporta una palanca ("+1" = un punto más de ganancia sobre la venta).
 // Pesos que aporta una palanca de ventas ("$ 1.500.000" → 1500000).
 const monto = v => { const x = Number(String(v ?? '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')); return v === '' || v == null || !Number.isFinite(x) || x === 0 ? null : Math.round(x); };
@@ -383,9 +382,6 @@ router.post('/microobjetivos', async (req, res) => {
     if (!T.AREAS[req.body.area]) return fail(res, 400, 'Elegí el área que mueve');
     const mes = /^\d{4}-\d{2}/.test(req.body.mes || '') ? `${req.body.mes.slice(0, 7)}-01` : `${T.hoyMendoza().slice(0, 7)}-01`;
     const localIds = req.body.negocio === 'entre_dos' && Array.isArray(req.body.local_ids) ? req.body.local_ids.map(Number).filter(Boolean) : [];
-    // Pocos y cumplidos: máximo 3 por dueño por mes (regla de "Crecer ordenados").
-    const ya = (await pool.query(`SELECT COUNT(*)::int AS n FROM microobjetivos WHERE activo AND dueno_id = $1 AND mes = $2`, [dueno.id, mes])).rows[0].n;
-    if (ya >= MAX_MICROS) return fail(res, 400, `Ese dueño ya tiene ${MAX_MICROS} microobjetivos este mes. Pocos y cumplidos: cerrá o pasá uno antes de sumar otro.`);
     const { rows } = await pool.query(`
       INSERT INTO microobjetivos (nombre, dueno_id, negocio, local_ids, area, meta, mes, aporte_pts, aporte_monto, avance, creado_por)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id

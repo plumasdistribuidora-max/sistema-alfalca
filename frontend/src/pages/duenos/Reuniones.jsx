@@ -261,7 +261,7 @@ export function Mensual() {
         <div className="grid gap-2 text-sm">
           <p>{conObjetivo} de {d.unidades.length} unidades con objetivo. <Link to="/duenos/objetivos" className="underline">Cargar en Objetivos</Link></p>
           <div className="flex flex-wrap gap-2">
-            {d.por_dueno.map(u => <span key={u.id} className="text-xs rounded-full px-2.5 py-1 border border-ahg-accent/60">{u.nombre} {u.micros} de {d.max_micros}</span>)}
+            {d.por_dueno.map(u => <span key={u.id} className="text-xs rounded-full px-2.5 py-1 border border-ahg-accent/60">{u.nombre} · {u.micros}</span>)}
           </div>
         </div>
       ))}

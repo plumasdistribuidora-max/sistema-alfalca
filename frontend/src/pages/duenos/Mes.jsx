@@ -133,7 +133,12 @@ export default function Mes() {
 // ── Una unidad: el objetivo y las cajas de los dueños ────────────────────────
 function Unidad({ u, d, micros, onObjetivo, onMicro, onTarea, onNuevaTarea, onNuevoMicro }) {
   const color = NEG_COLOR[u.negocio];
-  const n = micros.length;
+  // Una columna por dueño, siempre en el mismo orden, con todos sus microobjetivos juntos.
+  const columnas = Object.values(micros.reduce((acc, m) => {
+    (acc[m.dueno_id] ||= { id: m.dueno_id, dueno: m.dueno, micros: [] }).micros.push(m);
+    return acc;
+  }, {}));
+  const n = columnas.length;
   return (
     <section aria-label={u.nombre}>
       <h2 className="flex items-center gap-2.5 mb-2 text-lg font-bold" style={{ fontFamily: 'Nunito, sans-serif' }}>
@@ -147,7 +152,12 @@ function Unidad({ u, d, micros, onObjetivo, onMicro, onTarea, onNuevaTarea, onNu
             {n > 1 && <span className="absolute top-3 border-t-2 border-ahg-accent" style={{ left: `${50 / n}%`, right: `${50 / n}%` }} />}
           </div>
           <div className="grid gap-3 mt-3 lg:mt-0 grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:repeat(var(--n),minmax(0,1fr))]" style={{ '--n': n }}>
-            {micros.map(m => <Caja key={m.id} m={m} d={d} color={color} onMicro={onMicro} onTarea={onTarea} onNuevaTarea={onNuevaTarea} n={n} />)}
+            {columnas.map(c => (
+              <div key={c.id} className="grid gap-3 content-start min-w-0">
+                <span className="justify-self-center text-[13px] font-semibold rounded-full px-3.5 py-1 text-white" style={{ background: '#55585c' }}>{c.dueno}</span>
+                {c.micros.map(m => <Caja key={m.id} m={m} d={d} color={color} onMicro={onMicro} onTarea={onTarea} onNuevaTarea={onNuevaTarea} />)}
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -229,7 +239,6 @@ function Caja({ m, d, color, onMicro, onTarea, onNuevaTarea }) {
   return (
     <article className="bg-white border border-ahg-accent/50 rounded-2xl p-3.5 flex flex-col gap-2.5 min-w-0" style={{ borderTop: `4px solid ${color}` }}>
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-xs font-semibold rounded-full px-2.5 py-0.5 text-white" style={{ background: '#55585c' }}>{m.dueno}</span>
         <span className="text-xs rounded-full px-2.5 py-0.5 bg-ahg-bg border border-ahg-accent/50">{m.area_label}</span>
         <span className="ml-auto">{d.cerrado ? (m.resultado && <Resultado ok={m.resultado === 'cumplido'} />) : <PuntoSemaforo s={m.semaforo} size={13} />}</span>
       </div>

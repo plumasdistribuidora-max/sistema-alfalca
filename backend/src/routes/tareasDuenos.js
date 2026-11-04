@@ -398,8 +398,13 @@ router.post('/microobjetivos', async (req, res) => {
 // semana (la del miércoles de la reunión).  { semaforo?, nota?, nombre?, meta?, aporte_pts? }
 router.post('/microobjetivos/:id(\\d+)', async (req, res) => {
   try {
-    const m = (await pool.query('SELECT id, dueno_id FROM microobjetivos WHERE id = $1 AND activo', [req.params.id])).rows[0];
+    const m = (await pool.query('SELECT id, dueno_id, negocio FROM microobjetivos WHERE id = $1 AND activo', [req.params.id])).rows[0];
     if (!m) return fail(res, 404, 'No existe ese microobjetivo');
+    // Corregir sus datos: se valida todo antes de guardar, para no dejarlo a medias.
+    const duenoNuevo = 'dueno_id' in req.body ? (await pool.query(`SELECT id FROM usuarios WHERE id = $1 AND rol = 'admin' AND activo`, [Number(req.body.dueno_id) || 0])).rows[0] : null;
+    if ('dueno_id' in req.body && !duenoNuevo) return fail(res, 400, 'Elegí el dueño responsable');
+    if ('area' in req.body && !T.AREAS[req.body.area]) return fail(res, 400, 'Elegí el área que mueve');
+    if ('negocio' in req.body && !['entre_dos', 'kankay', 'senzen', 'general'].includes(req.body.negocio)) return fail(res, 400, 'Elegí el negocio');
     if ('semaforo' in req.body || 'nota' in req.body) {
       if (m.dueno_id !== req.user.id) return fail(res, 403, 'El semáforo lo pone el dueño del microobjetivo');
       const { guardarSemana, miercolesDe } = require('./duenos');
@@ -410,6 +415,13 @@ router.post('/microobjetivos/:id(\\d+)', async (req, res) => {
     }
     if ('nombre' in req.body && escrito(req.body.nombre, 200).length >= 3) {
       await pool.query('UPDATE microobjetivos SET nombre = $2, updated_at = NOW() WHERE id = $1', [m.id, escrito(req.body.nombre, 200)]);
+    }
+    if (duenoNuevo) await pool.query('UPDATE microobjetivos SET dueno_id = $2, updated_at = NOW() WHERE id = $1', [m.id, duenoNuevo.id]);
+    if ('area' in req.body) await pool.query('UPDATE microobjetivos SET area = $2, updated_at = NOW() WHERE id = $1', [m.id, req.body.area]);
+    if ('negocio' in req.body || 'local_ids' in req.body) {
+      const negocio = req.body.negocio || m.negocio;
+      const localIds = negocio === 'entre_dos' && Array.isArray(req.body.local_ids) ? req.body.local_ids.map(Number).filter(Boolean) : [];
+      await pool.query('UPDATE microobjetivos SET negocio = $2, local_ids = $3, updated_at = NOW() WHERE id = $1', [m.id, negocio, localIds]);
     }
     if ('meta' in req.body) await pool.query('UPDATE microobjetivos SET meta = $2, updated_at = NOW() WHERE id = $1', [m.id, escrito(req.body.meta, 200) || null]);
     if ('aporte_pts' in req.body) await pool.query('UPDATE microobjetivos SET aporte_pts = $2, updated_at = NOW() WHERE id = $1', [m.id, aporte(req.body.aporte_pts)]);

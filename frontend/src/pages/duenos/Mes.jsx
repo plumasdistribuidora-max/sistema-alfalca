@@ -115,7 +115,7 @@ export default function Mes() {
 
       {ficha && base && <Ficha id={ficha} d={base} user={user} onCerrar={() => { setFicha(null); cargar(); }} onCambio={() => {}} />}
       {micro && microDe(micro) && (
-        <FichaMicro m={microDe(micro)} d={d} user={user} onCerrar={() => setMicro(null)} onCambio={() => cargar()}
+        <FichaMicro m={microDe(micro)} d={d} base={base} user={user} onCerrar={() => setMicro(null)} onCambio={() => cargar()}
                     onTarea={m => { setMicro(null); setNuevaTarea({ m, nueva: true }); }} onAyuda={m => { setMicro(null); setNuevaTarea({ m, nueva: false }); }} />
       )}
       {objetivo && <FichaObjetivo u={objetivo} d={d} onCerrar={() => setObjetivo(null)} onListo={() => { setObjetivo(null); cargar(); }} />}
@@ -311,8 +311,69 @@ function Caja({ m, d, color, soloDe, onMicro, onTarea, onNuevaTarea }) {
 }
 
 // ── El microobjetivo: semáforo, notas de cada semana, aporte y resultado ─────
-function FichaMicro({ m, d, user, onCerrar, onCambio, onTarea, onAyuda }) {
+// Corregir los datos de un microobjetivo. Lo puede hacer cualquier dueño.
+function EditarMicro({ m, base, onCancelar, onListo }) {
+  const [f, setF] = useState({ nombre: m.nombre, dueno_id: m.dueno_id, negocio: m.negocio, area: m.area, local_ids: m.local_ids, meta: m.meta || '' });
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const campo = k => e => setF(v => ({ ...v, [k]: e.target.value }));
+  const unidad = id => setF(v => ({ ...v, local_ids: v.local_ids.includes(id) ? v.local_ids.filter(x => x !== id) : [...v.local_ids, id] }));
+  async function guardar(e) {
+    e.preventDefault(); setGuardando(true); setError('');
+    try { await api.post(`/tareas-duenos/microobjetivos/${m.id}`, f); onListo(); }
+    catch (err) { setError(err.response?.data?.error || 'No se pudo guardar'); setGuardando(false); }
+  }
+  const etiq = 'text-xs text-ahg-text/60 grid gap-1';
+  return (
+    <form onSubmit={guardar} className="p-5 grid gap-3">
+      <p className="font-semibold">Editar microobjetivo</p>
+      <label className={etiq}>Microobjetivo
+        <input id="em-nombre" className="input" maxLength={200} value={f.nombre} onChange={campo('nombre')} autoFocus />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={etiq}>Dueño responsable
+          <select id="em-dueno" className="input" value={f.dueno_id} onChange={campo('dueno_id')}>
+            {base.duenos.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+          </select>
+        </label>
+        <label className={etiq}>Área que mueve
+          <select id="em-area" className="input" value={f.area} onChange={campo('area')}>
+            {Object.entries(base.areas).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+        <label className={etiq}>Negocio
+          <select id="em-negocio" className="input" value={f.negocio} onChange={campo('negocio')}>
+            <option value="entre_dos">Entre Dos</option><option value="kankay">Kankay</option><option value="senzen">Senzen</option><option value="general">General / Sociedad</option>
+          </select>
+        </label>
+        <label className={etiq}>Indicador y meta (opcional)
+          <input id="em-meta" className="input" maxLength={200} value={f.meta} onChange={campo('meta')} placeholder="Ej.: CMV de 38 % a 37 %" />
+        </label>
+      </div>
+      {f.negocio === 'entre_dos' && (
+        <fieldset className="grid gap-1.5">
+          <legend className="text-xs text-ahg-text/60 mb-1">Unidades a las que aplica</legend>
+          <div className="flex flex-wrap gap-2">
+            {base.locales.map(l => (
+              <label key={l.id} className={`text-sm px-2.5 py-1 rounded-full border cursor-pointer ${f.local_ids.includes(l.id) ? 'border-ahg-text bg-ahg-bg' : 'border-ahg-accent/60'}`}>
+                <input type="checkbox" className="sr-only" checked={f.local_ids.includes(l.id)} onChange={() => unidad(l.id)} />{l.nombre}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {error && <p className="text-sm text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" className="btn-primary" disabled={guardando || f.nombre.trim().length < 3}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+        <button type="button" className="btn-secondary" onClick={onCancelar}>Cancelar</button>
+      </div>
+    </form>
+  );
+}
+
+function FichaMicro({ m, d, base, user, onCerrar, onCambio, onTarea, onAyuda }) {
   const mio = m.dueno_id === user.id;
+  const [editando, setEditando] = useState(false);
   const [nota, setNota] = useState(m.nota || '');
   const [aporte, setAporte] = useState(aporteTxt(m).replace(/ puntos?$/, ''));
   const [avance, setAvance] = useState(m.avance || '');
@@ -330,6 +391,9 @@ function FichaMicro({ m, d, user, onCerrar, onCambio, onTarea, onAyuda }) {
     }, 'Guardado');
   }
   const etiq = 'text-xs text-ahg-text/60 grid gap-1';
+  if (editando) {
+    return <Modal onCerrar={onCerrar}><EditarMicro m={m} base={base} onCancelar={() => setEditando(false)} onListo={() => { setEditando(false); onCambio(); }} /></Modal>;
+  }
   return (
     <Modal onCerrar={onCerrar}>
       <div className="p-5 grid gap-3.5">
@@ -340,7 +404,9 @@ function FichaMicro({ m, d, user, onCerrar, onCambio, onTarea, onAyuda }) {
               <span className="text-xs rounded-full px-2.5 py-0.5 bg-ahg-bg border border-ahg-accent/50">{m.area_label}</span>
             </div>
             <h2 className="text-lg font-bold leading-snug" style={{ fontFamily: 'Nunito, sans-serif' }}>{m.nombre}</h2>
+            {m.meta && <p className="text-sm text-ahg-text/60">Meta: {m.meta}</p>}
           </div>
+          {base && <button type="button" className="btn-secondary !py-1.5 text-sm" onClick={() => setEditando(true)}>Editar</button>}
           <button onClick={onCerrar} aria-label="Cerrar" className="w-8 h-8 rounded-full bg-ahg-bg hover:bg-ahg-accent/40 text-lg leading-none">×</button>
         </div>
 

@@ -333,7 +333,7 @@ function filasTienda(a, abrir) {
     { tipo: 'det', label: `Fee de marketing · ${a.fees.mkt_pct}% de la compra a Entre Dos`, actual: a.fees.mkt, costo: true },
     { tipo: 'grp', label: `Costo de tarjetas · ${a.tarjetas.pct}% de la venta bruta`, texto: 'Costo de tarjetas', actual: a.tarjetas.monto, costo: true, onEditar: () => abrir('tarjeta') },
     { tipo: 'grp', label: 'Gastos operativos', actual: a.total_gastos, costo: true, sinCargar: sinGastos, onEditar: () => abrir('gastos') },
-    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
+    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) !== 0).map(c => (
       { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
     ))),
     { tipo: 'sub', label: 'EBITDA', actual: a.ebitda, incompleto: sinGastos },

@@ -93,7 +93,7 @@ export function pdfEerr({ filas, ventaNeta, local, mesLabel, aviso }) {
   const body = filas.map(f => {
     const vacio = f.sinCargar ? 'Sin cargar' : f.incompleto ? 'Incompleto' : null;
     // Guion común: la fuente del PDF no tiene el signo menos tipográfico.
-    const monto = vacio || (f.costo && f.actual ? `- ${plata(f.actual)}` : plata(f.actual));
+    const monto = vacio || (!f.costo || !f.actual ? plata(f.actual) : f.actual < 0 ? `+ ${plata(-f.actual)}` : `- ${plata(f.actual)}`);
     const pct = vacio ? '' : pctDe(f.actual, ventaNeta);
     return { tipo: f.tipo, celdas: [f.tipo === 'det' ? `      ${textoDe(f)}` : textoDe(f), monto, pct] };
   });

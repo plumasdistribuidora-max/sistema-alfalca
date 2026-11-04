@@ -327,7 +327,7 @@ function filasCafe(d, abrir, abrirGastos) {
     { tipo: 'sub', label: 'Margen bruto', actual: d.margen_bruto },
     { tipo: 'grp', label: `Costo de tarjetas · ${d.tarjetas.pct}% de la venta bruta`, actual: d.tarjetas.monto, costo: true, onEditar: () => abrir('tarjeta') },
     { tipo: 'grp', label: 'Gastos operativos', actual: d.total_gastos, costo: true, sinCargar: sinGastos, onEditar: abrirGastos },
-    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) > 0).map(c => (
+    ...(sinGastos ? [] : gastos.filter(c => Number(c.monto) !== 0).map(c => (
       { tipo: 'det', label: c.nombre, actual: Number(c.monto) || 0, costo: true }
     ))),
     { tipo: 'sub', label: 'EBITDA', actual: d.ebitda, incompleto: sinGastos },

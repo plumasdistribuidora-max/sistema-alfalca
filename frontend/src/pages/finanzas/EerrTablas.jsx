@@ -225,7 +225,8 @@ export function EerrAnio({ localId, anio }) {
 // sinCargar, incompleto }. Los costos van en positivo con costo: true y se muestran restando.
 
 export function EstadoResultados({ filas, ventaNeta, mesLabel, local, aviso }) {
-  const monto = (f, v) => (f.costo && v ? `− ${fmt$(v)}` : fmt$(v));
+  // Un costo negativo (una nota de crédito) es plata a favor: se muestra sumando.
+  const monto = (f, v) => (!f.costo || !v ? fmt$(v) : v < 0 ? `+ ${fmt$(-v)}` : `− ${fmt$(v)}`);
   return (
     <div className="space-y-3">
     <div className="card overflow-x-auto p-0">

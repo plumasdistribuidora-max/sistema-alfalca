@@ -443,7 +443,7 @@ async function armarReporte(fecha) {
   const cafe = c.turnos?.length ? {
     manana: c.turnos.find(x => x.turno === 'Mañana') ? { usuario: c.turnos.find(x => x.turno === 'Mañana').usuario, kg: c.manana } : null,
     tarde: c.turnos.find(x => x.turno === 'Tarde') ? { usuario: c.turnos.find(x => x.turno === 'Tarde').usuario, kg: c.tarde } : null,
-    consumo: c.consumo, teorico: c.control?.teorico ?? null, queda: c.queda,
+    ingreso: c.ingreso, consumo: c.consumo, teorico: c.control?.teorico ?? null, queda: c.queda,
     sin_definir: c.control?.sin_definir || 0,
   } : null;
 

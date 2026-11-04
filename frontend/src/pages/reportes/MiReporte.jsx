@@ -535,7 +535,7 @@ export default function MiReporte() {
   // la foto de la máquina sucia no está ahí molestando si la recibieron bien.
   const resto = plantilla.campos
     .filter(c => c.codigo !== 'turno')
-    .filter(c => campoVisible(c, respuestas));
+    .filter(c => campoVisible(c, { ...respuestas, turno }));
 
   // Reportes en dos etapas: la apertura se edita hasta confirmarla (o si el encargado
   // devolvió el reporte); la entrega aparece recién después.

@@ -1,5 +1,5 @@
-// Consumo de café del día: lo que pesó la barista de la mañana al entrar menos lo que
-// pesó la de la tarde al terminar. Se compara contra el teórico: lo que vendió la
+// Consumo de café del día: lo que pesó la barista de la mañana al entrar, más lo que
+// llegó en el día, menos lo que pesó la de la tarde al terminar. Se compara contra el teórico: lo que vendió la
 // cafetería multiplicado por los gramos que lleva cada producto según el maestro.
 const pool = require('../config/db');
 const { pesajeDeReporte } = require('./pesaje');
@@ -34,24 +34,28 @@ async function teoricoCafe(fecha, localId) {
 }
 
 // El café de un día a partir de sus reportes de barista (ya elegido uno por turno):
-// los dos pesajes, el consumo (mañana menos tarde), con cuánto queda el café, y el
-// control contra el teórico.
+// los dos pesajes, lo que llegó entre uno y otro (lo dice la tarde), el consumo, con
+// cuánto queda el café, y el control contra el teórico.
 function cafeDelDia(reportes, plantillas, teorico) {
   const turnos = [];
   for (const rep of reportes) {
     const p = plantillas.find(x => x.codigo === rep.plantilla_codigo);
     const pesaje = p ? pesajeDeReporte(p.campos, rep.respuestas) : null;
     if (!pesaje) continue;
-    turnos.push({ turno: rep.turno, usuario: rep.usuario_nombre, enviado_at: rep.enviado_at, ...pesaje });
+    turnos.push({
+      turno: rep.turno, usuario: rep.usuario_nombre, enviado_at: rep.enviado_at, ...pesaje,
+      llego_kg: Number(rep.respuestas?.cafe_llego_kg) || 0,
+    });
   }
   turnos.sort((a, b) => (a.turno === 'Mañana' ? 0 : 1) - (b.turno === 'Mañana' ? 0 : 1));
 
   const manana = turnos.find(t => t.turno === 'Mañana')?.total ?? null;
   const tarde  = turnos.find(t => t.turno === 'Tarde')?.total ?? null;
-  const consumo = (manana !== null && tarde !== null) ? r2(manana - tarde) : null;
+  const ingreso = turnos.find(t => t.turno === 'Tarde')?.llego_kg || 0;
+  const consumo = (manana !== null && tarde !== null) ? r2(manana + ingreso - tarde) : null;
   const teo = teorico ? r2(teorico.total_kg) : null;
   return {
-    turnos, manana, tarde, consumo,
+    turnos, manana, tarde, ingreso, consumo,
     queda: tarde,
     control: teorico ? {
       real: consumo, teorico: teo,
@@ -95,7 +99,7 @@ async function controlCafe(desde, hasta) {
   for (const fecha of dias) {
     const c = cafeDelDia(porDia.get(fecha) || [], plantillas, await teoricoCafe(fecha, localId));
     out.push({
-      fecha, turnos: c.turnos, manana: c.manana, tarde: c.tarde,
+      fecha, turnos: c.turnos, manana: c.manana, tarde: c.tarde, ingreso: c.ingreso,
       real: c.consumo, teorico: c.control.teorico, diferencia: c.control.diferencia,
       sin_definir: c.control.sin_definir, productos_sin_definir: c.control.productos_sin_definir,
     });

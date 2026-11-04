@@ -374,7 +374,7 @@ export default function ReporteDia() {
         </Card>
 
         {d.cafe && (
-          <Card titulo="Café en grano" sub={[d.cafe.manana && `${d.cafe.manana.usuario} entró con ${n1(d.cafe.manana.kg)} kg`, d.cafe.tarde && `${d.cafe.tarde.usuario} terminó con ${n1(d.cafe.tarde.kg)} kg`].filter(Boolean).join(' · ')}>
+          <Card titulo="Café en grano" sub={[d.cafe.manana && `${d.cafe.manana.usuario} entró con ${n1(d.cafe.manana.kg)} kg`, d.cafe.ingreso > 0 && `llegaron ${n1(d.cafe.ingreso)} kg`, d.cafe.tarde && `${d.cafe.tarde.usuario} terminó con ${n1(d.cafe.tarde.kg)} kg`].filter(Boolean).join(' · ')}>
             {d.cafe.consumo == null ? <p className="text-sm text-red-700">Falta un pesaje: sin los dos no se sabe cuánto se usó.</p> : (() => {
               const max = Math.max(d.cafe.consumo, d.cafe.teorico || 0);
               const dif = d.cafe.teorico ? d.cafe.consumo - d.cafe.teorico : null;

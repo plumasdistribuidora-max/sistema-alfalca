@@ -236,7 +236,7 @@ export default function DetalleReporte({ id, onCerrar }) {
   // haber contestado al revés no se pierde: cae abajo, entre las sueltas.
   const campos = (r.plantilla?.campos || [])
     .map(c => campoParaTurno(c, r.turno))
-    .filter(c => campoVisible(c, r.respuestas));
+    .filter(c => campoVisible(c, { ...r.respuestas, turno: r.turno }));
   const fotos  = r.adjuntos || [];
   const fotosDe = codigo => fotos.filter(a => a.campo_codigo === codigo);
   const Miniaturas = ({ lista }) => lista.length ? (

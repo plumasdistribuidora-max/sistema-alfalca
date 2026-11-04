@@ -377,7 +377,7 @@ function Documento({ r }) {
 
       cafe ? h(Bloque, {
         titulo: 'Café en grano',
-        sub: [cafe.manana && `${cafe.manana.usuario} entró con ${kg(cafe.manana.kg)}`, cafe.tarde && `${cafe.tarde.usuario} terminó con ${kg(cafe.tarde.kg)}`].filter(Boolean).join(' · '),
+        sub: [cafe.manana && `${cafe.manana.usuario} entró con ${kg(cafe.manana.kg)}`, cafe.ingreso > 0 && `llegaron ${kg(cafe.ingreso)}`, cafe.tarde && `${cafe.tarde.usuario} terminó con ${kg(cafe.tarde.kg)}`].filter(Boolean).join(' · '),
       },
         cafe.consumo == null
           ? h(Text, { style: { color: C.rojo } }, 'Falta un pesaje: sin los dos no se sabe cuánto se usó.')

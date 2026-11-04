@@ -117,6 +117,7 @@ function validar(campos, respuestas) {
       case 'moneda':
       case 'decimal':
         if (v === undefined || v === null || v === '' || isNaN(Number(v))) faltan.push(campo.label);
+        else if (campo.min !== undefined && Number(v) < campo.min) faltan.push(`${campo.label} — no puede ser menos de ${campo.min}`);
         break;
 
       case 'si_no':

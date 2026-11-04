@@ -203,6 +203,7 @@ function Control({ pendientes, version }) {
                       {f.turnos.length ? f.turnos.map(t => (
                         <span key={t.turno} className="mr-3">{t.turno.toLowerCase()} {t.usuario ? `(${t.usuario}) ` : ''}<strong className="text-stone-700">{kg(t.total)}</strong></span>
                       )) : '—'}
+                      {f.ingreso > 0 && <span className="mr-3">llegaron <strong className="text-stone-700">{kg(f.ingreso)}</strong></span>}
                       {f.turnos.length === 1 && <span className="text-amber-700">falta el de la {f.manana === null ? 'mañana' : 'tarde'}</span>}
                     </td>
                     <td className="py-2 pl-3 text-right tabular-nums text-xs text-stone-400">{f.sin_definir ? `${formatNumber(f.sin_definir)} u. · ${f.productos_sin_definir} prod.` : '—'}</td>
